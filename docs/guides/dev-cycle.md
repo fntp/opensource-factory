@@ -34,6 +34,13 @@
 - **验证**：admin `lint/build/test` 全绿（73 个用例）；edge `tsc` 通过；vps `pytest` 通过；
 - **遗留**：见 `docs/requirements/open-questions.md`（含参考项目 github_trending 仓库 404、推送凭据等问题）。
 
+### REQ-202610-0462 · 需求调研与完整规划（2026-10）
+
+- **范围**：项目完整规划（里程碑扩展至 M6–M9 + 常设打磨轨道）、需求池回填、资源规划（4G / 15G）、后续迭代排期；
+- **交付**：`docs/requirements/backlog.md`（需求池）、`docs/planning/roadmap.md`（扩展）、`docs/planning/resource-plan.md`（新增）、`docs/planning/task-planning.md`（排期）；
+- **验证**：三端检查（admin lint/build/test、edge typecheck、vps pytest）全绿；文档同步（索引 / 问答 / 周期）；
+- **遗留**：平台 keyId 39 修复仍待处理（Q7）；部署口径确认（Q9）。
+
 ### 后续周期（规划）
 
-- REQ 下一阶段：按 `planning/roadmap.md` 里程碑 M1 起推进（资产同步闭环）。
+- REQ 下一阶段：按 `planning/roadmap.md` 里程碑 M1 起推进（资产同步闭环），迭代排期见 `planning/task-planning.md`；需求池见 `requirements/backlog.md`。
