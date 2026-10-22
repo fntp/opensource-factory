@@ -28,6 +28,21 @@ def test_tasks_sync_eager_returns_202_with_task_id() -> None:
     assert body.get("taskId")
 
 
+def test_tasks_sync_starred_eager_returns_202_with_task_id() -> None:
+    with TestClient(app) as client:
+        resp = client.post("/api/tasks/sync-starred")
+    assert resp.status_code == 202
+    body = resp.json()
+    assert body.get("taskId")
+
+
+def test_repos_sync_starred_alias_returns_202() -> None:
+    with TestClient(app) as client:
+        resp = client.post("/api/repos/sync-starred")
+    assert resp.status_code == 202
+    assert resp.json().get("taskId")
+
+
 def test_repos_list_returns_200() -> None:
     with TestClient(app) as client:
         resp = client.get("/api/repos")
@@ -40,6 +55,36 @@ def test_trending_list_returns_200() -> None:
         resp = client.get("/api/trending", params={"platform": "github", "limit": 20})
     assert resp.status_code == 200
     assert isinstance(resp.json(), list)
+
+
+def test_task_status_exposes_progress_meta(monkeypatch) -> None:
+    import app.api.tasks as tasks_api
+
+    class _FakeResult:
+        state = "PROGRESS"
+        info = {
+            "phase": "starred",
+            "page": 2,
+            "pagesTotal": 5,
+            "fetched": 200,
+            "percent": 40,
+            "done": False,
+        }
+
+        def successful(self) -> bool:
+            return False
+
+        def failed(self) -> bool:
+            return False
+
+    monkeypatch.setattr(tasks_api.celery_app, "AsyncResult", lambda task_id: _FakeResult())
+    with TestClient(app) as client:
+        resp = client.get("/api/tasks/fake-id")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "progress"
+    assert body["progress"]["page"] == 2
+    assert body["progress"]["percent"] == 40
 
 
 def test_internal_token_enforced_when_configured(monkeypatch) -> None:

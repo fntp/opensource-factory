@@ -75,9 +75,10 @@ class TaskEnqueued(BaseModel):
 
 
 class TaskStatus(BaseModel):
-    """任务状态响应。"""
+    """任务状态响应（`PROGRESS` 时带 `progress` 快照）。"""
 
     taskId: str
-    status: str  # pending | started | success | failure
+    status: str  # pending | started | progress | success | failure
     result: Any = None
     error: Optional[str] = None
+    progress: Optional[dict[str, Any]] = None

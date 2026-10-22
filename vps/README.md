@@ -25,20 +25,21 @@ vps/
 │   ├── models.py             # 数据库模型（D1 表结构的本地镜像）
 │   ├── schemas.py            # Pydantic 出入参模型
 │   ├── services/             # 业务逻辑（单一职责，可独立单测）
-│   │   ├── github_service.py     # GitHub REST v3 异步客户端（分页、README base64 解码）
+│   │   ├── github_service.py     # GitHub REST v3 异步客户端（分页 / 限流 / 重试 / 进度）
+│   │   ├── sync.py               # Starred 全量同步编排与批量 upsert
 │   │   ├── trending_crawler.py   # GitHub Trending 解析/抓取 + Gitee 探索页（尽力而为）
 │   │   ├── readme.py             # README 清洗 + 技术栈启发式提取
 │   │   ├── embedding.py          # BGE-M3（懒加载）与确定性 hash 降级向量
 │   │   ├── summarizer.py         # Ollama → DeepSeek → 截断降级 的摘要生成
 │   │   └── recommender.py        # 余弦排序 + 中文推荐理由模板
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
-│   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
+│   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync(-starred)
 │   │   ├── trending.py           # GET /api/trending、POST /api/trending/crawl
 │   │   ├── recommend.py          # POST /api/recommend/query、POST /api/recommend/generate
 │   │   └── tasks.py              # /api/tasks/*（与边缘 Worker 的集成契约，X-Internal-Token 鉴权）
 │   └── tasks/                # Celery 任务（薄封装，调用 services + 落库）
 │       ├── celery_app.py         # Celery 应用与 beat 定时计划
-│       └── jobs.py               # sync / crawl / generate / daily_push 四个任务
+│       └── jobs.py               # sync / sync-starred / crawl / generate / daily_push 任务
 └── tests/                    # pytest（不访问网络）
 ```
 
@@ -95,11 +96,20 @@ pytest -q
 
 | 方法 | 路径 | 说明 | 返回 |
 | --- | --- | --- | --- |
-| POST | `/api/tasks/sync` | 入队 GitHub 仓库同步（自己的 + Starred） | `202 {"taskId": "..."}` |
+| POST | `/api/tasks/sync` | 入队 GitHub 仓库同步（自己的 + Starred 全量） | `202 {"taskId": "..."}` |
+| POST | `/api/tasks/sync-starred` | 入队 Starred 全量同步（`per_page` / `max_pages` 可选） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/crawl-trending` | 入队热榜抓取（`platform=github\|gitee\|all`，可选 `language`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/generate-recommendations` | 入队推荐生成（可选 `user_id`、`top_k`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/daily-push` | 入队每日推送准备（将 `new` 推荐标记为 `pushed`） | `202 {"taskId": "..."}` |
-| GET | `/api/tasks/{task_id}` | 查询任务状态（`pending/started/success/failure`） | `200 {"taskId","status","result"}` |
+| GET | `/api/tasks/{task_id}` | 查询任务状态（`pending/started/progress/success/failure`，进度见 `progress`） | `200 {"taskId","status","result","progress"}` |
+
+### Starred 全量同步（M1-05）
+
+- **分页**：默认 `per_page=100`，按 `Link` 响应头逐页跟进；`max_pages` 缺省表示不设上限（全量）；
+- **限流**：请求间隔默认 0.2s；额度耗尽（`X-RateLimit-Remaining: 0`）时等待 `X-RateLimit-Reset`，`Retry-After` 优先；
+- **重试**：网络错误 / 5xx / 429 指数退避（默认 3 次）；401 / 404 / 非限流 403 不重试；
+- **进度**：每页通过 Celery `PROGRESS` 上报 `{phase, page, pagesTotal, fetched, percent, done}`，
+  由 `GET /api/tasks/{task_id}` 的 `progress` 字段返回；抓取中断时已抓取部分仍会落库并返回 `partial: true`。
 
 约定：
 

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models import MyRepository
 from app.schemas import RepoOut, TaskEnqueued
-from app.tasks.jobs import sync_repositories
+from app.tasks.jobs import sync_repositories, sync_starred_repositories
 
 router = APIRouter(prefix="/api/repos", tags=["repos"])
 
@@ -38,4 +38,18 @@ def list_repos(
 )
 async def enqueue_repos_sync(include_starred: bool = Query(default=True)) -> TaskEnqueued:
     task = sync_repositories.delay(include_starred=include_starred)
+    return TaskEnqueued(taskId=task.id)
+
+
+@router.post(
+    "/sync-starred",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=TaskEnqueued,
+    summary="入队：Starred 全量同步（便捷别名）",
+)
+async def enqueue_repos_sync_starred(
+    per_page: int = Query(default=100, ge=1, le=100),
+    max_pages: int | None = Query(default=None, ge=1, le=10000),
+) -> TaskEnqueued:
+    task = sync_starred_repositories.delay(per_page=per_page, max_pages=max_pages)
     return TaskEnqueued(taskId=task.id)
