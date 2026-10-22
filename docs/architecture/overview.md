@@ -699,6 +699,27 @@ admin 设置 → 通知设置 → Telegram 查询 Bot
 - 所有查询 SQL 都带 `user_id`，未绑定会话不会读到任何用户数据；
 - 绑定码一次性使用，绑定成功 / 过期后即删除；重新绑定会替换该用户旧会话。
 
+### 3.35 外部收藏导入流（M9-03）
+
+```
+admin /import → 选择文件 / 粘贴内容（JSON / CSV / 书签 HTML）
+→ POST /api/import/preview（登录态；不写库）
+   ↳ 解析 + 规范化（URL → owner/repo、字段别名、标签拆分、文件内去重）
+   ↳ 读取 my_repositories.id + user_id 比对：
+      不存在 → new；本人或无归属 → update；他人 → conflict
+   ↳ 返回计数、最多 50 条样例、最多 100 条 issues
+→ 用户确认 → POST /api/import/execute（服务端重新解析同一份内容）
+   ↳ UPSERT my_repositories（空字段补齐、Star/Fork 取大、分类不覆盖）
+   ↳ 按需创建 categories；tags / repo_tags 复用或新建
+   ↳ 写 import_runs 审计计数（不保存文件内容）
+→ GET /api/import/history 展示最近导入
+```
+
+- 限制：内容 ≤ 2 MB、单次 ≤ 2000 条、每仓库 ≤ 20 个标签；
+- `my_repositories` 以 `owner/repo` 为全局主键，他人已收藏的仓库按冲突跳过（Q36）；
+- 纯解析逻辑位于 `edge/src/import/parse.ts`，路由只负责鉴权、比对与写库；详见
+  [data-import.md](../guides/data-import.md)。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -767,6 +788,9 @@ admin 设置 → 通知设置 → Telegram 查询 Bot
 | `/api/analysis/dependencies/refresh` | POST | 扫描当前用户仓库依赖清单（VPS 不可达返回 `status=unavailable`） |
 | `/api/export/knowledge/summary` | GET | 知识库导出统计（登录态；项目 / 摘要 / 分类 / 标签 / Star） |
 | `/api/export/knowledge` | GET | 生成知识库附件（`format` / `includeSummary` / `groupBy`，登录态） |
+| `/api/import/preview` | POST | 解析导入内容并返回统计 / 样例 / 问题（登录态；不写库） |
+| `/api/import/execute` | POST | 执行导入（JSON / CSV / 书签 HTML；UPSERT 仓库、分类、标签并写 `import_runs`） |
+| `/api/import/history` | GET | 当前用户最近导入记录（`limit` 1–50） |
 | `/api/tag-suggestions` | GET | 打标建议列表（`status=pending\|accepted\|dismissed\|all`、`repoId`、`limit`、`offset`；返回汇总） |
 | `/api/tag-suggestions/generate` | POST | 基于摘要生成建议（`repoIds?` / `limit?` / `perRepo?`；VPS 优先、本地规则兜底） |
 | `/api/tag-suggestions/accept` | POST | 采纳建议（`ids` 或 `repoId + tags`；写 `tags` / `repo_tags`） |

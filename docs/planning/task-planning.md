@@ -98,6 +98,7 @@
 | IT-0062 | M7-09 | Agent 工作流（自动整理 / 草稿生成） | M7-01~03 | ⏳ 待排期（平台 pending） |
 | IT-0063 | M7-10 | M7 验收与回顾（集成 M7-01~07 + 跨分支验收脚本 + 缺口登记） | IT-0054~0062 | ✅ 已完成（2026-10-22） |
 | IT-0064 | M8-04 | 快捷入口（Raycast / 快捷指令类）评估（6 平台加权评分 + M8-05 API 前置清单 + 报告 / 契约） | M8-05（契约基线先行） | ✅ 已完成（2026-10-22） |
+| IT-0065 | M9-03 | 数据导入（外部收藏迁移：JSON / CSV / 书签 HTML，预览后执行 + 冲突跳过 + `import_runs` 历史） | IT-0006（M1-05） | ✅ 已完成（2026-10-22） |
 
 > 说明：IT-0004 / IT-0005 在人工资源（Cloudflare 账号、OAuth App）就绪前，可先以 `wrangler --local` + 本地回调完成开发与验证；其余按需求池顺序滚动排期。
 
@@ -153,3 +154,4 @@
 | 2026-10-22 | 交付 | IT-0060 / M7-07 完成（REQ-202610-0966）：Rerank 精排（相关性 / 画像亲和 / 时效 / 动量 / 人气 / 健康度六路信号 + MMR 多样性），每日生成自动接入并落库精排明细；VPS 预览 / 应用 API、edge 代理与本地降级、admin「精排工作台」；计划见 `planning/plan-req-202610-0966-rerank.md` |
 | 2026-10-22 | 验收 | IT-0063 / M7-10 完成（REQ-202610-0969）：集成 M7-01~07 七个分支，M7 验收 14/14 PASS、2 项平台 pending 缺口登记；三端检查全绿（vps 532 / edge 180 / admin 224）；报告见 `planning/acceptance-m7.md` / `acceptance-m7-report.md` |
 | 2026-10-22 | 评估 | IT-0064 / M8-04 完成（REQ-202610-0973）：新增离线评估工具 `app.services.quick_entry_eval`（6 平台 × 8 维加权评分、M8-05 16 项 API 就绪度、分阶段路线），产出 `architecture/quick-entry-evaluation.md` 与 `assets/quick-entry-api-contract.json`；Raycast 4.10 首选、Apple 快捷指令 3.95 次选；M8-05 未落地前全部阻塞 |
+| 2026-10-22 | 交付 | IT-0065 / M9-03 数据导入（REQ-202610-0980）：edge 新增 `/api/import/preview|execute|history` 与 `import_runs`（migration 0022），支持 `openfactory.knowledge.v1` / `{items}` / 数组、CSV（逗号 / 制表符 / 分号）与 Netscape 书签 HTML（文件夹 → 分类）；预览后执行、文件内去重、他人收藏冲突跳过；admin `/import` 页面含统计 / 样例 / 问题列表 / 历史；计划见 `planning/plan-req-202610-0980-data-import.md`，指南见 `guides/data-import.md` |

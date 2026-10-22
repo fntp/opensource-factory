@@ -90,6 +90,7 @@ edge/
         ├── tech-stack.ts # /api/tech-stack（语言 / 框架聚合 + 关系图，只读 D1）
         ├── star-trends.ts # /api/star-trends（trending_snapshots 只读聚合 + 洞察）
         ├── export.ts     # /api/export/knowledge（Markdown / JSON / Obsidian 知识库导出）
+        ├── import.ts     # /api/import/*（外部收藏导入：预览 / 执行 / 历史）
         ├── monitoring.ts # /api/monitoring/*（总览 / 检查 / 告警确认 + /api/internal/analytics）
         ├── similar.ts    # /api/similar（相似项目：VPS 向量近邻 → D1 关键词兜底）
         ├── duplicates.ts # /api/duplicates/*（重复检测：VPS 规则 + 向量 → 本地兜底；按用户忽略）
@@ -280,6 +281,9 @@ npm run test:m2 -- --strict \
 | `GET /api/star-trends?days=&scope=&language=` | `StarTrendsResponse`（需登录）：`{scope, period, summary, series, topMovers, newEntries, languages, insights, generatedAt}`；`days` 1~365（默认 30），`scope=trending\|my`，`my` 只统计收藏仓库并返回 `portfolioRepos` / `coverage` |
 | `GET /api/export/knowledge/summary` | 导出统计（需登录）：`{totalRepos, withSummary, categoryCount, tagCount, totalStars, generatedAt}` |
 | `GET /api/export/knowledge?format=&includeSummary=&groupBy=` | 生成知识库附件（需登录）：`format=markdown\|json\|obsidian`，附件名见 `docs/guides/knowledge-export.md` |
+| `POST /api/import/preview` | 解析导入内容并返回新增 / 更新 / 冲突 / 无效统计与样例（需登录；不写库，≤2 MB / 2000 条） |
+| `POST /api/import/execute` | 执行导入：UPSERT `my_repositories`、创建分类 / 标签并记录 `import_runs`（需登录；冲突跳过） |
+| `GET /api/import/history?limit=10` | 当前用户最近导入记录（需登录；`limit` 1–50） |
 | `GET /api/monitoring/overview?days=7` | 监控总览（需登录）：`{status, generatedAt, edge, workers, workersError, vps, vpsError}`；合并 VPS 实时状态与 Workers 每日聚合，VPS 不可用时降级返回 Workers 部分 |
 | `POST /api/monitoring/check` | 触发 VPS 一次检查（需登录；VPS 未配置返回 503） |
 | `POST /api/monitoring/alerts/:id/ack` | 确认 VPS 告警（需登录） |

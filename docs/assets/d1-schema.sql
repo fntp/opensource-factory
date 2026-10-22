@@ -410,3 +410,23 @@ CREATE TABLE IF NOT EXISTS telegram_link_codes (
 
 CREATE INDEX IF NOT EXISTS idx_telegram_link_codes_user
     ON telegram_link_codes (user_id, expires_at DESC);
+
+-- ── 外部收藏导入记录（M9-03 / REQ-202610-0980）──────────────────
+CREATE TABLE IF NOT EXISTS import_runs (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    source_format TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'completed',
+    total INTEGER NOT NULL DEFAULT 0,
+    imported INTEGER NOT NULL DEFAULT 0,
+    updated INTEGER NOT NULL DEFAULT 0,
+    skipped INTEGER NOT NULL DEFAULT 0,
+    conflicts INTEGER NOT NULL DEFAULT 0,
+    invalid INTEGER NOT NULL DEFAULT 0,
+    categories_created INTEGER NOT NULL DEFAULT 0,
+    tags_created INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_import_runs_user
+    ON import_runs (user_id, created_at DESC);

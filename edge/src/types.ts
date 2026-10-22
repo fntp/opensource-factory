@@ -57,6 +57,23 @@ export interface SessionRow {
   expires_at: string;
 }
 
+/** 外部收藏导入记录（M9-03 / REQ-202610-0980）。 */
+export interface ImportRunRow {
+  id: string;
+  user_id: string;
+  source_format: string;
+  status: string;
+  total: number;
+  imported: number;
+  updated: number;
+  skipped: number;
+  conflicts: number;
+  invalid: number;
+  categories_created: number;
+  tags_created: number;
+  created_at: string;
+}
+
 /** 浏览器扩展令牌（M8-02）：只存 sha-256 摘要，明文仅创建时返回一次。 */
 export interface ExtensionTokenRow {
   id: string;

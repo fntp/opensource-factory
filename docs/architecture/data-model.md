@@ -655,6 +655,30 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 唯一索引 `telegram_links(user_id)` 保证一个用户只绑定一个会话；`telegram_link_codes(user_id, expires_at DESC)`
 便于生成新码时回收旧码。绑定码一次性使用，绑定成功 / 过期后删除；仅支持私聊，群组 / 频道的隐私问题见 open-questions Q35。
 
+### 3.26 `import_runs` 外部收藏导入记录（D1，迁移 `0022`）
+
+> M9-03：每次执行导入写一条计数记录，供 admin「最近导入」展示；不保存文件原文。
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | `imp_<base36 时间戳>_<12 位随机>` |
+| user_id TEXT | 执行导入的用户（所有查询按此隔离） |
+| source_format TEXT | `json` / `csv` / `html` |
+| status TEXT | `completed` / `failed`，默认 `completed` |
+| total INTEGER | 去重后的有效条目数 |
+| imported INTEGER | 新增仓库数 |
+| updated INTEGER | 更新本人已有仓库数 |
+| skipped INTEGER | 冲突 + 无效总数 |
+| conflicts INTEGER | 已被其他用户收藏而跳过的数量 |
+| invalid INTEGER | 无法解析 / 非仓库链接数量 |
+| categories_created INTEGER | 本次新建分类数 |
+| tags_created INTEGER | 本次新建标签数 |
+| created_at DATETIME | 执行时间（UTC） |
+
+索引 `(user_id, created_at DESC)` 支撑「最近导入」列表。导入本身直接写
+`my_repositories` / `categories` / `tags` / `repo_tags`，本表只做审计计数；
+`my_repositories` 的全局主键限制与跨用户冲突处理见 open-questions Q36。
+
 ## 4. 索引策略
 
 | 表 | 索引 | 用途 |
@@ -690,6 +714,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | category_suggestions | `(user_id, repo_id, category_name)` UNIQUE、`(user_id, status, score DESC)`、`(user_id, repo_id)` | 建议生成幂等 / 列表 / 单仓库查询 |
 | curated_reports | `(user_id, kind, period_start)` UNIQUE、`(user_id, generated_at DESC)` | 报告幂等 upsert / 归档列表 |
 | repo_updates | `(user_id, repo_id, version)` UNIQUE、`(user_id, status, detected_at DESC)`、`(user_id, type, detected_at DESC)` | 更新提醒幂等 / 列表与未读数 / 类型筛选（M7-04） |
+| import_runs | `(user_id, created_at DESC)` | 最近导入历史（M9-03） |
 
 ## 5. 向量数据（M3）
 
