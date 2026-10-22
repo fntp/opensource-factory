@@ -53,6 +53,11 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.jobs.daily_push",
         "schedule": crontab(minute=0, hour=9),
     },
+    # Bark 通道（M4-03）：09:05 投递 09:00 推送准备产生的 pushed 推荐
+    "send-bark-notifications-daily": {
+        "task": "app.tasks.jobs.send_bark_notifications",
+        "schedule": crontab(minute=5, hour=9),
+    },
     # Vectorize 索引增量同步：每 30 分钟一次（M3-03）；未配置 edge 时任务自动跳过
     "sync-vector-index-every-30m": {
         "task": "app.tasks.jobs.sync_vector_index",

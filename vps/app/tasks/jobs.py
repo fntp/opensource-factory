@@ -261,6 +261,37 @@ def daily_push(limit: int = 50) -> dict[str, Any]:
     return {"status": "ok", "pushed": pushed}
 
 
+@celery_app.task(name="app.tasks.jobs.send_bark_notifications")
+def send_bark_notifications(
+    user_id: Optional[str] = None,
+    limit: Optional[int] = None,
+) -> dict[str, Any]:
+    """Bark 通道（M4-03）：把 `pushed` 且未投递的推荐推送到 iOS。
+
+    参数为空时使用配置默认值（`BARK_MAX_PER_RUN`）；Bark 未启用 / 未配置 /
+    网络失败均由服务层降级为结构化结果，不向 Celery 抛错。
+    """
+    from app.services.bark import dispatch_bark_notifications
+
+    db = SessionLocal()
+    try:
+        result = dispatch_bark_notifications(db, user_id=user_id, limit=limit)
+    except Exception as exc:  # noqa: BLE001 - 任务失败降级返回结构化结果
+        logger.exception("Bark 推送任务失败")
+        return {"status": "error", "error": str(exc)[:300], "userId": user_id}
+    finally:
+        db.close()
+
+    logger.info(
+        "Bark 推送任务完成: status=%s candidates=%d sent=%d failed=%d",
+        result.get("status"),
+        result.get("candidates", 0),
+        result.get("sent", 0),
+        result.get("failed", 0),
+    )
+    return result
+
+
 @celery_app.task(bind=True, name="app.tasks.jobs.vectorize_repositories")
 def vectorize_repositories(
     self,

@@ -91,6 +91,9 @@ class Recommendation(Base):
         String(64), nullable=True, index=True
     )
     evaluated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Bark 通道投递标记（M4-03）：成功时间 / 最近一次失败原因
+    bark_sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    bark_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(
         String(32), nullable=False, default="new"

@@ -34,11 +34,13 @@ vps/
 │   │   ├── recommender.py        # 余弦排序 + 综合打分 + 中文推荐理由模板
 │   │   ├── recommendation_service.py # 每日推荐：画像 / 去重已收藏 / 阈值 / 落库
 │   │   ├── recommendation_eval.py # 每日评估：质量分 / 匹配度门槛 / 运行记录（M4-01）
+│   │   ├── bark.py               # Bark 推送通道：消息构建 / 投递 / 状态（M4-03）
 │   │   └── vector_sync.py        # Vectorize 批量 upsert / 重试 / 对账 / 孤儿清理
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
 │   │   ├── trending.py           # GET /api/trending、POST /api/trending/crawl
 │   │   ├── recommend.py          # /api/recommend/*（查询 / 生成 / 评估 / 合格推荐）
+│   │   ├── push.py               # /api/push/bark/*（状态 / 测试 / 投递入队）
 │   │   ├── vector_sync.py        # /api/vector-index/*（同步入队、状态、运行记录）
 │   │   ├── vectors.py            # GET /api/vectors/stats、runs、单条向量
 │   │   └── tasks.py              # /api/tasks/*（与边缘 Worker 的集成契约，X-Internal-Token 鉴权）
@@ -125,6 +127,16 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | `EVAL_QUALITY_THRESHOLD` | `0.55` | 每日评估质量分门槛 |
 | `EVAL_REPO_WEIGHT` | `0.7` | 质量分中仓库质量权重 |
 | `EVAL_REASON_WEIGHT` | `0.3` | 质量分中理由质量权重 |
+| `BARK_ENABLED` | `false` | Bark 推送通道总开关 |
+| `BARK_SERVER_URL` | `https://api.day.app` | Bark 服务地址（支持自建，自动拼接 `/push`） |
+| `BARK_DEVICE_KEY` | 空 | Bark device key（密钥，仅存 `.env`，接口不回显） |
+| `BARK_GROUP` | `OpenFactory` | 通知分组 |
+| `BARK_SOUND` | 空 | 提示音（如 `minuet.caf`），空则用 Bark 默认 |
+| `BARK_ICON` | 空 | 通知图标 URL |
+| `BARK_LEVEL` | `active` | `active` / `timeSensitive` / `passive` / `critical` |
+| `BARK_TIMEOUT_SECONDS` | `10` | 单次请求超时 |
+| `BARK_MAX_PER_RUN` | `5` | 单次任务最多投递条数 |
+| `BARK_DRY_RUN` | `false` | 试运行：只生成消息不发送、不写投递标记 |
 | `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/vector-index/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
 | `EMBEDDING_FORCE_FALLBACK` | `0` | 置 `1` 强制使用确定性 hash 向量（CI / 2G 预算紧张时） |
 | `VECTORIZE_BATCH_SIZE` | `32` | 向量化每批编码 / 提交条数（1~256） |
@@ -153,6 +165,9 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | GET | `/api/vector-index/status` | 本地向量覆盖率、状态分布与最近运行 | `200 {...}` |
 | GET | `/api/vector-index/runs?limit=20` | 最近同步运行记录 | `200 [...]` |
 | GET | `/api/vector-index/runs/{run_id}` | 单次运行详情 | `200 {...}` |
+| GET | `/api/push/bark/status` | Bark 通道状态与待投递 / 已投递 / 失败计数 | `200 {...}` |
+| POST | `/api/push/bark/test` | 同步发送 Bark 测试通知（需已配置） | `200 {"ok":true}` |
+| POST | `/api/push/bark/dispatch` | 入队 Bark 投递（可选 `user_id` / `limit`） | `202 {"taskId":"..."}` |
 
 Celery beat 每 30 分钟（`7,37` 分）自动执行一次增量同步；对账建议在低峰期手动触发。
 | GET | `/api/vectors/stats` | 向量覆盖率与最近运行 | `200` |
@@ -245,6 +260,39 @@ curl -sS -X POST 'http://127.0.0.1:8000/api/tasks/evaluate-recommendations?user_
 curl -sS 'http://127.0.0.1:8000/api/recommend/evaluations?limit=10'
 curl -sS 'http://127.0.0.1:8000/api/recommend/qualified?user_id=default'
 ```
+
+## Bark 推送通道（M4-03）
+
+Celery beat 每天 09:05 执行 `send_bark_notifications`，把 09:00 推送准备产生的
+`pushed` 推荐推送到 iOS Bark；与 M4-02 站内通知中心消费同一批推荐，互不阻塞：
+
+1. **范围**：`status='pushed'` 且 `bark_sent_at IS NULL` 的推荐，按质量分 / 综合分降序取前 `BARK_MAX_PER_RUN` 条；
+2. **消息**：标题为 `owner/name`；正文依次为项目简介、推荐理由、匹配度 / 语言 / 今日 Star；`url` 指向 GitHub；
+3. **幂等**：成功后写 `bark_sent_at` 并清空 `bark_error`；失败写 `bark_error`（截断 300 字符），保留待下次重试；
+4. **降级**：`BARK_ENABLED=false` 或 `BARK_DEVICE_KEY` 为空时任务直接 `skipped`；网络 / Bark 返回异常只记失败，不抛错；
+5. **dry-run**：`BARK_DRY_RUN=true` 时只返回消息预览，不发送、不写投递标记，便于先核对文案。
+
+```bash
+# 查看通道状态（不返回 device key）
+curl -sS 'http://127.0.0.1:8000/api/push/bark/status'
+
+# 发送测试通知（需在 .env 配置 BARK_ENABLED=true / BARK_DEVICE_KEY）
+curl -sS -X POST 'http://127.0.0.1:8000/api/push/bark/test' \
+  -H 'Content-Type: application/json' \
+  -H 'X-Internal-Token: <token>' \
+  -d '{"title":"OpenFactory 测试","body":"Bark 通道已联通"}'
+
+# 手动触发投递（可选 user_id / limit）
+curl -sS -X POST 'http://127.0.0.1:8000/api/push/bark/dispatch?limit=5' \
+  -H 'X-Internal-Token: <token>'
+```
+
+排障：
+
+- `status.configured=false`：检查 `BARK_DEVICE_KEY` 是否写入运行目录 `.env` 并重启 API / worker / beat；
+- `status.failed > 0` 且 `lastError` 为 `HTTP 401/403`：device key 失效或被服务端拒绝；
+- `lastError` 为 `请求失败：ConnectError`：VPS 到 Bark 服务网络不通（自建服务检查地址 / 防火墙）；
+- 重复收到同一条推送：确认 `bark_sent_at` 是否成功落库（SQLite 文件可写），极端崩溃窗口可能重复一次。
 
 ## 常用检查
 

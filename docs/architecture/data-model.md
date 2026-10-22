@@ -99,6 +99,8 @@ recommendations              （user_id 可空 = 全局推荐）
 | quality_detail TEXT | 评估明细 JSON（各分量、阈值、是否通过） |
 | evaluation_run_id TEXT | 最近一次评估运行 id |
 | evaluated_at DATETIME | 最近评估时间 |
+| bark_sent_at DATETIME | Bark 投递成功时间（M4-03；NULL = 待投递 / 投递失败） |
+| bark_error TEXT | 最近一次 Bark 投递失败原因（截断 300 字符，成功后清空） |
 | reason TEXT | 推荐理由（中文） |
 | based_on TEXT | 依据（JSON 数组，如 `["AI/LLM","Python"]`） |
 | status TEXT | `new` / `qualified` / `filtered` / `saved` / `dismissed` / `pushed` / `expired` |

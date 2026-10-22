@@ -109,7 +109,23 @@ Celery beat（每 30 分钟）或 POST /api/vector-index/sync
 对账（kind=reconcile）：POST /api/internal/vectors/check 比对缺失 / 过期向量并修复；
 可选 list + delete 清理孤儿（默认关闭）。
 ```
+
+### 3.7 Bark 推送流（M4-03）
+
 ```
+Celery beat（每天 09:05）或 POST /api/push/bark/dispatch
+→ 读取 recommendations：status='pushed' 且 bark_sent_at IS NULL
+  （可选 user_id 过滤，按 quality_score / score 降序取前 BARK_MAX_PER_RUN 条）
+→ 组装中文消息（标题 owner/name；正文 = 简介 + 推荐理由 + 匹配度 / 语言 / Star）
+→ POST {BARK_SERVER_URL}/push（device_key / title / body / group / level / url）
+→ 成功：写 bark_sent_at、清空 bark_error；失败：写 bark_error（截断 300 字符）留待重试
+
+降级：BARK_ENABLED=false 或 BARK_DEVICE_KEY 为空 → 任务 skipped；
+BARK_DRY_RUN=true → 只返回预览，不发送、不写标记；
+网络 / Bark 返回异常 → 单条失败不中断整批。
+```
+
+M4-02 站内通知中心与本通道消费同一批 `pushed` 推荐，彼此独立：站内通知失败不影响 Bark 投递，反之亦然。
 
 ## 4. 接口边界
 
@@ -146,6 +162,9 @@ Celery beat（每 30 分钟）或 POST /api/vector-index/sync
 | `/api/vectors/stats` | GET | 向量覆盖率与最近运行 |
 | `/api/vectors/runs/{runId}` | GET | 向量化运行详情 |
 | `/api/vectors/{source}/{repoId}` | GET | 单条仓库向量 |
+| `/api/push/bark/status` | GET | Bark 通道状态与待投递 / 已投递 / 失败计数 |
+| `/api/push/bark/test` | POST | 同步发送 Bark 测试通知 |
+| `/api/push/bark/dispatch` | POST | 入队 Bark 投递（`user_id` / `limit` 可选） |
 | `/healthz` | GET | 健康检查 |
 
 ### 4.3 vps → edge（Vectorize 内部接口，`X-Internal-Token`）
