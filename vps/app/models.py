@@ -88,6 +88,43 @@ class TrendingSnapshot(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
 
 
+class CrawlPageStat(Base):
+    """热榜抓取页面基线（按平台 + 页面记录上次成功条数）。"""
+
+    __tablename__ = "crawl_page_stats"
+
+    page_key: Mapped[str] = mapped_column(String(128), primary_key=True)  # 例如 "github:python"
+    platform: Mapped[str] = mapped_column(String(32), nullable=False, default="github")
+    page: Mapped[str] = mapped_column(String(64), nullable=False, default="all")  # all / 语言 slug
+    last_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_status_code: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    last_rows: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    last_parsed: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    last_ok_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    last_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+
+
+class CrawlAlert(Base):
+    """热榜抓取告警（页面结构变更 / 抓取失败 / 条数骤降）。"""
+
+    __tablename__ = "crawl_alerts"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    platform: Mapped[str] = mapped_column(String(32), nullable=False, default="github")
+    page: Mapped[str] = mapped_column(String(64), nullable=False, default="all")
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)  # fetch_failed | structure_change | count_drop | all_failed
+    severity: Mapped[str] = mapped_column(String(16), nullable=False, default="warning")  # warning | error
+    message: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    details: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON 文本
+    dedupe_key: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="open", index=True)  # open | acknowledged
+    occurrences: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    acknowledged_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
 class Category(Base):
     """分类（支持无限级父子层级），镜像 D1 `categories`。"""
 

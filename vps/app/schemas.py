@@ -76,6 +76,23 @@ class TrendingSnapshotDateOut(BaseModel):
     count: int
 
 
+class CrawlAlertOut(ORMModel):
+    """热榜抓取告警输出。"""
+
+    id: str
+    platform: str
+    page: str
+    kind: str
+    severity: str
+    message: str
+    details: Optional[str] = None
+    status: str
+    occurrences: int = 1
+    first_seen_at: Optional[datetime] = None
+    last_seen_at: Optional[datetime] = None
+    acknowledged_at: Optional[datetime] = None
+
+
 class RecommendQuery(BaseModel):
     """语义查询请求。"""
 

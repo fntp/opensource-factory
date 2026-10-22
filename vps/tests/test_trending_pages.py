@@ -5,6 +5,7 @@ import asyncio
 
 import httpx
 
+from app.services.crawl_guard import CrawlRetryPolicy
 from app.services.trending_crawler import (
     build_trending_url,
     crawl_github_trending,
@@ -116,7 +117,11 @@ def test_crawl_multi_pages_dedupes_and_reports_failed_page() -> None:
         transport = httpx.MockTransport(handler)
         async with httpx.AsyncClient(transport=transport) as client:
             return await crawl_github_trending_pages(
-                ["python", "rust"], client=client, delay_seconds=0
+                ["python", "rust"],
+                client=client,
+                delay_seconds=0,
+                # 该用例只验证多页合并 / 失败页上报，重试策略固定为单次避免干扰
+                policy=CrawlRetryPolicy(max_attempts=1, base_delay=0, max_delay=0),
             )
 
     result = asyncio.run(run())

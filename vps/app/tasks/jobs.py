@@ -182,10 +182,11 @@ def crawl_trending(
     """抓取热榜（GitHub Trending 全局页 + 多语言页，可选 Gitee）并 upsert。
 
     - 未指定 `language` 时按 `languages`（默认 `TRENDING_LANGUAGES`）抓取多语言页；
-    - 页面级失败不中断整轮，返回 `pages` / `failedPages` 供告警与排查；
+    - 容错（M2-02）：单页失败只记录并继续其他页，抓取 / 解析 / 告警任何环节都不抛异常；
     - `with_summary=True` 时，抓取完成后把本次变化的热榜仓库交给摘要队列，
       由 M2-04 的批量管线生成中文摘要并回写 D1。
     """
+    from app.services.crawl_guard import process_crawl_health
     from app.services.readme import extract_tech_stack
     from app.services.trending_crawler import (
         crawl_gitee_explore,
@@ -214,7 +215,17 @@ def crawl_trending(
             items.extend(result.get("items") or [])
             pages.extend(result.get("pages") or [])
         if platform in ("gitee", "all"):
-            items.extend(_run_async(crawl_gitee_explore()))
+            gitee_items = _run_async(crawl_gitee_explore())
+            items.extend(gitee_items)
+            pages.append(
+                {
+                    "platform": "gitee",
+                    "language": "gitee",
+                    "ok": True,
+                    "count": len(gitee_items),
+                    "error": None,
+                }
+            )
     except Exception as exc:  # noqa: BLE001 - 抓取失败降级返回空结果
         logger.exception("热榜抓取失败")
         return {"status": "error", "error": str(exc)[:300], "pages": pages}
@@ -316,6 +327,23 @@ def crawl_trending(
     if push_result.get("error"):
         snapshots["pushError"] = push_result["error"]
 
+    # M2-02：页面健康判定与告警（独立会话，任何异常都不影响抓取结果）
+    health: dict[str, Any] = {"created": 0, "deduplicated": 0, "alerts": []}
+    try:
+        health_db = SessionLocal()
+        try:
+            health = process_crawl_health(
+                health_db,
+                platform="github" if platform in ("github", "all", "") else platform,
+                pages=pages,
+                total_items=len(items),
+                settings=settings,
+            )
+        finally:
+            health_db.close()
+    except Exception:  # noqa: BLE001 - 告警失败不能影响抓取
+        logger.exception("热榜抓取告警处理失败（抓取结果已保留）")
+
     failed_pages = [page for page in pages if not page.get("ok", True)]
     if not items and failed_pages:
         status = "error"
@@ -339,11 +367,12 @@ def crawl_trending(
             logger.exception("热榜摘要任务入队失败")
 
     logger.info(
-        "热榜抓取完成: 共 %d 条（新增 %d / 更新 %d，失败页 %d），摘要任务 %s",
+        "热榜抓取完成: 共 %d 条（新增 %d / 更新 %d，失败页 %d，告警 %d），摘要任务 %s",
         len(items),
         created,
         updated,
         len(failed_pages),
+        health.get("created", 0),
         summary_task_id or "未入队",
     )
     return {
@@ -355,6 +384,7 @@ def crawl_trending(
         "pages": pages,
         "failedPages": failed_pages,
         "snapshots": snapshots,
+        "alerts": health,
         "summaryTaskId": summary_task_id,
     }
 

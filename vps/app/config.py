@@ -72,6 +72,17 @@ class Settings(BaseSettings):
     TRENDING_CRAWL_HOUR: int = Field(default=3, ge=0, le=23)
     TRENDING_CRAWL_MINUTE: int = Field(default=27, ge=0, le=59)
 
+    # 热榜抓取容错（M2-02）：仅对超时 / 429 / 5xx 重试
+    TRENDING_RETRY_MAX: int = Field(default=3, ge=1, le=10)
+    TRENDING_RETRY_BASE_DELAY: float = Field(default=1.0, ge=0, le=60)
+    TRENDING_RETRY_MAX_DELAY: float = Field(default=8.0, ge=0, le=120)
+    # 页面结构变更判定：条数低于上次成功条数的比例（基线至少 N 条才判定）
+    TRENDING_COUNT_DROP_RATIO: float = Field(default=0.3, ge=0, le=1)
+    TRENDING_COUNT_DROP_MIN_BASELINE: int = Field(default=5, ge=1)
+    # 告警去重窗口与可选 webhook（留空则只落库 + 日志）
+    TRENDING_ALERT_COOLDOWN_MINUTES: int = Field(default=360, ge=0)
+    TRENDING_ALERT_WEBHOOK_URL: str = ""
+
     # CORS（开发默认允许全部来源）
     CORS_ORIGINS: str = "*"
 

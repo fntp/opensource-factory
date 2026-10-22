@@ -28,6 +28,7 @@ vps/
 │   │   ├── github_service.py     # GitHub REST v3 异步客户端（分页、README base64 解码）
 │   │   ├── trending_crawler.py   # GitHub Trending 解析/抓取 + Gitee 探索页（尽力而为）
 │   │   ├── trending_snapshot.py  # 按日快照去重 / 排名 / 趋势字段 + D1 批量回写
+│   │   ├── crawl_guard.py        # 抓取重试、页面结构变更判定与告警落库（M2-02）
 │   │   ├── readme.py             # README 清洗 + 技术栈启发式提取
 │   │   ├── embedding.py          # BGE-M3（懒加载）与确定性 hash 降级向量
 │   │   ├── summarizer.py         # Ollama → DeepSeek → 截断降级 的摘要生成
@@ -101,6 +102,13 @@ pytest -q
 | `TRENDING_LANGUAGES` | `python,javascript,typescript,go,rust,java,cpp,c,php,ruby,swift,kotlin` | 每日抓取的 Trending 语言页（逗号分隔；留空只抓全局页） |
 | `TRENDING_CRAWL_HOUR` | `3` | 每日抓取小时（Asia/Shanghai，0–23） |
 | `TRENDING_CRAWL_MINUTE` | `27` | 每日抓取分钟（0–59） |
+| `TRENDING_RETRY_MAX` | `3` | 单页抓取最大尝试次数（仅超时 / 429 / 5xx 重试） |
+| `TRENDING_RETRY_BASE_DELAY` | `1.0` | 指数退避基数（秒） |
+| `TRENDING_RETRY_MAX_DELAY` | `8.0` | 单次重试等待上限（秒） |
+| `TRENDING_COUNT_DROP_RATIO` | `0.3` | 条数低于上次成功的比例时判定「骤降」 |
+| `TRENDING_COUNT_DROP_MIN_BASELINE` | `5` | 基线少于该条数不做骤降判定 |
+| `TRENDING_ALERT_COOLDOWN_MINUTES` | `360` | 同页同类告警去重窗口（分钟） |
+| `TRENDING_ALERT_WEBHOOK_URL` | 空 | 可选告警 webhook；留空只落库 + 日志 |
 
 完整清单见 `.env.example`。所有真实密钥只存在于本地 `.env`（git 忽略）或平台密钥托管，**不得提交**。
 
@@ -123,6 +131,7 @@ pytest -q
 - **鉴权**：当服务端设置 `INTERNAL_TOKEN` 时，请求必须携带请求头 `X-Internal-Token: <token>`，否则返回 `401`；
 - **异步语义**：任务接口一律 `202` + `{"taskId": ...}`（camelCase），由边缘侧轮询 `GET /api/tasks/{task_id}` 获取结果；
 - **直接查询接口**（供边缘回源或调试）：`GET /api/repos`、`GET /api/trending`、`GET /api/trending/snapshots`、`GET /api/trending/dates`、`GET /api/trending/history`、`POST /api/recommend/query`；
+- **抓取告警**：`GET /api/trending/alerts?status=open|acknowledged|all`、`POST /api/trending/alerts/{id}/ack`；
 - **数据契约**：本地表结构与 D1 Schema 保持一致（`my_repositories` / `trending_repositories` / `trending_snapshots` / `categories` 字段名与语义镜像），边缘侧按 `id`（`owner/repo`）对齐；
 - **降级语义**：外部依赖不可用时任务返回 `{"status": "skipped"|"error", ...}` 而不是失败抛错，边缘侧可安全重试。
 

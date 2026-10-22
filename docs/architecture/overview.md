@@ -68,13 +68,18 @@ admin「同步仓库」→ POST /api/sync（edge）→ POST {VPS}/api/tasks/sync
 ### 3.3 热榜流
 
 ```
-Celery beat 每日 → 抓取 GitHub Trending（全局页 + 多语言页）→ 清洗解析 / 去重
+Celery beat 每日 → 抓取 GitHub Trending（全局页 + 多语言页，超时/429/5xx 指数退避重试）
+→ 清洗解析 / 去重 → 页面健康判定（结构变更 / 条数骤降）→ 告警落库（可选 webhook）
 → upsert trending_repositories（最新状态）→ 写 trending_snapshots（按日快照 + 排名 / Star 增量 / 连续上榜等趋势字段）
 → 变化仓库入队 summarize_readmes（source=trending）→ 摘要 / 质量抽检
 → 配置 EDGE_BASE_URL 时批量回写 D1（快照 + 摘要）→ （M3）向量化 → 同步 Vectorize
 ```
 
 > 快照以 `(snapshot_date, repo_id)` 为主键，重复执行同一日任务幂等；趋势基线最多回看 7 天（M2-05）。
+
+容错约定：单页失败只记录并继续其他页；解析异常 / 页面改版降级为空列表 + 告警，
+任务不抛异常。告警写入本地 `crawl_alerts`，通过 `GET /api/trending/alerts` 查询、
+`POST /api/trending/alerts/{id}/ack` 确认。
 
 ### 3.4 推荐流（RAG）
 
@@ -97,6 +102,8 @@ Celery beat 每日 → 抓取 GitHub Trending（全局页 + 多语言页）→ �
 | `/api/trending` | GET | 热榜（`?date=` / `?language=` / `?limit=`；优先读按日快照，无快照回退最新状态，含 `summary`） |
 | `/api/trending/dates` | GET | 可用快照日期（倒序） |
 | `/api/trending/history` | GET | 单仓库历史（`?repoId=` / `?days=`） |
+| `/api/trending/alerts` | GET | 抓取告警（`?status=open\|acknowledged\|all`） |
+| `/api/trending/alerts/{id}/ack` | POST | 确认抓取告警 |
 | `/api/recommendations` | GET | 推荐列表 |
 | `/api/categories` | GET | 分类 + 标签 |
 | `/api/dashboard/stats` | GET | 仪表盘统计 |
