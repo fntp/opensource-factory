@@ -1,11 +1,13 @@
 # 部署基线（`deploy/`）
 
-> 对应需求：REQ-202610-0893（backlog M1-01 / IT-0003）、REQ-202610-0939（backlog M5-01）、REQ-202610-0940（M5-02）｜ 维护人：fntp
+> 对应需求：REQ-202610-0893（backlog M1-01 / IT-0003）、REQ-202610-0939（backlog M5-01）、REQ-202610-0940（M5-02）、REQ-202610-0945（backlog M5-07）｜ 维护人：fntp
 
 本目录把「本机运行」固化为可复现的基线：运行目录、Redis、systemd 进程管理与环境模板。
 完整说明见 [docs/guides/deployment-baseline.md](../docs/guides/deployment-baseline.md)；
 三端正式部署（Pages / Workers / 本机节点 / 域名 HTTPS）见
-[docs/guides/production-deployment.md](../docs/guides/production-deployment.md)。
+[docs/guides/production-deployment.md](../docs/guides/production-deployment.md)；
+部署 / 升级 / 回滚 / 故障处理统一 SOP 见
+[docs/guides/operations-runbook.md](../docs/guides/operations-runbook.md)。
 
 ## 1. 运行目录
 
@@ -78,6 +80,7 @@ deploy/scripts/doctor.sh                 # 目录 / 权限 / 环境文件自检
 deploy/scripts/doctor.sh --services      # 额外探测 Redis
 deploy/scripts/resource-budget.sh        # 4G / 15G 资源预算实测（M5-06）
 deploy/scripts/resource-budget.sh --json # JSON 输出，供监控 / 验收脚本消费
+deploy/scripts/ops-diagnose.sh           # 现场诊断包（版本 / 单元 / 日志 / 健康检查，只读）
 python3 -m app.runtime layout --home /opt/openfactory   # 在 vps/ 下执行
 journalctl -u openfactory-api -f         # 查看进程日志
 ```
@@ -142,3 +145,11 @@ sudo deploy/scripts/local-allinone.sh disable  # 回滚到混合架构
 配置项：`LOCAL_MODE` / `LOCAL_USER_ID` / `LOCAL_USER_LOGIN` / `LOCAL_USER_NAME` /
 `LOCAL_ADMIN_DIR`。安全边界、资源占用与验收清单见
 [docs/guides/local-allinone-deployment.md](../docs/guides/local-allinone-deployment.md)。
+
+## 8. 运维手册（M5-07）
+
+- 统一 SOP：[docs/guides/operations-runbook.md](../docs/guides/operations-runbook.md)
+  （日常巡检 / 部署 / 升级 / 回滚 / 故障处理 / 备份恢复 / 密钥轮换）；
+- 现场诊断：`deploy/scripts/ops-diagnose.sh --env-file /opt/openfactory/deploy.env`
+  生成只读诊断包（版本、systemd、日志尾部、健康检查、资源预算），输出目录 700、文件 600；
+- 发布前检查单与回滚决策矩阵见手册 §4–§7；故障分级与复盘模板见 §7.1 / §7.6。

@@ -5,7 +5,8 @@
 
 本文档把 OpenFactory 从「本机可跑」推进到「可重复、可自检、可回滚的生产部署」。
 部署资产在 [`deploy/`](../../deploy/README.md)，本机运行基线见
-[deployment-baseline.md](./deployment-baseline.md)。
+[deployment-baseline.md](./deployment-baseline.md)；升级、回滚与故障处理的完整 SOP 见
+[operations-runbook.md](./operations-runbook.md)。
 
 ## 1. 部署形态
 
@@ -192,7 +193,8 @@ deploy/scripts/smoke-test.sh --env-file /opt/openfactory/deploy.env --json
 | vps | 切回上一提交 → `deploy/scripts/deploy-vps.sh --skip-deps`（运行目录数据不变） |
 | 数据库 | D1 迁移不自动回滚；先在 staging 验证，必要时用 D1 导出恢复（M5-04） |
 
-回滚后必须重跑 `smoke-test.sh`。
+回滚后必须重跑 `smoke-test.sh`。完整回滚决策矩阵、数据库恢复步骤与回滚后验证清单见
+[operations-runbook.md](./operations-runbook.md) §6。
 
 ## 7. 密钥与安全清单
 
@@ -216,6 +218,9 @@ deploy/scripts/smoke-test.sh --env-file /opt/openfactory/deploy.env --json
 | CORS 报错 | `ALLOWED_ORIGIN` 与 admin 实际域名不一致（含协议 / 端口） |
 | Caddy 证书失败 | 域名未解析到本机、80 端口被占用、Cloudflare 代理开启但源站 80 不可达 |
 | VPS 任务不执行 | `systemctl status openfactory-worker`；Redis 是否 active；`.env` 的 `REDIS_URL` |
+
+完整的故障分级、排查步骤与复盘模板见 [operations-runbook.md](./operations-runbook.md) §7；
+现场信息采集使用 `deploy/scripts/ops-diagnose.sh --env-file /opt/openfactory/deploy.env`。
 
 ## 9. 当前执行状态（2026-10-22）
 
