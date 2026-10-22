@@ -30,6 +30,7 @@ import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_auth
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
 import { Route as AuthenticatedSettingsDisplayRouteImport } from './routes/_authenticated/settings/display'
 import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings/notifications'
+import { Route as AuthenticatedTagSuggestionsIndexRouteImport } from './routes/_authenticated/tag-suggestions/index'
 import { Route as AuthenticatedTrendingIndexRouteImport } from './routes/_authenticated/trending/index'
 import { Route as AuthenticatedTrendingOwnerNameRouteImport } from './routes/_authenticated/trending/$owner/$name'
 
@@ -149,6 +150,12 @@ const AuthenticatedSettingsNotificationsRoute =
     path: '/notifications',
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
+const AuthenticatedTagSuggestionsIndexRoute =
+  AuthenticatedTagSuggestionsIndexRouteImport.update({
+    id: '/tag-suggestions/',
+    path: '/tag-suggestions/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedTrendingIndexRoute =
   AuthenticatedTrendingIndexRouteImport.update({
     id: '/trending/',
@@ -183,6 +190,7 @@ export interface FileRoutesByFullPath {
   '/repos/': typeof AuthenticatedReposIndexRoute
   '/search/': typeof AuthenticatedSearchIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
+  '/tag-suggestions/': typeof AuthenticatedTagSuggestionsIndexRoute
   '/trending/': typeof AuthenticatedTrendingIndexRoute
   '/trending/$owner/$name': typeof AuthenticatedTrendingOwnerNameRoute
 }
@@ -206,6 +214,7 @@ export interface FileRoutesByTo {
   '/repos': typeof AuthenticatedReposIndexRoute
   '/search': typeof AuthenticatedSearchIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
+  '/tag-suggestions': typeof AuthenticatedTagSuggestionsIndexRoute
   '/trending': typeof AuthenticatedTrendingIndexRoute
   '/trending/$owner/$name': typeof AuthenticatedTrendingOwnerNameRoute
 }
@@ -232,6 +241,7 @@ export interface FileRoutesById {
   '/_authenticated/repos/': typeof AuthenticatedReposIndexRoute
   '/_authenticated/search/': typeof AuthenticatedSearchIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
+  '/_authenticated/tag-suggestions/': typeof AuthenticatedTagSuggestionsIndexRoute
   '/_authenticated/trending/': typeof AuthenticatedTrendingIndexRoute
   '/_authenticated/trending/$owner/$name': typeof AuthenticatedTrendingOwnerNameRoute
 }
@@ -258,6 +268,7 @@ export interface FileRouteTypes {
     | '/repos/'
     | '/search/'
     | '/settings/'
+    | '/tag-suggestions/'
     | '/trending/'
     | '/trending/$owner/$name'
   fileRoutesByTo: FileRoutesByTo
@@ -281,6 +292,7 @@ export interface FileRouteTypes {
     | '/repos'
     | '/search'
     | '/settings'
+    | '/tag-suggestions'
     | '/trending'
     | '/trending/$owner/$name'
   id:
@@ -306,6 +318,7 @@ export interface FileRouteTypes {
     | '/_authenticated/repos/'
     | '/_authenticated/search/'
     | '/_authenticated/settings/'
+    | '/_authenticated/tag-suggestions/'
     | '/_authenticated/trending/'
     | '/_authenticated/trending/$owner/$name'
   fileRoutesById: FileRoutesById
@@ -469,6 +482,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsNotificationsRouteImport
       parentRoute: typeof AuthenticatedSettingsRouteRoute
     }
+    '/_authenticated/tag-suggestions/': {
+      id: '/_authenticated/tag-suggestions/'
+      path: '/tag-suggestions'
+      fullPath: '/tag-suggestions/'
+      preLoaderRoute: typeof AuthenticatedTagSuggestionsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/trending/': {
       id: '/_authenticated/trending/'
       path: '/trending'
@@ -519,6 +539,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedRecommendIndexRoute: typeof AuthenticatedRecommendIndexRoute
   AuthenticatedReposIndexRoute: typeof AuthenticatedReposIndexRoute
   AuthenticatedSearchIndexRoute: typeof AuthenticatedSearchIndexRoute
+  AuthenticatedTagSuggestionsIndexRoute: typeof AuthenticatedTagSuggestionsIndexRoute
   AuthenticatedTrendingIndexRoute: typeof AuthenticatedTrendingIndexRoute
   AuthenticatedTrendingOwnerNameRoute: typeof AuthenticatedTrendingOwnerNameRoute
 }
@@ -533,6 +554,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedRecommendIndexRoute: AuthenticatedRecommendIndexRoute,
   AuthenticatedReposIndexRoute: AuthenticatedReposIndexRoute,
   AuthenticatedSearchIndexRoute: AuthenticatedSearchIndexRoute,
+  AuthenticatedTagSuggestionsIndexRoute: AuthenticatedTagSuggestionsIndexRoute,
   AuthenticatedTrendingIndexRoute: AuthenticatedTrendingIndexRoute,
   AuthenticatedTrendingOwnerNameRoute: AuthenticatedTrendingOwnerNameRoute,
 }

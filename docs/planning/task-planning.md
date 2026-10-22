@@ -79,6 +79,7 @@
 | IT-0042 | M5-08 | 安全审计（依赖漏洞扫描 / 配置检查 / 隐私边界复核） | IT-0035；M5-01 | ✅ 已完成（2026-10-22） |
 | IT-0043 | M5-09 | M5 验收与发布 v1.0（集成 M5-01~08 + 验收脚本 + `v1.0.0` 标签） | IT-0035~0042 | ✅ 已完成（2026-10-22） |
 | IT-0044 | M6-01 | 全文检索（README 全文镜像 + SQLite FTS5 trigram + 短词 LIKE 回退） | IT-0025；M1-12 | ✅ 已完成（2026-10-22） |
+| IT-0045 | M7-01 | 自动打标建议（摘要规则提取 + 人工确认 + tags / repo_tags 落库） | IT-0027（M2-04） | ✅ 已完成（2026-10-22） |
 
 > 说明：IT-0004 / IT-0005 在人工资源（Cloudflare 账号、OAuth App）就绪前，可先以 `wrangler --local` + 本地回调完成开发与验证；其余按需求池顺序滚动排期。
 
@@ -116,4 +117,5 @@
 | 2026-10-22 | 交付 | IT-0041 / M5-07 运维手册（REQ-202610-0945）：新增 `guides/operations-runbook.md`（部署 / 升级 / 回滚 / 故障处理 / 备份恢复 / 密钥轮换 SOP）与只读诊断脚本 `deploy/scripts/ops-diagnose.sh`，配套完整性测试；见 `planning/plan-req-202610-0945-operations-runbook.md` |
 | 2026-10-22 | 交付 | IT-0042 / M5-08 安全审计（REQ-202610-0946）：新增只读审计 CLI `vps/app/security_audit.py` + `deploy/scripts/security-audit.sh`（密钥 / 依赖 / 配置 / 响应头 / 隐私 11 项检查，支持 `--online` 与 `--strict` 门禁）；整改 Vitest dev 依赖漏洞、edge / VPS 安全响应头、CORS 安全默认；隐私边界清单与遗留风险见 `docs/guides/security-audit.md`；计划见 `plan-req-202610-0946-security-audit.md` |
 | 2026-10-22 | 验收 | IT-0043 / M5-09 完成（REQ-202610-0947）：集成 M5-01~08 八个分支，M5 验收 29/29 PASS，三端检查全绿（vps 421 / edge 61 / admin 117），发布 `v1.0.0`；报告见 `acceptance-m5.md` / `acceptance-m5-report.md` |
+| 2026-10-22 | 交付 | IT-0045 / M7-01 自动打标建议（REQ-202610-0960）：VPS 规则词表 + `POST /api/tag-suggestions/generate`，edge 建议表 / 列表 / 生成 / 采纳 / 忽略路由与 D1 迁移 `0013`，admin `/tag-suggestions` 分组确认页；计划见 `plan-req-202610-0960-auto-tagging.md` |
 | 2026-10-22 | 交付 | IT-0028 / M6-01 全文检索（REQ-202610-0948）：VPS `repo_readmes` 全文镜像 + FTS5 trigram 触发器同步、全文 / 状态 / 重建 API、每日补索引任务；edge 全文代理与用户过滤、admin 全文 / 语义切换与命中片段；计划见 `plan-req-202610-0948-fulltext-search.md` |

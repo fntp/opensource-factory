@@ -239,3 +239,26 @@ CREATE INDEX IF NOT EXISTS idx_rate_limit_counters_expires ON rate_limit_counter
 CREATE INDEX IF NOT EXISTS idx_login_attempts_ip_created ON login_attempts (ip_hash, created_at);
 CREATE INDEX IF NOT EXISTS idx_security_events_type_created ON security_events (event_type, created_at);
 CREATE INDEX idx_worker_metrics_date ON worker_metrics (metric_date);
+
+-- ── 自动打标建议（M7-01，迁移 0013）────────────────────────────
+CREATE TABLE IF NOT EXISTS tag_suggestions (
+    id TEXT PRIMARY KEY,                 -- 用户 + 仓库 + 标签的稳定哈希
+    user_id TEXT NOT NULL,
+    repo_id TEXT NOT NULL,
+    tag_name TEXT NOT NULL,
+    normalized_name TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'domain',  -- language / framework / domain / quality
+    score REAL NOT NULL DEFAULT 0,
+    reason TEXT,
+    evidence TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',   -- pending / accepted / dismissed
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tag_suggestions_unique
+    ON tag_suggestions (user_id, repo_id, normalized_name);
+CREATE INDEX IF NOT EXISTS idx_tag_suggestions_list
+    ON tag_suggestions (user_id, status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tag_suggestions_repo
+    ON tag_suggestions (user_id, repo_id, status);

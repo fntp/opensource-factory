@@ -39,7 +39,8 @@ edge/
 │   ├── 0010_notifications.sql  # 站内通知表 + 去重/列表索引（M4-02）
 │   ├── 0011_push_preferences.sql  # 推送偏好表（M4-06）
 │   ├── 0011_security_hardening.sql  # 限流 / 登录尝试 / 安全事件（M5-05）
-│   └── 0012_worker_metrics.sql  # Workers 请求指标按日聚合（M5-03）
+│   ├── 0012_worker_metrics.sql  # Workers 请求指标按日聚合（M5-03）
+│   └── 0013_tag_suggestions.sql  # 自动打标建议表 + 幂等/列表索引（M7-01）
 └── src/
     ├── index.ts          # Hono 入口：CORS、日志、/healthz、路由挂载、404/500
     ├── types.ts          # Env 绑定 + 数据库行 + API 响应实体
@@ -52,6 +53,7 @@ edge/
         ├── internal-trending.ts # /api/internal/trending/*（VPS 快照回写 / 保留清理）
         ├── recommend.ts  # /api/recommendations
         ├── categories.ts # /api/categories
+        ├── tag-suggestions.ts # /api/tag-suggestions（列表 / 生成 / 采纳 / 忽略）
         ├── dashboard.ts  # /api/dashboard/stats
         ├── notifications.ts  # /api/notifications + /api/internal/notifications
         ├── push-preferences.ts # /api/push-preferences + /api/internal/push-preferences
@@ -175,6 +177,10 @@ npm run test:m2 -- --strict \
 | --- | --- |
 | `GET /api/repos?q=&categoryId=` | `RepoItem[]`（会话用户自己的仓库；`q` 模糊匹配名称/描述/摘要，`categoryId` 过滤分类） |
 | `POST /api/repos/summaries` | 内部接口：VPS 批量回写 README 摘要，body `{items:[{repoId,summary}]}`，返回 `{total,updated,skipped}` |
+| `GET /api/tag-suggestions` | 打标建议列表（登录态；`status=pending\|accepted\|dismissed\|all`、`repoId`、`limit`、`offset`；返回 `summary` 汇总） |
+| `POST /api/tag-suggestions/generate` | 基于摘要生成建议（登录态；`repoIds?` / `limit?` / `perRepo?`；VPS 优先，本地规则兜底，返回 `source` / `saved`） |
+| `POST /api/tag-suggestions/accept` | 采纳建议（`ids` 或 `repoId + tags`；写 `tags` / `repo_tags`，已存在标签不重复计数） |
+| `POST /api/tag-suggestions/dismiss` | 忽略建议（`ids`；重复生成不覆盖 dismissed / accepted 状态） |
 | `GET /api/trending?date=&language=&limit=20` | `TrendingRepo[]`（公开；优先读按日快照，按 `rank` 升序，默认最近一天，可按日期 / 语言筛选；返回 `rank` / `rankChange` / `trend`，无快照时回退最新状态表，含 `summary`） |
 | `GET /api/trending/dates?limit=30` | `[{date, count}]`（可用快照日期，倒序） |
 | `GET /api/trending/languages?date=` | `{date, languages: [{language, count}]}`（指定日期的语言分布） |

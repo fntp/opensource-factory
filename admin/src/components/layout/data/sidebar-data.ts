@@ -10,6 +10,7 @@ import {
   Search,
   Settings,
   Sparkles,
+  Tags,
   User,
 } from 'lucide-react'
 import type { SidebarData } from '../types'
@@ -39,6 +40,7 @@ export const sidebarData: SidebarData = {
         { title: '热榜', url: '/trending', icon: Flame },
         { title: '推荐', url: '/recommend', icon: Sparkles },
         { title: '语义搜索', url: '/search', icon: Search },
+        { title: '打标建议', url: '/tag-suggestions', icon: Tags },
       ],
     },
     {
