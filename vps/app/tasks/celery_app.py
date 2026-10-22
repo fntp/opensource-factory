@@ -145,6 +145,14 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.jobs.cleanup_monitoring_logs",
         "schedule": crontab(minute=23, hour=4),
     },
+    # 本地镜像数据保留清理（M9-06）：每日 04:33
+    "cleanup-privacy-data-daily": {
+        "task": "app.tasks.jobs.cleanup_privacy_data",
+        "schedule": crontab(
+            minute=settings.PRIVACY_CLEANUP_MINUTE,
+            hour=settings.PRIVACY_CLEANUP_HOUR,
+        ),
+    },
     # README 全文索引补录（M6-01）：默认 04:47，为历史 / 新增仓库补齐 FTS 镜像
     "readme-fts-sync-daily": {
         "task": "app.tasks.jobs.sync_readmes",

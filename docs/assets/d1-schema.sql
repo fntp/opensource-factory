@@ -410,3 +410,17 @@ CREATE TABLE IF NOT EXISTS telegram_link_codes (
 
 CREATE INDEX IF NOT EXISTS idx_telegram_link_codes_user
     ON telegram_link_codes (user_id, expires_at DESC);
+
+-- ── 隐私审计（M9-06，迁移 0023）────────────────────────────────
+CREATE TABLE IF NOT EXISTS privacy_events (
+    id TEXT PRIMARY KEY,                 -- pe_ + 32 位随机 hex
+    event_type TEXT NOT NULL CHECK (event_type IN ('export', 'delete', 'retention_cleanup')),
+    actor_hash TEXT,                     -- sha256(user_id)；保留清理为 NULL
+    detail TEXT NOT NULL DEFAULT '{}',   -- JSON：策略版本 / 各表删除数 / 总数
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_privacy_events_type_created
+    ON privacy_events (event_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_privacy_events_actor_created
+    ON privacy_events (actor_hash, created_at DESC);

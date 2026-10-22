@@ -684,3 +684,21 @@ class ModelRouteConfig(Base):
     model_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     updated_by: Mapped[str] = mapped_column(String(64), nullable=False, default="admin")
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+
+
+class PrivacyEvent(Base):
+    """本地隐私审计事件（REQ-202610-0983 / M9-06）。
+
+    只记录事件类型、用户 id 哈希与聚合计数，不保存个人数据或令牌。
+    `delete` 由边缘删除账号后的本地镜像清理写入，`retention_cleanup` 由每日任务写入。
+    """
+
+    __tablename__ = "privacy_events"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    actor_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    detail: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=_utcnow, index=True
+    )

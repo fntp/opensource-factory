@@ -252,11 +252,19 @@ permissions / COOP 头，认证路径额外返回 `Cache-Control: no-store`。
 | `EMAIL_RETRY_BASE_SECONDS` | `0.5` | 重试指数退避基数 |
 | `EMAIL_DAILY_LIMIT` | `10` | 单封摘要最多包含的推荐数 |
 | `EMAIL_DIGEST_WINDOW_HOURS` | `24` | 摘要回溯窗口（小时） |
+| `PRIVACY_RETENTION_ENABLED` | `true` | M9-06 本地镜像保留清理总开关 |
+| `PRIVACY_RECOMMENDATION_RETENTION_DAYS` | `90` | 未收藏推荐保留天数 |
+| `PRIVACY_SAVED_RECOMMENDATION_RETENTION_DAYS` | `365` | 已收藏推荐保留天数 |
+| `PRIVACY_EVALUATION_RUN_RETENTION_DAYS` | `180` | 推荐评估运行记录保留天数 |
+| `PRIVACY_PUSH_EVENT_RETENTION_DAYS` | `180` | 推送事件账本保留天数 |
+| `PRIVACY_PUSH_DELIVERY_RETENTION_DAYS` | `365` | 推送 / 邮件 / Telegram 送达记录保留天数 |
+| `PRIVACY_EVENT_RETENTION_DAYS` | `365` | 隐私审计事件保留天数 |
+| `PRIVACY_CLEANUP_HOUR` / `PRIVACY_CLEANUP_MINUTE` | `4` / `33` | 每日清理时刻（Asia/Shanghai） |
 | `EMBEDDING_FORCE_FALLBACK` | `0` | 置 `1` 强制使用确定性 hash 向量（CI / 2G 预算紧张时） |
 | `VECTORIZE_BATCH_SIZE` | `32` | 向量化每批编码 / 提交条数（1~256） |
 | `VECTORIZE_MAX_PER_RUN` | `1000` | 单次向量化默认上限 |
 | `VECTORIZE_AUTO` | `1` | 同步 / 热榜抓取完成后自动入队增量向量化 |
-| `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/push/*`、`/api/notifications/*`、`/api/vector-index/*`、`/api/search/*`、`/api/duplicates/*`、`/api/repos/health*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
+| `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/push/*`、`/api/notifications/*`、`/api/vector-index/*`、`/api/search/*`、`/api/duplicates/*`、`/api/repos/health*`、`/api/privacy/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
 | `FTS_ENABLED` | `true` | README 全文检索开关 |
 | `FTS_DEFAULT_TOP_K` | `10` | 全文检索默认返回条数 |
 | `FTS_MAX_TOP_K` | `50` | 全文检索单次最大返回条数 |
@@ -448,6 +456,9 @@ cd vps
 | GET | `/api/trending/{owner}/{repo}` | 热榜详情（摘要 + 元信息；摘要回退 readme_summary → description → tech_stack） | `200 TrendingRepoDetail` / `404` |
 | GET | `/api/trending/retention` | 热榜保留策略状态（窗口 / 过期数 / SQLite 与归档占用） | `200 {...}` |
 | POST | `/api/trending/retention/cleanup` | 入队热榜归档与清理（`dryRun` / `retentionDays` / `archive`） | `202 {"taskId": "..."}` |
+| POST | `/api/privacy/purge-user` | 边缘删除账号后清理本地镜像（body `{userId, login?}`；幂等） | `200 {...}` |
+| GET | `/api/privacy/retention` | 本地保留配置、待清理计数与策略版本 | `200 {...}` |
+| POST | `/api/privacy/cleanup` | 立即执行本地保留清理（body `{dryRun?}`） | `200 {...}` |
 | POST | `/api/vector-index/sync` | 入队 Vectorize 同步（`mode=incremental\|full`、`scope=my\|trending\|all`、`limit`、`batchSize`） | `202 {"taskId","runId"}` |
 | POST | `/api/vector-index/reconcile` | 入队对账（`scope`、`repair`、`limit`；默认只检查不修复） | `202 {"taskId"}` |
 | GET | `/api/vector-index/status` | 本地向量覆盖率、状态分布与最近运行 | `200 {...}` |

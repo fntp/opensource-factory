@@ -1,5 +1,13 @@
 import { Outlet } from '@tanstack/react-router'
-import { Monitor, Bell, Palette, Puzzle, Wrench, UserCog } from 'lucide-react'
+import {
+  Monitor,
+  Bell,
+  Palette,
+  Puzzle,
+  ShieldCheck,
+  Wrench,
+  UserCog,
+} from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { Header } from '@/components/layout/header'
@@ -39,6 +47,11 @@ const sidebarNavItems = [
     title: 'Browser Extension',
     href: '/settings/extension',
     icon: <Puzzle size={18} />,
+  },
+  {
+    title: 'Privacy & Data',
+    href: '/settings/privacy',
+    icon: <ShieldCheck size={18} />,
   },
 ]
 

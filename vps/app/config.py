@@ -370,6 +370,22 @@ class Settings(BaseSettings):
         "uvicorn+app.main:app,celery+app.tasks.celery_app+worker,celery+beat,redis-server,ollama"
     )
 
+    # 数据保留与隐私（REQ-202610-0983 / M9-06）
+    # 本地镜像清理总开关；关闭后定时任务跳过，不影响边缘 D1 清理。
+    PRIVACY_RETENTION_ENABLED: bool = True
+    # 推荐记录：未收藏 / 已收藏分别保留
+    PRIVACY_RECOMMENDATION_RETENTION_DAYS: int = Field(default=90, ge=0, le=3650)
+    PRIVACY_SAVED_RECOMMENDATION_RETENTION_DAYS: int = Field(default=365, ge=0, le=3650)
+    # 评估运行记录 / 推送策略账本 / 推送送达记录
+    PRIVACY_EVALUATION_RUN_RETENTION_DAYS: int = Field(default=180, ge=0, le=3650)
+    PRIVACY_PUSH_EVENT_RETENTION_DAYS: int = Field(default=180, ge=0, le=3650)
+    PRIVACY_PUSH_DELIVERY_RETENTION_DAYS: int = Field(default=365, ge=0, le=3650)
+    # 隐私审计事件保留期
+    PRIVACY_EVENT_RETENTION_DAYS: int = Field(default=365, ge=0, le=3650)
+    # 每日清理时刻（Asia/Shanghai），默认 04:33，避开备份 / 热榜清理
+    PRIVACY_CLEANUP_HOUR: int = Field(default=4, ge=0, le=23)
+    PRIVACY_CLEANUP_MINUTE: int = Field(default=33, ge=0, le=59)
+
     # CORS（安全默认：仅本机管理后台 dev server；生产通过环境变量改为实际域名）
     CORS_ORIGINS: str = "http://localhost:5173"
 

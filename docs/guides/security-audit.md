@@ -44,7 +44,7 @@ python -m app.security_audit --root .. --json
 | `session-cookie` | 配置 | Cookie 必须含 `HttpOnly`、`SameSite=Lax`、HTTPS `Secure` | high |
 | `security-headers` | 配置 | edge 使用 `secureHeaders`；VPS 使用 `SecurityHeadersMiddleware` | high / medium |
 | `privacy-log` | 隐私 | 日志调用不得直接输出 email / token / cookie / authorization / password | high |
-| `privacy-lifecycle` | 隐私 | 用户数据导出 / 删除接口缺口（M9-06） | medium |
+| `privacy-lifecycle` | 隐私 | 数据主体导出 / 删除与保留期清理（M9-06） | medium |
 
 ## 3. 2026-10-22 基线结果
 
@@ -79,11 +79,14 @@ python -m app.security_audit --root .. --json
 
 | 数据 | 字段 / 位置 | 目的 | 保留期 | 备注 |
 | --- | --- | --- | --- | --- |
-| GitHub 账号 | `users.id/login/name/email/avatar_url`（D1） | 登录、展示、推荐归属 | 未定义，待 M9-06 | 仅 OAuth 获取；不采集密码 |
-| 会话 | `sessions.id`（token 的 sha-256）、`user_id`、`expires_at` | 登录态 | 30 天 | Cookie `HttpOnly; SameSite=Lax; Secure(HTTPS)` |
+| GitHub 账号 | `users.id/login/name/email/avatar_url`（D1） | 登录、展示、推荐归属 | 保留至账号删除（M9-06） | 仅 OAuth 获取；不采集密码 |
+| 会话 | `sessions.id`（token 的 sha-256）、`user_id`、`expires_at` | 登录态 | 过期即清理（最长 30 天） | Cookie `HttpOnly; SameSite=Lax; Secure(HTTPS)` |
 | 登录审计 | `login_attempts.ip_hash`、`outcome`、`reason` | 防暴力破解 | 30 天 | 只存 `sha256('login:'+IP)`，不存明文 IP |
 | 安全事件 | `security_events.actor_hash/detail` | 限流 / 令牌 / 清理审计 | 90 天 | 不含令牌明文 |
-| 推荐 | `recommendations.user_id`、`repo_id`、`score`、`reason` | 个性化推荐 | 未定义，待 M9-06 | 不含邮箱 / IP |
+| 推荐 | `recommendations.user_id`、`repo_id`、`score`、`reason` | 个性化推荐 | 未收藏 90 天 / 已收藏 365 天（M9-06） | 不含邮箱 / IP |
+| 站内通知 / 更新提醒 | `notifications` / `repo_updates` | 提醒 | 已读 180 天 / 未读 365 天 | 按用户隔离 |
+| 扩展令牌 | `extension_tokens.token_hash` | 扩展鉴权 | 有效期内；撤销后 30 天 | 只存 SHA-256，不存明文 |
+| 隐私审计 | `privacy_events`（D1 / VPS） | 导出 / 删除 / 清理审计 | 365 天 | 只存用户 id 哈希与聚合计数 |
 | 热榜快照 | `trending_snapshots` 等 | 趋势展示 | 90 天（`TRENDING_RETENTION_DAYS`） | 公开数据 |
 | 运行日志 | `logs/vps-api.log`（10MB × 5） | 排障 | 滚动覆盖 | 禁止打印 token / cookie / 邮箱明文 |
 
@@ -101,12 +104,15 @@ python -m app.security_audit --root .. --json
 - 不采集密码、支付信息、精确位置、通讯录；GitHub 邮箱仅用于账号展示；
 - 限流 / 登录审计只存哈希，不存明文 IP；
 - 日志未发现直接输出 token / cookie / 邮箱 / 原始 IP 的调用；
-- **缺口**：`users` / `recommendations` 尚无自动清理与数据主体导出 / 删除接口，按 M9-06 落地。
+- **已闭环（M9-06）**：`GET /api/privacy/export` 支持数据主体导出，
+  `DELETE /api/privacy/account` 支持账号删除，D1 与 VPS 均有每日保留清理；
+  完整保留期见 `guides/privacy-retention.md`。
 
 ## 6. 遗留风险与人工事项
 
 1. **Python 依赖未锁定**（medium）：`vps/requirements*.txt` 使用 `>=` 下限。建议生成 `requirements.lock`（`pip freeze` / `uv lock`）并在部署与 CI 使用锁定文件；本需求不强行锁定，避免牵动模型依赖。
-2. **用户数据生命周期**（medium）：导出 / 删除接口与保留期策略由 M9-06 承接。
+2. **用户数据生命周期**（已闭环）：M9-06 已交付导出 / 删除接口与自动保留清理；
+   备份中的历史副本仍按备份保留策略自然过期，需在隐私说明中如实告知。
 3. **在线扫描时效**：`npm audit` / `pip-audit` 依赖外网与漏洞库；CI 中作为补充门禁，离线静态检查仍为主。
 4. **运行配置审计**：部署机应定期执行 `security-audit.sh --runtime-env /opt/openfactory/.env --strict`；本仓库不含真实 `.env`。
 5. **真实 D1 / Worker 配置**：`edge/wrangler.toml` 的 `database_id` 仍为占位符，生产渲染后应复扫 `ALLOWED_ORIGIN` 与 `RATE_LIMIT_ENABLED`。

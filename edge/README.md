@@ -137,17 +137,19 @@ npm run test:m2 -- --strict \
 
 `test:m2` 会自动应用本地 D1 迁移、种入固定热榜数据集并启动 `wrangler dev`，覆盖 M2 列表 / 筛选 / 趋势 / 详情 / 收藏 / 摘要回写 / 快照 upsert / 保留清理 24 项断言。
 
-### 定时任务（M7-03）
+### 定时任务（M7-03 / M9-06）
 
-`wrangler.toml` 的 `[triggers]` 配置两条 UTC Cron：
+`wrangler.toml` 的 `[triggers]` 配置三条 UTC Cron：
 
 | Cron | 本地时间 | 任务 |
 | --- | --- | --- |
 | `30 23 * * 0` | 周一 07:30（Asia/Shanghai） | 生成上一个自然周的周报 |
 | `40 23 1 * *` | 每月 2 日 07:40（Asia/Shanghai） | 生成上一个自然月的月报 |
+| `20 3 * * *` | 每日 11:20（Asia/Shanghai） | 过期个人数据保留清理（M9-06） |
 
-`scheduled` handler 枚举 `users` 逐用户生成；重复触发按 `(user_id, kind, period_start)` 幂等 upsert。
+报告任务枚举 `users` 逐用户生成；重复触发按 `(user_id, kind, period_start)` 幂等 upsert。
 也可调用 `POST /api/internal/reports/generate`（`X-Internal-Token`）手动补跑。
+保留清理可通过 `POST /api/internal/privacy/cleanup` 手动触发，详见 `docs/guides/privacy-retention.md`。
 
 ## 部署步骤
 
@@ -209,6 +211,7 @@ npm run test:m2 -- --strict \
 | `TELEGRAM_WEBHOOK_SECRET` | **secret**（可选） | `setWebhook` 的 `secret_token`，用于校验 `X-Telegram-Bot-Api-Secret-Token` |
 | `TELEGRAM_BOT_USERNAME` | vars（可选） | Bot 用户名，用于生成 `t.me/<bot>?start=<code>` 深链 |
 | `TELEGRAM_API_BASE` | vars（可选） | Bot API 根地址，默认 `https://api.telegram.org`，可指向自建反代 |
+| `PRIVACY_*_RETENTION_DAYS` | vars（可选） | M9-06 保留期覆盖：推荐 / 通知 / 更新 / 审计等，默认值见 `src/privacy/policy.ts`，上限 3650 |
 
 ## 接口约定
 
@@ -303,6 +306,10 @@ npm run test:m2 -- --strict \
 | `POST /api/category-suggestions/generate` | body `{repoIds?, limit?, perRepo?, minScore?}`；返回 `{generatedAt,scanned,suggested,skipped,source}`；VPS 规则引擎失败时 edge 本地兜底 |
 | `POST /api/category-suggestions/accept` | body `{ids[]}` 或 `{repoId,categoryName}`；自动建分类并写回 `my_repositories.category_id`，返回 `{accepted,categoriesCreated,items}` |
 | `POST /api/category-suggestions/dismiss` | body `{ids[]}`；返回 `{dismissed}`，已忽略建议不会被重复生成覆盖 |
+| `GET /api/privacy/policy` | 公开：策略版本、保留期、数据主体权利与第三方出网点 |
+| `GET /api/privacy/export` | 登录态：导出当前用户全部个人数据（JSON 附件，不包含令牌哈希） |
+| `DELETE /api/privacy/account` | 登录态：删除账号，body 必须为 `{confirmation:"DELETE"}`；同批清理 15 张用户关联表并通知 VPS |
+| `POST /api/internal/privacy/cleanup` | 内部：立即执行 D1 保留清理（`X-Internal-Token`） |
 | `GET /healthz` | `{"status":"ok"}` |
 
 JSON 形状（前端契约，勿改字段名）：

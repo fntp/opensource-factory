@@ -6,7 +6,7 @@
  *       /api/sync、/api/internal/trending、/api/search、/api/similar、/api/duplicates、
  *       /api/tech-stack、/api/licenses、/api/internal/licenses、/api/analysis、/api/export、
  *       /api/tag-suggestions、/api/category-suggestions、/api/reports、
- *       /api/telegram（M8-03 Bot 查询入口）
+ *       /api/telegram（M8-03 Bot 查询入口）、/api/privacy（M9-06 数据保留与隐私）
  */
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -46,6 +46,8 @@ import modelRoutes from './routes/model-routes';
 import reportsRoutes, { internalReports, generateReportsForAllUsers } from './routes/reports';
 import repoUpdatesRoutes, { internalRepoUpdates } from './routes/repo-updates';
 import telegramRoutes from './routes/telegram';
+import privacyRoutes, { internalPrivacy } from './routes/privacy';
+import { cleanupExpiredData } from './privacy/cleanup';
 import {
   cleanupSecurityData,
   clientIpFromHeaders,
@@ -209,6 +211,8 @@ app.route('/api/internal/repo-updates', internalRepoUpdates);
 app.route('/api/extension', extensionRoutes);
 
 app.route('/api/telegram', telegramRoutes);
+app.route('/api/privacy', privacyRoutes);
+app.route('/api/internal/privacy', internalPrivacy);
 
 // 404
 app.notFound((c) =>
@@ -226,6 +230,8 @@ app.onError((err, c) => {
 // 每月 1 日 23:40 UTC = 2 日 07:40 Asia/Shanghai（汇总上一个自然月）。
 export const WEEKLY_REPORT_CRON = '30 23 * * 0';
 export const MONTHLY_REPORT_CRON = '40 23 1 * *';
+// 数据保留清理（M9-06）：每日 03:20 UTC = 11:20 Asia/Shanghai，避开抓取 / 推荐高峰。
+export const PRIVACY_CLEANUP_CRON = '20 3 * * *';
 
 export default {
   fetch(request: Request, env: Env, ctx: ExecutionContext): Response | Promise<Response> {
@@ -236,6 +242,14 @@ export default {
     env: Env,
     ctx: ExecutionContext
   ): Promise<void> {
+    if (controller.cron === PRIVACY_CLEANUP_CRON) {
+      ctx.waitUntil(
+        cleanupExpiredData(env.DB, new Date(), env).catch((err) =>
+          console.error('privacy retention cleanup failed:', err)
+        )
+      );
+      return;
+    }
     const kind = controller.cron === MONTHLY_REPORT_CRON ? 'monthly' : 'weekly';
     ctx.waitUntil(generateReportsForAllUsers(env.DB, kind, 'previous'));
   },

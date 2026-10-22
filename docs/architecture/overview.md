@@ -717,6 +717,25 @@ python -m app.quick_entry_eval report
 结论：M8-05 个人令牌与 `/api/v1/*` 落地前，所有快捷入口均被阻塞；
 本评估只定义契约与优先级，不替代 M8-05/06 的实现与验收。
 
+### 3.36 数据保留与隐私（M9-06 / REQ-202610-0983）
+
+```
+用户 → GET /api/privacy/policy        策略版本 / 保留期 / 权利 / 出网点
+     → GET /api/privacy/export        实时汇总个人数据 → JSON 附件 + privacy_events(export)
+     → DELETE /api/privacy/account    confirmation=DELETE
+                                      → D1 batch：15 张用户关联表 + privacy_events(delete) + users
+                                      → best-effort POST {VPS}/api/privacy/purge-user
+Worker Cron 20 3 * * * (UTC)          → D1 保留清理 → privacy_events(retention_cleanup)
+Celery beat 每日 04:33 (Asia/Shanghai) → VPS 本地镜像保留清理 → 本地 privacy_events
+```
+
+- 策略唯一事实来源：`edge/src/privacy/policy.ts`；VPS 侧为
+  `app/services/privacy_retention.py`；
+- 清理按保留期分组：未收藏 / 已收藏推荐、已读 / 未读通知与更新、评估运行、
+  推送事件 / 送达记录、审计事件等；
+- 删除账号后，`my_repositories` 等共享仓库镜像不删除（无 `user_id`，属于工作区数据）；
+- 完整保留期表与运维步骤见 [privacy-retention.md](../guides/privacy-retention.md)。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -727,6 +746,9 @@ python -m app.quick_entry_eval report
 | `/api/auth/github/callback` | GET | OAuth 回调（code → 会话） |
 | `/api/auth/me` | GET | 当前用户（未登录 401） |
 | `/api/auth/logout` | POST | 退出（204） |
+| `/api/privacy/policy` | GET | 隐私策略（公开：版本 / 保留期 / 权利 / 出网点） |
+| `/api/privacy/export` | GET | 导出当前用户个人数据（JSON 附件，需登录） |
+| `/api/privacy/account` | DELETE | 删除账号（`{confirmation:"DELETE"}`，需登录） |
 | `/api/repos` | GET | 仓库列表（`?q=` / `?categoryId=`，含 `summary` / `health`） |
 | `/api/repos/health` | GET | 当前用户仓库健康度列表与汇总（`?status=active\|attention\|stale\|archived\|unknown`） |
 | `/api/repos/health/refresh` | POST | 触发 VPS 刷新健康度（202；VPS 未配置时返回 accepted 提示） |
@@ -849,6 +871,9 @@ python -m app.quick_entry_eval report
 | `/api/tasks/{taskId}` | GET | 任务状态 |
 | `/api/trending/retention` | GET | 热榜保留策略状态（窗口 / 过期数 / 库与归档占用） |
 | `/api/trending/retention/cleanup` | POST | 入队热榜归档与清理（`?dryRun=` / `?retentionDays=` / `?archive=`） |
+| `/api/privacy/purge-user` | POST | 边缘删除账号后清理 VPS 本地镜像（`{userId, login?}`） |
+| `/api/privacy/retention` | GET | VPS 保留配置与待清理计数 |
+| `/api/privacy/cleanup` | POST | 立即执行 VPS 保留清理（`{dryRun?}`） |
 | `/api/internal/trending/snapshots` | POST | VPS → edge：批量 upsert 热榜快照（单批 ≤ 500，`X-Internal-Token`） |
 | `/api/internal/trending/retention` | GET | VPS → edge：D1 快照总数与最早 / 最新日期（`X-Internal-Token`） |
 | `/api/internal/trending/retention/cleanup` | POST | VPS → edge：按 `beforeDate` 删除过期快照（`X-Internal-Token`） |

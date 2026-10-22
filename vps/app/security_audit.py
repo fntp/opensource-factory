@@ -1063,13 +1063,16 @@ def check_privacy_boundary(ctx: AuditContext) -> list[Finding]:
                     )
                 )
 
-    # 保留期清单：security 数据由 edge 清理任务处理，业务 PII 尚无删除 / 导出接口（M9-06）。
+    # 保留期清单：M9-06 起由 edge D1 清理 + VPS 本地镜像清理共同执行。
     ctx.inventory["retention"] = [
-        "sessions: 30 天（edge auth.ts SESSION_TTL_SECONDS）",
+        "sessions: 过期即清理（edge auth.ts SESSION_TTL_SECONDS）",
         "login_attempts: 30 天（edge security cleanup）",
         "security_events: 90 天（edge security cleanup）",
+        "recommendations: 未收藏 90 天 / 已收藏 365 天（PRIVACY_*）",
+        "notifications / repo_updates: 已读 180 天 / 未读 365 天",
+        "privacy_events: 365 天（D1 + VPS）",
         "trending_snapshots: TRENDING_RETENTION_DAYS=90",
-        "users / recommendations: 未定义自动清理，待 M9-06",
+        "users: 保留至账号删除（GET /api/privacy/export / DELETE /api/privacy/account）",
     ]
     api_text = ""
     for path in (ctx.root / "vps" / "app" / "api").glob("*.py"):

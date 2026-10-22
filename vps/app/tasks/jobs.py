@@ -1423,3 +1423,22 @@ def analyze_dependencies(
         return {"status": "error", "error": str(exc)[:300]}
     finally:
         db.close()
+
+
+@celery_app.task(name="app.tasks.jobs.cleanup_privacy_data")
+def cleanup_privacy_data(dry_run: bool = False) -> dict[str, Any]:
+    """按保留期清理 VPS 本地镜像（M9-06）；失败降级为结构化返回值。"""
+    from app.services.privacy_retention import cleanup_expired_data
+
+    settings = get_settings()
+    if not settings.PRIVACY_RETENTION_ENABLED:
+        return {"status": "skipped", "reason": "privacy_retention_disabled"}
+
+    db = SessionLocal()
+    try:
+        return cleanup_expired_data(db, dry_run=dry_run)
+    except Exception as exc:  # noqa: BLE001 - 任务失败不阻塞后续调度
+        logger.exception("隐私保留清理失败")
+        return {"status": "error", "error": str(exc)[:300]}
+    finally:
+        db.close()
