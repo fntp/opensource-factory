@@ -42,6 +42,25 @@ def test_trending_list_returns_200() -> None:
     assert isinstance(resp.json(), list)
 
 
+def test_generate_recommendations_accepts_min_score() -> None:
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/tasks/generate-recommendations",
+            params={"top_k": 5, "min_score": 0.5},
+        )
+    assert resp.status_code == 202
+    assert resp.json().get("taskId")
+
+
+def test_generate_recommendations_rejects_invalid_min_score() -> None:
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/tasks/generate-recommendations",
+            params={"min_score": 1.5},
+        )
+    assert resp.status_code == 422
+
+
 def test_internal_token_enforced_when_configured(monkeypatch) -> None:
     import app.api.tasks as tasks_api
 

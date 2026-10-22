@@ -63,6 +63,9 @@ def query_recommend(payload: RecommendQuery, db: Session = Depends(get_db)) -> R
 async def enqueue_generate(
     user_id: str | None = Query(default=None),
     top_k: int = Query(default=20, ge=1, le=100),
+    min_score: float | None = Query(default=None, ge=0.0, le=1.0),
 ) -> TaskEnqueued:
-    task = generate_recommendations.delay(user_id=user_id, top_k=top_k)
+    task = generate_recommendations.delay(
+        user_id=user_id, top_k=top_k, min_score=min_score
+    )
     return TaskEnqueued(taskId=task.id)
