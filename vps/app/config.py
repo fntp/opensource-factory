@@ -262,6 +262,18 @@ class Settings(BaseSettings):
     # GitHub
     GITHUB_TOKEN: str = ""
 
+    # 项目健康度（M6-05）：最后提交 / issue 活跃 / 归档标记
+    REPO_HEALTH_ENABLED: bool = True
+    # 最后提交距今天数分档：≤ active 为活跃，≤ attention 为需关注，≤ stale 为停滞
+    REPO_HEALTH_ACTIVE_DAYS: int = Field(default=90, ge=1, le=3650)
+    REPO_HEALTH_ATTENTION_DAYS: int = Field(default=180, ge=1, le=3650)
+    REPO_HEALTH_STALE_DAYS: int = Field(default=365, ge=1, le=3650)
+    # 单次刷新最多处理的仓库数（GitHub API 配额保护）
+    REPO_HEALTH_MAX_PER_RUN: int = Field(default=200, ge=1, le=1000)
+    # 每日元数据刷新时刻（Asia/Shanghai）
+    REPO_HEALTH_HOUR: int = Field(default=6, ge=0, le=23)
+    REPO_HEALTH_MINUTE: int = Field(default=12, ge=0, le=59)
+
     # 热榜抓取：每日定时 + 多语言页（逗号分隔的 GitHub Trending language slug）
     TRENDING_LANGUAGES: str = (
         "python,javascript,typescript,go,rust,java,cpp,c,php,ruby,swift,kotlin"

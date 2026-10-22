@@ -98,6 +98,26 @@ def _ensure_sqlite_columns() -> None:
             except Exception:  # noqa: BLE001 - 补列失败不阻塞启动，任务会返回明确错误
                 logger.warning("推荐表补列失败（可手工迁移后重试）", exc_info=True)
 
+    if "my_repositories" in inspector.get_table_names():
+        existing = {column["name"] for column in inspector.get_columns("my_repositories")}
+        additions = {
+            # M6-05 项目健康度
+            "pushed_at": "DATETIME",
+            "updated_at": "DATETIME",
+            "open_issues_count": "INTEGER NOT NULL DEFAULT 0",
+            "archived": "BOOLEAN NOT NULL DEFAULT 0",
+            "disabled": "BOOLEAN NOT NULL DEFAULT 0",
+            "health_status": "TEXT",
+            "health_score": "INTEGER",
+            "health_checked_at": "DATETIME",
+        }
+        missing = {name: ddl for name, ddl in additions.items() if name not in existing}
+        if missing:
+            with engine.begin() as connection:
+                for name, ddl in missing.items():
+                    connection.execute(text(f"ALTER TABLE my_repositories ADD COLUMN {name} {ddl}"))
+            logger.info("my_repositories 已补齐列: %s", ", ".join(sorted(missing)))
+
 
 def _ensure_sqlite_indexes() -> None:
     """为既有 SQLite 库幂等补建检索索引（M1-12 / M6-01）。"""
@@ -108,6 +128,7 @@ def _ensure_sqlite_indexes() -> None:
         "CREATE INDEX IF NOT EXISTS idx_my_repositories_category_stars "
         "ON my_repositories (category_id, stars)",
     )
+
     with engine.begin() as conn:
         for statement in statements:
             conn.exec_driver_sql(statement)

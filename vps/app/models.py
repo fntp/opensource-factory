@@ -51,6 +51,15 @@ class MyRepository(Base):
     readme_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # VPS 大模型生成的项目摘要
     category_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)  # 关联分类 ID
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    # M6-05 项目健康度：GitHub 元数据 + 计算结果
+    pushed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)  # 最后 push 时间
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)  # GitHub 元数据更新时间
+    open_issues_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 未关闭 issue + PR
+    archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    disabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    health_status: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    health_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    health_checked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 
 class TrendingRepository(Base):

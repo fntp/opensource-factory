@@ -184,8 +184,11 @@ npm run test:m2 -- --strict \
 
 | 方法/路径 | 返回 |
 | --- | --- |
-| `GET /api/repos?q=&categoryId=` | `RepoItem[]`（会话用户自己的仓库；`q` 模糊匹配名称/描述/摘要，`categoryId` 过滤分类） |
+| `GET /api/repos?q=&categoryId=` | `RepoItem[]`（会话用户自己的仓库；`q` 模糊匹配名称/描述/摘要，`categoryId` 过滤分类；每项内嵌 `health`） |
 | `POST /api/repos/summaries` | 内部接口：VPS 批量回写 README 摘要，body `{items:[{repoId,summary}]}`，返回 `{total,updated,skipped}` |
+| `GET /api/repos/health?status=` | `{summary, items}`（当前用户仓库健康度；`status=active\|attention\|stale\|archived\|unknown` 可选） |
+| `POST /api/repos/health` | 内部接口：VPS 批量回写健康度，body `{items:[{repoId,status,score,lastPushAt,openIssues,archived,checkedAt}]}`，返回 `{total,updated,skipped}` |
+| `POST /api/repos/health/refresh` | 202 `{status:"queued",taskId}`；转发 VPS 刷新健康度，VPS 未配置时 `{status:"accepted",note}` |
 | `GET /api/trending?date=&language=&limit=20` | `TrendingRepo[]`（公开；优先读按日快照，按 `rank` 升序，默认最近一天，可按日期 / 语言筛选；返回 `rank` / `rankChange` / `trend`，无快照时回退最新状态表，含 `summary`） |
 | `GET /api/trending/dates?limit=30` | `[{date, count}]`（可用快照日期，倒序） |
 | `GET /api/trending/languages?date=` | `{date, languages: [{language, count}]}`（指定日期的语言分布） |

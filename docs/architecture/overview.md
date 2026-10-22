@@ -442,6 +442,24 @@ admin /tech-stack → GET /api/tech-stack（登录态）
 - `share` 以全部收藏仓库数为分母；覆盖率 = 语言或框架至少识别其一的仓库占比；
 - 图谱只保留 Top N 节点与两端均在图中的连线，长尾仍可在框架排行表中查看。
 
+### 3.15 项目健康度追踪（M6-05）
+
+```
+admin 仓库页「刷新健康度」POST /api/repos/health/refresh（edge，登录）
+→ edge 转发 VPS POST /api/repos/health/refresh（X-Internal-Token）
+→ Celery refresh_repo_health：按 id 或最久未检查顺序拉 GitHub GET /repos/{owner}/{repo}
+   ↳ 更新 VPS 镜像 pushed_at / updated_at / open_issues_count / archived / disabled
+   ↳ 计算 health_status / health_score / health_checked_at
+→ VPS 批量回写 POST {edge}/api/repos/health（X-Internal-Token）→ D1 my_repositories
+→ admin GET /api/repos 内嵌 health（edge 本地按 D1 字段计算，VPS 结果优先）
+```
+
+分档规则（默认值可通过 `REPO_HEALTH_*` 配置）：最后提交 ≤90 天为 `active`，≤180 天为
+`attention`，≤365 天为 `stale`；超过 365 天仍为 `stale` 但分数降到 20。归档直接 `archived`（0 分），
+GitHub 禁用强制 `stale` 且封顶 30 分，缺少 `pushed_at` 为 `unknown`。未关闭 issue / Star 比例
+≥50% 扣 20 分、≥20% 扣 10 分，只影响分数不影响状态；无 issue 加 5 分。VPS 每日 06:12
+（`REPO_HEALTH_HOUR/MINUTE`）自动刷新一批（默认 200 个），也可手动触发。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -452,7 +470,9 @@ admin /tech-stack → GET /api/tech-stack（登录态）
 | `/api/auth/github/callback` | GET | OAuth 回调（code → 会话） |
 | `/api/auth/me` | GET | 当前用户（未登录 401） |
 | `/api/auth/logout` | POST | 退出（204） |
-| `/api/repos` | GET | 仓库列表（`?q=` / `?categoryId=`，含 `summary`） |
+| `/api/repos` | GET | 仓库列表（`?q=` / `?categoryId=`，含 `summary` / `health`） |
+| `/api/repos/health` | GET | 当前用户仓库健康度列表与汇总（`?status=active\|attention\|stale\|archived\|unknown`） |
+| `/api/repos/health/refresh` | POST | 触发 VPS 刷新健康度（202；VPS 未配置时返回 accepted 提示） |
 | `/api/trending` | GET | 热榜（`?date=` / `?language=` / `?limit=`；优先读按日快照，返回 `rank` / `rankChange` / `trend` / `summary`，无快照回退最新状态） |
 | `/api/trending/dates` | GET | 可用快照日期（倒序） |
 | `/api/trending/languages` | GET | 指定日期的语言分布（`?date=`） |
@@ -495,6 +515,10 @@ admin /tech-stack → GET /api/tech-stack（登录态）
 | `/api/tasks/sync` | POST | 入队仓库同步（完成后自动排队摘要） |
 | `/api/tasks/summarize` | POST | 入队 README 摘要批量生成（`source=my\|trending\|all`） |
 | `/api/repos/summaries` | POST | 反向：VPS 批量回写摘要到 edge / D1 |
+| `/api/repos/health` | POST | 反向：VPS 批量回写健康度快照到 edge / D1（单批 ≤ 500） |
+| `/api/repos/health/refresh` | POST | 入队刷新仓库元数据与健康度（`repoIds` / `limit`） |
+| `/api/repos/health` | GET | 健康度列表与汇总（`?status=` / `limit` / `offset`） |
+| `/api/repos/{repo_id}/health` | GET | 单仓库健康度详情 |
 | `/api/trending/summaries` | POST | 反向：VPS 批量回写热榜摘要到 edge / D1 |
 | `/api/trending/summarize` | POST | 入队热榜摘要生成（`source=trending`） |
 | `/api/summaries/quality/samples` | GET | 抽检样本列表（按批次 / 来源 / 复核状态筛选） |

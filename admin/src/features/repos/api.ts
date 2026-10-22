@@ -1,4 +1,5 @@
-import { fetchWithFallback } from '@/lib/api'
+import { apiFetch, fetchWithFallback } from '@/lib/api'
+import { HEALTH_LABELS, type RepoHealth } from './health'
 
 export interface RepoItem {
   id: string
@@ -13,6 +14,23 @@ export interface RepoItem {
   tags: string[]
   updatedAt: string
   url: string
+  /** 项目健康度（M6-05，旧接口可能缺失） */
+  health?: RepoHealth
+}
+
+function mockHealth(
+  partial: Pick<RepoHealth, 'status' | 'score' | 'lastPushAt'> &
+    Partial<RepoHealth>
+): RepoHealth {
+  return {
+    label: HEALTH_LABELS[partial.status],
+    daysSincePush: null,
+    openIssues: 0,
+    archived: partial.status === 'archived',
+    reasons: [],
+    checkedAt: '2026-10-22T06:12:00Z',
+    ...partial,
+  }
 }
 
 export const MOCK_REPOS: RepoItem[] = [
@@ -27,6 +45,13 @@ export const MOCK_REPOS: RepoItem[] = [
     tags: ['资产', '推荐'],
     updatedAt: '2026-10-12',
     url: 'https://github.com/fntp/opensource-factory',
+    health: mockHealth({
+      status: 'active',
+      score: 100,
+      lastPushAt: '2026-10-12T09:00:00Z',
+      daysSincePush: 10,
+      reasons: ['最后提交于 10 天前', '当前没有未关闭 issue'],
+    }),
   },
   {
     id: '2',
@@ -39,6 +64,14 @@ export const MOCK_REPOS: RepoItem[] = [
     tags: ['LLM', '框架'],
     updatedAt: '2026-10-13',
     url: 'https://github.com/langchain-ai/langchain',
+    health: mockHealth({
+      status: 'active',
+      score: 100,
+      lastPushAt: '2026-10-13T08:00:00Z',
+      daysSincePush: 9,
+      openIssues: 320,
+      reasons: ['最后提交于 9 天前', '存在 320 个未关闭 issue / PR'],
+    }),
   },
   {
     id: '3',
@@ -51,6 +84,17 @@ export const MOCK_REPOS: RepoItem[] = [
     tags: ['组件', '设计'],
     updatedAt: '2026-10-12',
     url: 'https://github.com/shadcn-ui/ui',
+    health: mockHealth({
+      status: 'attention',
+      score: 70,
+      lastPushAt: '2026-06-20T12:00:00Z',
+      daysSincePush: 124,
+      openIssues: 410,
+      reasons: [
+        '最后提交于 124 天前',
+        '存在 410 个未关闭 issue / PR（占 Star 1%）',
+      ],
+    }),
   },
   {
     id: '4',
@@ -63,6 +107,13 @@ export const MOCK_REPOS: RepoItem[] = [
     tags: ['本地模型', '推理'],
     updatedAt: '2026-10-13',
     url: 'https://github.com/ollama/ollama',
+    health: mockHealth({
+      status: 'active',
+      score: 100,
+      lastPushAt: '2026-10-13T10:30:00Z',
+      daysSincePush: 9,
+      reasons: ['最后提交于 9 天前', '当前没有未关闭 issue'],
+    }),
   },
   {
     id: '5',
@@ -75,6 +126,13 @@ export const MOCK_REPOS: RepoItem[] = [
     tags: ['聊天', '应用'],
     updatedAt: '2026-10-11',
     url: 'https://github.com/lobehub/lobe-chat',
+    health: mockHealth({
+      status: 'archived',
+      score: 0,
+      lastPushAt: '2026-03-01T00:00:00Z',
+      archived: true,
+      reasons: ['仓库已归档，不再接收更新'],
+    }),
   },
   {
     id: '6',
@@ -87,6 +145,13 @@ export const MOCK_REPOS: RepoItem[] = [
     tags: ['API', '异步'],
     updatedAt: '2026-10-10',
     url: 'https://github.com/fastapi/fastapi',
+    health: mockHealth({
+      status: 'active',
+      score: 100,
+      lastPushAt: '2026-10-10T16:00:00Z',
+      daysSincePush: 12,
+      reasons: ['最后提交于 12 天前', '当前没有未关闭 issue'],
+    }),
   },
   {
     id: '7',
@@ -99,6 +164,13 @@ export const MOCK_REPOS: RepoItem[] = [
     tags: ['Vue', '框架'],
     updatedAt: '2026-10-12',
     url: 'https://github.com/vuejs/core',
+    health: mockHealth({
+      status: 'active',
+      score: 100,
+      lastPushAt: '2026-10-12T14:00:00Z',
+      daysSincePush: 10,
+      reasons: ['最后提交于 10 天前', '当前没有未关闭 issue'],
+    }),
   },
   {
     id: '8',
@@ -111,9 +183,35 @@ export const MOCK_REPOS: RepoItem[] = [
     tags: ['跨平台', 'Rust'],
     updatedAt: '2026-10-09',
     url: 'https://github.com/tauri-apps/tauri',
+    health: mockHealth({
+      status: 'stale',
+      score: 25,
+      lastPushAt: '2025-08-01T00:00:00Z',
+      daysSincePush: 447,
+      reasons: [
+        '最后提交于 447 天前',
+        '超过 180 天无提交，建议评估是否仍在使用',
+        '当前没有未关闭 issue',
+      ],
+    }),
   },
 ]
 
 export function fetchRepos(): Promise<RepoItem[]> {
   return fetchWithFallback<RepoItem[]>('/api/repos', MOCK_REPOS)
+}
+
+export interface RepoHealthRefreshResult {
+  status?: string
+  taskId?: string | null
+  note?: string
+}
+
+/** 触发 VPS 刷新仓库元数据与健康度（M6-05） */
+export function refreshRepoHealth(): Promise<RepoHealthRefreshResult> {
+  return apiFetch<RepoHealthRefreshResult>('/api/repos/health/refresh', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  })
 }

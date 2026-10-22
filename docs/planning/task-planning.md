@@ -123,3 +123,5 @@
 | 2026-10-22 | 交付 | IT-0045 / M6-02 完成（REQ-202610-0949）：相似项目向量近邻接口 + edge local→keyword 降级 + admin 详情页「看了又看」；计划见 `plan-req-202610-0949-similar-recommendations.md` |
 | 2026-10-22 | 交付 | IT-0046 / M6-03 完成（REQ-202610-0950）：VPS 重复检测（地址 / 名称 / 简介 / 向量复核 + 合并建议）、edge 扫描与按用户忽略（migration 0013）、admin 重复检测页；计划见 `plan-req-202610-0950-duplicate-detection.md` |
 | 2026-10-22 | 交付 | IT-0047 / M6-04 技术栈图谱（REQ-202610-0951）：新增 edge `GET /api/tech-stack`（D1 只读聚合，语言归一 + 标签 / 简介启发式框架识别）与 admin `/tech-stack` 页面（KPI、SVG 径向关系图、语言条形榜、框架排行、组合洞察、空状态）；计划见 `planning/plan-req-202610-0951-tech-stack-graph.md` |
+
+| 2026-10-22 | 交付 | IT-0048 / M6-05 项目健康度（REQ-202610-0952）：VPS 拉取 pushed_at / issue / 归档字段并计算健康度，每日任务 + 手动刷新回写 D1；edge 本地兜底计算与健康度接口；admin 仓库页汇总、筛选、徽章与刷新按钮；计划见 `planning/plan-req-202610-0952-repo-health-tracking.md` |

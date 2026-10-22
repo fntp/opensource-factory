@@ -1,13 +1,22 @@
 """仓库接口：列表查询与同步入队。"""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from app.api.tasks import require_internal_token
 from app.db import get_db
 from app.models import MyRepository
-from app.schemas import RepoOut, TaskEnqueued
+from app.schemas import (
+    RepoHealthListOut,
+    RepoHealthOut,
+    RepoHealthRefreshRequest,
+    RepoOut,
+    TaskEnqueued,
+)
+from app.services.repo_health import normalize_status, snapshot_for_row, summarize_health
+from app.tasks.jobs import refresh_repo_health as refresh_repo_health_task
 from app.tasks.jobs import summarize_readmes, sync_repositories
 
 router = APIRouter(prefix="/api/repos", tags=["repos"])
@@ -28,6 +37,87 @@ def list_repos(
         like = f"%{q.strip()}%"
         stmt = stmt.where(or_(MyRepository.name.like(like), MyRepository.description.like(like)))
     return list(db.execute(stmt).scalars().all())
+
+
+@router.get(
+    "/health",
+    response_model=RepoHealthListOut,
+    dependencies=[Depends(require_internal_token)],
+    summary="项目健康度列表与汇总（M6-05）",
+)
+def list_repo_health(
+    db: Session = Depends(get_db),
+    status_filter: str | None = Query(
+        default=None,
+        alias="status",
+        pattern="^(active|attention|stale|archived|unknown)$",
+        description="按健康度状态过滤",
+    ),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> RepoHealthListOut:
+    rows = list(
+        db.execute(
+            select(MyRepository).order_by(MyRepository.stars.desc(), MyRepository.id.asc())
+        )
+        .scalars()
+        .all()
+    )
+    all_items = [
+        snapshot_for_row(row).to_dict(
+            repo_id=row.id,
+            name=row.name,
+            html_url=row.html_url,
+            language=row.language,
+            stars=row.stars,
+            checked_at=row.health_checked_at,
+        )
+        for row in rows
+    ]
+    summary = summarize_health(all_items)
+    filtered = (
+        [item for item in all_items if normalize_status(item.get("status")) == status_filter]
+        if status_filter
+        else all_items
+    )
+    return RepoHealthListOut(summary=summary, items=filtered[offset : offset + limit])
+
+
+@router.get(
+    "/{repo_id:path}/health",
+    response_model=RepoHealthOut,
+    dependencies=[Depends(require_internal_token)],
+    summary="单仓库健康度（M6-05）",
+)
+def get_repo_health(repo_id: str, db: Session = Depends(get_db)) -> RepoHealthOut:
+    row = db.get(MyRepository, repo_id)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="repository not found")
+    return RepoHealthOut(
+        **snapshot_for_row(row).to_dict(
+            repo_id=row.id,
+            name=row.name,
+            html_url=row.html_url,
+            language=row.language,
+            stars=row.stars,
+            checked_at=row.health_checked_at,
+        )
+    )
+
+
+@router.post(
+    "/health/refresh",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=TaskEnqueued,
+    dependencies=[Depends(require_internal_token)],
+    summary="入队：刷新仓库元数据并重算健康度（M6-05）",
+)
+async def enqueue_repo_health_refresh(payload: RepoHealthRefreshRequest) -> TaskEnqueued:
+    task = refresh_repo_health_task.delay(
+        repo_ids=payload.repoIds or None,
+        limit=payload.limit,
+    )
+    return TaskEnqueued(taskId=task.id)
 
 
 @router.post(
