@@ -8,6 +8,10 @@ import {
   SidebarRail,
 } from '@/components/ui/sidebar'
 import { fetchUnreadCount, formatUnreadBadge } from '@/features/notifications/api'
+import {
+  fetchRepoUpdateUnreadCount,
+  formatRepoUpdateBadge,
+} from '@/features/repo-updates/api'
 import { useAuthStore } from '@/stores/auth-store'
 import { sidebarData } from './data/sidebar-data'
 import { NavGroup } from './nav-group'
@@ -27,12 +31,22 @@ export function AppSidebar() {
   })
   const unreadBadge = formatUnreadBadge(unreadData?.unread ?? 0)
 
+  const { data: updateUnreadData } = useQuery({
+    queryKey: ['repo-updates', 'unread-count'],
+    queryFn: fetchRepoUpdateUnreadCount,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  })
+  const updateUnreadBadge = formatRepoUpdateBadge(updateUnreadData?.unread ?? 0)
+
   const navGroups = sidebarData.navGroups.map((group) => ({
     ...group,
     items: group.items.map((item) =>
       item.url === '/notifications'
         ? { ...item, badge: unreadBadge ?? undefined }
-        : item
+        : item.url === '/updates'
+          ? { ...item, badge: updateUnreadBadge ?? undefined }
+          : item
     ),
   }))
 

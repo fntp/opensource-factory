@@ -34,6 +34,7 @@ import { Route as AuthenticatedSettingsDisplayRouteImport } from './routes/_auth
 import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings/notifications'
 import { Route as AuthenticatedTechStackIndexRouteImport } from './routes/_authenticated/tech-stack/index'
 import { Route as AuthenticatedTrendingIndexRouteImport } from './routes/_authenticated/trending/index'
+import { Route as AuthenticatedUpdatesIndexRouteImport } from './routes/_authenticated/updates/index'
 import { Route as AuthenticatedTrendingOwnerNameRouteImport } from './routes/_authenticated/trending/$owner/$name'
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
@@ -176,6 +177,12 @@ const AuthenticatedTrendingIndexRoute =
     path: '/trending/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedUpdatesIndexRoute =
+  AuthenticatedUpdatesIndexRouteImport.update({
+    id: '/updates/',
+    path: '/updates/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedTrendingOwnerNameRoute =
   AuthenticatedTrendingOwnerNameRouteImport.update({
     id: '/trending/$owner/$name',
@@ -208,6 +215,7 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/tech-stack/': typeof AuthenticatedTechStackIndexRoute
   '/trending/': typeof AuthenticatedTrendingIndexRoute
+  '/updates/': typeof AuthenticatedUpdatesIndexRoute
   '/trending/$owner/$name': typeof AuthenticatedTrendingOwnerNameRoute
 }
 export interface FileRoutesByTo {
@@ -234,6 +242,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/tech-stack': typeof AuthenticatedTechStackIndexRoute
   '/trending': typeof AuthenticatedTrendingIndexRoute
+  '/updates': typeof AuthenticatedUpdatesIndexRoute
   '/trending/$owner/$name': typeof AuthenticatedTrendingOwnerNameRoute
 }
 export interface FileRoutesById {
@@ -263,6 +272,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/tech-stack/': typeof AuthenticatedTechStackIndexRoute
   '/_authenticated/trending/': typeof AuthenticatedTrendingIndexRoute
+  '/_authenticated/updates/': typeof AuthenticatedUpdatesIndexRoute
   '/_authenticated/trending/$owner/$name': typeof AuthenticatedTrendingOwnerNameRoute
 }
 export interface FileRouteTypes {
@@ -292,6 +302,7 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/tech-stack/'
     | '/trending/'
+    | '/updates/'
     | '/trending/$owner/$name'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -318,6 +329,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tech-stack'
     | '/trending'
+    | '/updates'
     | '/trending/$owner/$name'
   id:
     | '__root__'
@@ -346,6 +358,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/'
     | '/_authenticated/tech-stack/'
     | '/_authenticated/trending/'
+    | '/_authenticated/updates/'
     | '/_authenticated/trending/$owner/$name'
   fileRoutesById: FileRoutesById
 }
@@ -536,6 +549,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTrendingIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/updates/': {
+      id: '/_authenticated/updates/'
+      path: '/updates'
+      fullPath: '/updates/'
+      preLoaderRoute: typeof AuthenticatedUpdatesIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/trending/$owner/$name': {
       id: '/_authenticated/trending/$owner/$name'
       path: '/trending/$owner/$name'
@@ -583,6 +603,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSearchIndexRoute: typeof AuthenticatedSearchIndexRoute
   AuthenticatedTechStackIndexRoute: typeof AuthenticatedTechStackIndexRoute
   AuthenticatedTrendingIndexRoute: typeof AuthenticatedTrendingIndexRoute
+  AuthenticatedUpdatesIndexRoute: typeof AuthenticatedUpdatesIndexRoute
   AuthenticatedTrendingOwnerNameRoute: typeof AuthenticatedTrendingOwnerNameRoute
 }
 
@@ -600,6 +621,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSearchIndexRoute: AuthenticatedSearchIndexRoute,
   AuthenticatedTechStackIndexRoute: AuthenticatedTechStackIndexRoute,
   AuthenticatedTrendingIndexRoute: AuthenticatedTrendingIndexRoute,
+  AuthenticatedUpdatesIndexRoute: AuthenticatedUpdatesIndexRoute,
   AuthenticatedTrendingOwnerNameRoute: AuthenticatedTrendingOwnerNameRoute,
 }
 

@@ -274,6 +274,13 @@ class Settings(BaseSettings):
     REPO_HEALTH_HOUR: int = Field(default=6, ge=0, le=23)
     REPO_HEALTH_MINUTE: int = Field(default=12, ge=0, le=59)
 
+    # 收藏项目更新提醒（M7-04）：每日扫描 GitHub Release / Tag
+    REPO_UPDATES_ENABLED: bool = True
+    REPO_UPDATES_MAX_PER_RUN: int = Field(default=200, ge=1, le=1000)
+    REPO_UPDATES_INCLUDE_PRERELEASE: bool = False
+    REPO_UPDATES_HOUR: int = Field(default=6, ge=0, le=23)
+    REPO_UPDATES_MINUTE: int = Field(default=37, ge=0, le=59)
+
     # 热榜抓取：每日定时 + 多语言页（逗号分隔的 GitHub Trending language slug）
     TRENDING_LANGUAGES: str = (
         "python,javascript,typescript,go,rust,java,cpp,c,php,ruby,swift,kotlin"

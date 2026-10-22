@@ -13,10 +13,12 @@ from app.schemas import (
     RepoHealthOut,
     RepoHealthRefreshRequest,
     RepoOut,
+    RepoUpdatesScanRequest,
     TaskEnqueued,
 )
 from app.services.repo_health import normalize_status, snapshot_for_row, summarize_health
 from app.tasks.jobs import refresh_repo_health as refresh_repo_health_task
+from app.tasks.jobs import scan_repo_updates as scan_repo_updates_task
 from app.tasks.jobs import summarize_readmes, sync_repositories
 
 router = APIRouter(prefix="/api/repos", tags=["repos"])
@@ -116,6 +118,22 @@ async def enqueue_repo_health_refresh(payload: RepoHealthRefreshRequest) -> Task
     task = refresh_repo_health_task.delay(
         repo_ids=payload.repoIds or None,
         limit=payload.limit,
+    )
+    return TaskEnqueued(taskId=task.id)
+
+
+@router.post(
+    "/updates/scan",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=TaskEnqueued,
+    dependencies=[Depends(require_internal_token)],
+    summary="入队：扫描收藏项目新版本 / 重大变更（M7-04）",
+)
+async def enqueue_repo_updates_scan(payload: RepoUpdatesScanRequest) -> TaskEnqueued:
+    task = scan_repo_updates_task.delay(
+        repo_ids=payload.repoIds or None,
+        limit=payload.limit,
+        include_prerelease=payload.includePrerelease,
     )
     return TaskEnqueued(taskId=task.id)
 

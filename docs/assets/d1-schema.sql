@@ -284,3 +284,30 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_curated_reports_user_period
     ON curated_reports (user_id, kind, period_start);
 CREATE INDEX IF NOT EXISTS idx_curated_reports_user_generated
     ON curated_reports (user_id, generated_at DESC);
+
+-- ── 收藏项目更新提醒（M7-04，迁移 0015）────────────────────────
+CREATE TABLE IF NOT EXISTS repo_updates (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    repo_id TEXT NOT NULL,
+    repo_name TEXT,
+    repo_url TEXT,
+    type TEXT NOT NULL DEFAULT 'release' CHECK (type IN ('release', 'major')),
+    version TEXT NOT NULL,
+    title TEXT NOT NULL,
+    summary TEXT,
+    url TEXT,
+    published_at DATETIME,
+    detected_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    status TEXT NOT NULL DEFAULT 'unread' CHECK (status IN ('unread', 'read', 'dismissed')),
+    read_at DATETIME,
+    payload TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_repo_updates_user_repo_version
+    ON repo_updates (user_id, repo_id, version);
+CREATE INDEX IF NOT EXISTS idx_repo_updates_user_status_detected
+    ON repo_updates (user_id, status, detected_at DESC);
+CREATE INDEX IF NOT EXISTS idx_repo_updates_user_type_detected
+    ON repo_updates (user_id, type, detected_at DESC);

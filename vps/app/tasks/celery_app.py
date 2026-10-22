@@ -103,6 +103,14 @@ celery_app.conf.beat_schedule = {
             hour=settings.REPO_HEALTH_HOUR,
         ),
     },
+    # 收藏项目更新提醒（M7-04）：每日 06:37 扫描 Release / Tag
+    "scan-repo-updates-daily": {
+        "task": "app.tasks.jobs.scan_repo_updates",
+        "schedule": crontab(
+            minute=settings.REPO_UPDATES_MINUTE,
+            hour=settings.REPO_UPDATES_HOUR,
+        ),
+    },
     # Vectorize 索引：每日增量同步 + 对账（M3-03）
     "vector-index-sync-daily": {
         "task": "app.tasks.jobs.sync_vector_index",

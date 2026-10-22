@@ -110,6 +110,12 @@ def _ensure_sqlite_columns() -> None:
             "health_status": "TEXT",
             "health_score": "INTEGER",
             "health_checked_at": "DATETIME",
+            # M7-04 收藏项目更新提醒
+            "latest_release_tag": "TEXT",
+            "latest_release_name": "TEXT",
+            "latest_release_url": "TEXT",
+            "latest_release_at": "DATETIME",
+            "latest_release_checked_at": "DATETIME",
         }
         missing = {name: ddl for name, ddl in additions.items() if name not in existing}
         if missing:

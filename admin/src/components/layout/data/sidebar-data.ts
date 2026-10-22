@@ -1,6 +1,7 @@
 import {
   Activity,
   Bell,
+  BellRing,
   FileText,
   Flame,
   FolderGit2,
@@ -45,6 +46,7 @@ export const sidebarData: SidebarData = {
         { title: '重复检测', url: '/duplicates', icon: GitMerge },
         { title: '技术栈图谱', url: '/tech-stack', icon: Network },
         { title: '精选报告', url: '/reports', icon: FileText },
+        { title: '更新提醒', url: '/updates', icon: BellRing },
       ],
     },
     {

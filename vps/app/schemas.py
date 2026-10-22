@@ -71,6 +71,14 @@ class RepoHealthRefreshRequest(BaseModel):
     limit: int = Field(default=200, ge=1, le=1000)
 
 
+class RepoUpdatesScanRequest(BaseModel):
+    """收藏项目更新扫描请求（M7-04）。"""
+
+    repoIds: list[str] = Field(default_factory=list)
+    limit: int = Field(default=200, ge=1, le=1000)
+    includePrerelease: bool = False
+
+
 class TrendingRepoOut(ORMModel):
     """热榜仓库输出（含按日快照与趋势字段）。"""
 

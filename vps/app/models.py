@@ -60,6 +60,12 @@ class MyRepository(Base):
     health_status: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     health_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     health_checked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # M7-04 收藏项目更新提醒：最近一次扫描到的最新 Release / Tag
+    latest_release_tag: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    latest_release_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    latest_release_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    latest_release_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    latest_release_checked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 
 class TrendingRepository(Base):

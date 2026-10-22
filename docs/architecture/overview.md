@@ -480,6 +480,23 @@ admin /reports → GET /api/reports（首次访问惰性补齐当前周期）
 - 报告完全由 D1 数据确定性生成，不调用 LLM / VPS；同一用户同一周期重复生成走幂等 upsert；
 - `curated_reports` 保存 stats / sections JSON 与预渲染 Markdown，列表接口不返回大字段。
 
+### 3.16.1 收藏项目更新提醒（M7-04）
+
+```
+Celery beat 每日 06:37（REPO_UPDATES_HOUR/MINUTE）或 admin「立即扫描」
+→ VPS scan_repo_updates：按 id / Star 选取收藏仓库
+   ↳ GET /repos/{owner}/{repo}/releases（无 Release 回退 /tags，跳过 draft / prerelease）
+   ↳ 与 my_repositories.latest_release_tag 对比：首次只记基线；变化才生成事件
+   ↳ 主版本跃迁（v1.x → v2.0）或文案命中 breaking 关键词 → type=major，否则 release
+→ POST {edge}/api/internal/repo-updates/ingest（X-Internal-Token）
+→ edge 按 my_repositories.user_id 扇出：写 repo_updates + notifications(type=repo_update)
+→ admin /updates：GET /api/repo-updates（状态 / 类型筛选、汇总）、已读 / 忽略 / 全部已读
+```
+
+- 单仓库拉取失败只跳过，不覆盖既有基线；GitHub 限流 / 404 不影响整批；
+- `repo_updates` 唯一索引 `(user_id, repo_id, version)` 与通知 `dedupe_key` 双重幂等；
+- 未配置 `GITHUB_TOKEN` 时任务返回 `skipped`，不产生空扫描。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -513,6 +530,12 @@ admin /reports → GET /api/reports（首次访问惰性补齐当前周期）
 | `/api/notifications/:id/read` | POST | 单条标记已读（幂等） |
 | `/api/notifications/read-all` | POST | 全部标记已读 |
 | `/api/notifications/:id/dismiss` | POST | 忽略通知（同步推荐状态） |
+| `/api/repo-updates` | GET | 收藏项目更新提醒列表与汇总（`?status=` / `?type=` / `?limit=` / `?offset=`） |
+| `/api/repo-updates/unread-count` | GET | 更新提醒未读数（含重大变更未读数） |
+| `/api/repo-updates/:id/read` | POST | 单条更新提醒标记已读 |
+| `/api/repo-updates/read-all` | POST | 全部更新提醒标记已读 |
+| `/api/repo-updates/:id/dismiss` | POST | 忽略更新提醒 |
+| `/api/repo-updates/scan` | POST | 触发 VPS 扫描当前用户收藏（202） |
 | `/api/push-preferences` | GET | 当前用户推送偏好（未保存时返回默认值） |
 | `/api/push-preferences` | PUT | 保存推送偏好（时间 / 时区 / 阈值 / 通道开关） |
 | `/api/sync` | POST | 触发同步任务（202） |
@@ -627,6 +650,7 @@ admin /reports → GET /api/reports（首次访问惰性补齐当前周期）
 | `/api/internal/vectors/list` | GET | 分页列出 ID（孤儿对账；不支持时返回 501） |
 | `/api/internal/push-preferences` | GET | 读取全部推送偏好（VPS 推送任务使用；`?userId=` 可查单个） |
 | `/api/internal/reports/generate` | POST | 批量 / 指定用户生成精选报告（`kind` / `userId?` / `mode=current\|previous`；Cron 与运维共用） |
+| `/api/internal/repo-updates/ingest` | POST | VPS 回写收藏项目更新事件，按仓库归属扇出到收藏用户（≤100 条/批） |
 
 ### 4.4 安全运维接口（M5-05）
 

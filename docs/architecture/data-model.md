@@ -60,6 +60,18 @@ duplicate_dismissals         （重复检测：按用户忽略的簇）
 > issue/Star ≥50% 扣 20 分、≥20% 扣 10 分，无 issue 加 5 分，分数不影响天数分档状态。
 > D1 迁移见 `edge/migrations/0010_repo_health.sql`；VPS SQLite 在 `init_db()` 中幂等补列。
 
+**更新提醒扫描基线（REQ-202610-0963 / M7-04，仅 VPS 本地）**
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| latest_release_tag | TEXT | 最近一次扫描到的最新 Release / Tag |
+| latest_release_name | TEXT | Release 标题 |
+| latest_release_url | TEXT | Release 链接 |
+| latest_release_at | DATETIME | 上游发布时间 |
+| latest_release_checked_at | DATETIME | 最近一次扫描时间 |
+
+> 首次扫描只写基线不产生提醒；之后 tag 变化才生成 `repo_updates` 事件。
+
 ### 2.2 `trending_repositories` 热榜项目
 
 | 字段 | 类型 | 说明 |
@@ -488,6 +500,31 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 唯一索引 `(user_id, kind, period_start)` 保证同一用户同一周期只有一份报告；重复生成走
 `ON CONFLICT ... DO UPDATE`，`id` 不变。列表索引 `(user_id, generated_at DESC)` 供报告归档倒序查询。
 
+### 3.20 `repo_updates` 收藏项目更新提醒（D1，迁移 `0015`）
+
+> M7-04：VPS 每日扫描收藏仓库的 GitHub Release / Tag，经内部接口回写后按仓库归属扇出到每个收藏用户。
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | 稳定 id：`repo-update:<userId>:<repoId>:<version>` |
+| user_id TEXT | 用户 id（所有查询按此隔离） |
+| repo_id TEXT | `owner/repo` |
+| repo_name / repo_url TEXT | 冗余展示字段 |
+| type TEXT | `release`（新版本）/ `major`（重大变更） |
+| version TEXT | Release tag 或 Tag 名 |
+| title / summary TEXT | Release 标题 / 压缩后的说明摘要 |
+| url TEXT | Release 链接 |
+| published_at DATETIME | 上游发布时间 |
+| detected_at DATETIME | 本次扫描发现时间 |
+| status TEXT | `unread` / `read` / `dismissed` |
+| read_at DATETIME | 已读 / 忽略时间 |
+| payload TEXT | 扩展 JSON（repoId / version / type / publishedAt） |
+
+唯一索引 `(user_id, repo_id, version)` 保证重复扫描幂等；`(user_id, status, detected_at DESC)`
+支撑列表与未读数，`(user_id, type, detected_at DESC)` 支撑按类型筛选。VPS 本地
+`my_repositories` 同步保存 `latest_release_tag` / `latest_release_name` / `latest_release_url` /
+`latest_release_at` / `latest_release_checked_at` 作为增量扫描基线（首次扫描只记基线，不提醒历史版本）。
+
 ## 4. 索引策略
 
 | 表 | 索引 | 用途 |
@@ -516,6 +553,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | worker_metrics | `(metric_date)`、主键 `(metric_date, route, method, status_class)` | Workers 指标按日聚合与 UPSERT |
 | duplicate_dismissals | `(user_id, cluster_key)` UNIQUE、`(user_id, created_at DESC)` | 重复检测忽略幂等 / 列表 |
 | curated_reports | `(user_id, kind, period_start)` UNIQUE、`(user_id, generated_at DESC)` | 报告幂等 upsert / 归档列表 |
+| repo_updates | `(user_id, repo_id, version)` UNIQUE、`(user_id, status, detected_at DESC)`、`(user_id, type, detected_at DESC)` | 更新提醒幂等 / 列表与未读数 / 类型筛选（M7-04） |
 
 ## 5. 向量数据（M3）
 
