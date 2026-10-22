@@ -42,7 +42,7 @@
 
 ## 4. M1 · 资产同步闭环
 
-- [ ] GitHub OAuth 全链路联调（edge ↔ GitHub，会话持久化）
+- [x] GitHub OAuth 全链路联调（edge ↔ GitHub，会话持久化；本地 mock 已通过，真实 OAuth App 待注册）
 - [ ] 同步任务：Starred + 个人仓库增量拉取（vps Celery）
 - [ ] 分类树（无限级）与标签体系 CRUD
 - [ ] 组合筛选与秒级检索（D1 索引优化）

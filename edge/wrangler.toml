@@ -18,6 +18,9 @@ database_id = "REPLACE_WITH_D1_DATABASE_ID"
 ALLOWED_ORIGIN = "http://localhost:5173"
 # GitHub OAuth App 的 Client ID（非机密；留空时 /api/auth/github/login 返回 501）
 GITHUB_CLIENT_ID = ""
+# 可选：OAuth 授权端点 / API 根地址（缺省使用 GitHub 官方地址；仅本地 mock 联调时覆盖）
+GITHUB_OAUTH_BASE_URL = ""
+GITHUB_API_BASE_URL = ""
 # 本地 VPS Python 节点地址（FastAPI + Celery），例如 "https://node.example.com"；留空时 /api/sync 仅接受请求
 VPS_NODE_URL = ""
 

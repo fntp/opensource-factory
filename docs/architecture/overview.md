@@ -49,10 +49,14 @@
 ### 3.1 登录流（GitHub OAuth）
 
 ```
-浏览器 → /api/auth/github/login → 302 GitHub authorize
-GitHub → /api/auth/github/callback?code → edge 换取 token → 拉取用户 → upsert users → 建会话 → 302 回前端
+浏览器 → /api/auth/github/login → 302 GitHub authorize（state + 回跳目标存 of_oauth_state cookie）
+GitHub → /api/auth/github/callback?code&state → 校验 state → 换 token（同一 redirect_uri）
+       → 拉取用户（email 私有则回退 /user/emails）→ upsert users → 建会话 → 302 回前端
 前端 → /api/auth/me（cookie）→ 返回 AuthUser
 ```
+
+本地联调可用 `edge/scripts/mock-github-oauth.mjs` + `npm run test:oauth` 离线跑通全链路；
+真实 OAuth App 注册与配置见 [GitHub OAuth 注册指南](../guides/github-oauth-setup.md)。
 
 ### 3.2 同步流（资产）
 
