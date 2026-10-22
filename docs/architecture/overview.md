@@ -132,6 +132,32 @@ repo_vectors（VPS SQLite，M3-02 产出）
 → M3-03 批量同步 Cloudflare Vectorize
 ```
 
+### 3.6 向量索引同步流（M3-03）
+
+```
+Celery beat（每 30 分钟）或 POST /api/vector-index/sync
+→ VPS 读取本地 repo_vectors（仅 text_hash 变更 / 上次失败项；force 可全量）
+→ 按批 POST {EDGE_BASE_URL}/api/internal/vectors/upsert（X-Internal-Token）
+→ edge Worker 通过 Vectorize 绑定批量 upsert
+→ VPS 写 vector_sync_state（逐条状态）/ vector_sync_runs（运行统计）
+
+对账（kind=reconcile）：POST /api/internal/vectors/check 比对缺失 / 过期向量并修复；
+可选 list + delete 清理孤儿（默认关闭）。
+```
+
+### 3.7 语义搜索流（M3-04）
+
+```
+admin 搜索页 POST /api/search/semantic（登录态）
+→ edge 调 VPS POST /api/search/embed 生成查询向量（X-Internal-Token）
+→ edge 通过 Vectorize 绑定做近邻检索（topK 放大后按 source / user 过滤）
+→ edge 从 D1 水合（my 仅当前用户；trending 全局）→ 返回匹配度 + 项目元信息
+
+降级链：
+Vectorize 未绑定 / 查询失败 / 水合 0 条 → VPS POST /api/search/query（本地 repo_vectors 余弦）
+→ VPS 不可达 → edge D1 关键词 LIKE 检索（mode=keyword，页面仍可用）
+```
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -155,6 +181,7 @@ repo_vectors（VPS SQLite，M3-02 产出）
 | `/api/categories` | GET | 分类 + 标签 |
 | `/api/dashboard/stats` | GET | 仪表盘统计 |
 | `/api/sync` | POST | 触发同步任务（202） |
+| `/api/search/semantic` | POST | 语义搜索（`query` / `topK` / `scope`；vectorize → local → keyword 三级降级） |
 
 ### 4.2 edge ↔ vps（内部 API，`X-Internal-Token`）
 
@@ -179,10 +206,33 @@ repo_vectors（VPS SQLite，M3-02 产出）
 | `/api/internal/trending/snapshots` | POST | VPS → edge：批量 upsert 热榜快照（单批 ≤ 500，`X-Internal-Token`） |
 | `/api/internal/trending/retention` | GET | VPS → edge：D1 快照总数与最早 / 最新日期（`X-Internal-Token`） |
 | `/api/internal/trending/retention/cleanup` | POST | VPS → edge：按 `beforeDate` 删除过期快照（`X-Internal-Token`） |
+| `/api/vector-index/sync` | POST | 入队 Vectorize 同步（`mode=incremental|full` / `scope` / `limit` / `batchSize`） |
+| `/api/vector-index/reconcile` | POST | 入队对账（`scope` / `repair` / `limit`） |
+| `/api/vector-index/status` | GET | 本地向量覆盖率与同步状态分布 |
+| `/api/vector-index/runs` | GET | 最近同步运行记录 |
+| `/api/vector-index/runs/{runId}` | GET | 单次运行详情 |
+| `/api/search/embed` | POST | 查询向量化（供 edge 调用 Vectorize） |
+| `/api/search/query` | POST | 本地 `repo_vectors` 余弦检索（降级路径） |
+| `/api/search/semantic` | POST | 本地检索并水合完整项目信息 |
+| `/api/search/status` | GET | 向量覆盖率、模型分布与最近向量化运行 |
 | `/api/vectors/stats` | GET | 向量覆盖率与最近运行 |
 | `/api/vectors/runs/{runId}` | GET | 向量化运行详情 |
 | `/api/vectors/{source}/{repoId}` | GET | 单条仓库向量 |
+| `/api/search/embed` | POST | 查询向量化（供 edge 调用 Vectorize） |
+| `/api/search/query` | POST | 本地向量余弦检索（未水合，Vectorize 降级路径） |
+| `/api/search/semantic` | POST | 本地检索 + 水合完整项目信息（调试 / CLI） |
+| `/api/search/status` | GET | 语义搜索可用性：向量覆盖率与最近运行 |
 | `/healthz` | GET | 健康检查 |
+
+### 4.3 vps → edge（Vectorize 内部接口，`X-Internal-Token`）
+
+| 端点 | 方法 | 说明 |
+| --- | --- | --- |
+| `/api/internal/vectors/upsert` | POST | 批量写入向量（1~1000 条/批） |
+| `/api/internal/vectors/check` | POST | 按 ID 批量查询元数据（≤100 条/批） |
+| `/api/internal/vectors/delete` | POST | 批量删除向量（≤1000 条/批） |
+| `/api/internal/vectors/stats` | GET | 索引统计 |
+| `/api/internal/vectors/list` | GET | 分页列出 ID（孤儿对账；不支持时返回 501） |
 
 ## 5. 安全边界
 

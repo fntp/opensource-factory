@@ -2,7 +2,8 @@
 
 本地镜像与 Cloudflare D1 的表结构保持一致的列名与语义：
 `my_repositories` / `trending_repositories` / `categories`，
-并补充 `users`（最小）与 `recommendations`（推荐结果）。
+并补充 `users`（最小）、`recommendations`（推荐结果）、
+`repo_vectors`（M3-02 向量化）与 `vector_index_*`（M3-03 索引同步）。
 """
 from __future__ import annotations
 
@@ -193,7 +194,7 @@ class SummaryQualitySample(Base):
 
 
 class RepoVector(Base):
-    """仓库向量（VPS 本地持久化，供增量向量化与后续 Vectorize 同步使用）。
+    """仓库向量（VPS 本地持久化，供增量向量化与语义检索使用）。
 
     联合主键 `(source, repo_id)`；`source` 为 `my`（收藏库）或 `trending`（热榜）。
     `text_hash` / `model` / `backend` 共同决定是否可以跳过重算。

@@ -235,6 +235,34 @@ export interface DashboardStats {
   categoryCount: number;
 }
 
+/** POST /api/search/semantic 结果条目 */
+export interface SearchResultItem {
+  id: string;
+  source: 'my' | 'trending';
+  fullName: string;
+  name: string;
+  description: string;
+  language: string;
+  stars: number;
+  starsToday: number;
+  url: string;
+  score: number;
+  reason: string;
+}
+
+/** POST /api/search/semantic 响应 */
+export interface SearchResponse {
+  query: string;
+  mode: 'vectorize' | 'local' | 'keyword';
+  count: number;
+  tookMs: number;
+  backend: string;
+  model: string;
+  dim: number;
+  items: SearchResultItem[];
+  scope: 'my' | 'trending' | 'all';
+}
+
 /** GitHub /user 接口返回（仅取所需字段） */
 export interface GithubUser {
   id: number;

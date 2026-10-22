@@ -48,7 +48,8 @@ edge/
         ├── categories.ts # /api/categories
         ├── dashboard.ts  # /api/dashboard/stats
         ├── sync.ts       # /api/sync
-        └── internal-vectors.ts # /api/internal/vectors/*（VPS → Vectorize）
+        ├── search.ts     # /api/search/semantic（Vectorize → 本地向量 → 关键词三级降级）
+        └── internal-vectors.ts # /api/internal/vectors/*（VPS → Vectorize，X-Internal-Token）
 ```
 
 ## 本地开发
@@ -93,22 +94,28 @@ npm run test:m2 -- --strict \
    ```
 
 2. 将 `wrangler.toml` 中 `database_id = "REPLACE_WITH_D1_DATABASE_ID"` 替换为真实 id。
-3. 应用远端迁移：
+3. 创建 Vectorize 索引（维度与 VPS 的 `VECTORIZE_INDEX_DIM` 一致，BGE-M3 为 1024）：
+
+   ```bash
+   npx wrangler vectorize create opensource-factory-vectors --dimensions=1024 --metric=cosine
+   ```
+
+4. 应用远端迁移：
 
    ```bash
    npx wrangler d1 migrations apply opensource-factory --remote
    ```
 
-4. 设置机密（不要写进 wrangler.toml / 代码 / 提交）：
+5. 设置机密（不要写进 wrangler.toml / 代码 / 提交）：
 
    ```bash
    npx wrangler secret put GITHUB_CLIENT_SECRET   # GitHub OAuth App 的 Client Secret
    npx wrangler secret put SESSION_SECRET         # 会话/签名用随机串
-   npx wrangler secret put INTERNAL_TOKEN         # 可选：边缘 → VPS 节点内部令牌
+   npx wrangler secret put INTERNAL_TOKEN         # 可选：边缘 ↔ VPS 节点内部令牌
    ```
 
-5. 配置 `wrangler.toml` 的 `[vars]`：`ALLOWED_ORIGIN`（前端地址）、`GITHUB_CLIENT_ID`、`VPS_NODE_URL`。
-6. 部署：
+6. 配置 `wrangler.toml` 的 `[vars]`：`ALLOWED_ORIGIN`（前端地址）、`GITHUB_CLIENT_ID`、`VPS_NODE_URL`。
+7. 部署：
 
    ```bash
    npm run deploy
@@ -120,6 +127,7 @@ npm run test:m2 -- --strict \
 | --- | --- | --- |
 | `DB` | D1 绑定 | 主数据库，绑定名 `DB` |
 | `VECTORIZE` | Vectorize 绑定 | 向量索引，绑定名 `VECTORIZE`；未绑定时内部向量接口返回 503 |
+| `VECTORIZE` | Vectorize 绑定 | 向量索引，绑定名 `VECTORIZE`；未配置时内部向量接口返回 503 |
 | `ALLOWED_ORIGIN` | vars | 允许的前端 origin，CORS 精确回显（带 `Access-Control-Allow-Credentials: true`） |
 | `GITHUB_CLIENT_ID` | vars | GitHub OAuth App Client ID；留空时 `/api/auth/github/login` 返回 501 |
 | `VPS_NODE_URL` | vars | VPS 节点地址；留空时 `/api/sync` 返回 202 accepted 而不转发 |
@@ -163,6 +171,7 @@ npm run test:m2 -- --strict \
 | `GET /api/categories` | `CategoriesPayload` |
 | `GET /api/dashboard/stats` | `DashboardStats` |
 | `POST /api/sync` | 202 `{"status":"queued"}`（已配置 VPS）或 `{"status":"accepted","note":"vps node not configured"}` |
+| `POST /api/search/semantic` | `SearchResponse`：body `{query, topK?, scope?}`；mode 为 `vectorize` / `local` / `keyword`；`my` 结果仅当前用户 |
 | `GET /healthz` | `{"status":"ok"}` |
 
 JSON 形状（前端契约，勿改字段名）：
@@ -198,6 +207,17 @@ DashboardStats  { totalRepos, trendingToday, pendingRecommendations, categoryCou
 反向（VPS → edge）：热榜任务每日写快照后调用 `POST /api/internal/trending/snapshots`，body 为 `{snapshotDate, items:[{repoId, name, htmlUrl, ...趋势字段}]}`。未配置 `INTERNAL_TOKEN` 时该接口返回 503（默认关闭），令牌不匹配返回 401；单批最多 500 条，按 `(snapshot_date, repo_id)` upsert。
 
 保留清理（M2-08）：VPS 每日归档本地过期快照后调用 `POST /api/internal/trending/retention/cleanup`，body 为 `{beforeDate: "YYYY-MM-DD", dryRun?: boolean}`，删除 `trending_snapshots.snapshot_date < beforeDate` 的行；`dryRun=true` 只返回将删除的行数。D1 只是展示镜像，权威归档在 VPS `TRENDING_ARCHIVE_DIR`。
+### 内部向量接口（VPS → Vectorize）
+
+仅供 VPS 节点调用，全部要求 `X-Internal-Token`（未配置 `INTERNAL_TOKEN` 时返回 503，令牌不符返回 401）：
+
+| 方法/路径 | 说明 |
+| --- | --- |
+| `POST /api/internal/vectors/upsert` | body `{vectors: [{id, values, metadata}]}`，1~1000 条/批 |
+| `POST /api/internal/vectors/check` | body `{ids: string[]}`，≤100 个；返回 `{vectors: [{id, metadata}]}` |
+| `POST /api/internal/vectors/delete` | body `{ids: string[]}`，≤1000 个 |
+| `GET /api/internal/vectors/stats` | 索引统计 |
+| `GET /api/internal/vectors/list?count=&cursor=` | 分页列出 ID；绑定不支持时返回 501（VPS 对账自动降级） |
 
 ### 会话与安全
 

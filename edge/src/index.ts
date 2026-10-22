@@ -2,7 +2,7 @@
  * OpenFactory 边缘 API — Hono 应用入口
  * 中间件：CORS（精确回显 ALLOWED_ORIGIN，允许 credentials）+ 请求日志
  * 路由：/api/auth、/api/repos、/api/trending、/api/recommendations、
- *       /api/categories、/api/dashboard、/api/sync、/api/internal/trending
+ *       /api/categories、/api/dashboard、/api/sync、/api/internal/trending、/api/search
  */
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -17,6 +17,7 @@ import categoriesRoutes from './routes/categories';
 import dashboardRoutes from './routes/dashboard';
 import syncRoutes from './routes/sync';
 import internalTrendingRoutes from './routes/internal-trending';
+import searchRoutes from './routes/search';
 import internalVectorsRoutes from './routes/internal-vectors';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -54,6 +55,7 @@ app.route('/api/categories', categoriesRoutes);
 app.route('/api/dashboard', dashboardRoutes);
 app.route('/api/sync', syncRoutes);
 app.route('/api/internal/trending', internalTrendingRoutes);
+app.route('/api/search', searchRoutes);
 app.route('/api/internal/vectors', internalVectorsRoutes);
 
 // 404
