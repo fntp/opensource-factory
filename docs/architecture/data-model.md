@@ -23,6 +23,7 @@ recommendations              （user_id 可空 = 全局推荐）
   ▼
 notifications                （站内通知，按用户隔离）
 duplicate_dismissals         （重复检测：按用户忽略的簇）
+category_suggestions         （自动分类建议：按用户 / 仓库 / 分类唯一）
 ```
 
 ## 2. 核心表（需求原文，字段保持不变）
@@ -200,7 +201,26 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 唯一索引 `(user_id, cluster_key)` 保证同一簇重复忽略幂等；按 `(user_id, created_at DESC)` 查已忽略列表。
 簇成员变化后签名改变，旧忽略记录不会误伤新簇，重复项会重新出现供复核。
 
-### 3.8 `crawl_alerts` / `crawl_page_stats` 抓取告警（VPS 本地表）
+### 3.8 `category_suggestions` 自动分类建议（M7-02）
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | 建议 id：`sha256(user_id\|repo_id\|category_name)` 前 32 位，重复生成幂等 |
+| user_id | 用户 id（D1 会话用户） |
+| repo_id TEXT | 仓库 id（`owner/repo`） |
+| category_name TEXT | 建议分类名（业务线中文名，如「金融 / 支付」） |
+| business_line TEXT | 业务线 key（`fintech` / `ai` / `saas` …，用于自动建分类时补描述） |
+| score REAL | 置信度（0~1，规则加权后归一） |
+| reason TEXT | 可解释理由（名称 / 标签 / 简介 / 摘要命中词） |
+| evidence TEXT | 证据片段（命中的原文摘录） |
+| status TEXT | `pending` / `accepted` / `dismissed` |
+| created_at / updated_at | 生成 / 最近刷新时间 |
+
+唯一索引 `(user_id, repo_id, category_name)` 保证重复生成只刷新分数与理由；
+已采纳 / 已忽略的记录保持用户决策，不被覆盖。按 `(user_id, status, score DESC)` 查列表，
+按 `(user_id, repo_id)` 查单仓库建议。生成只写建议表，采纳后才更新 `my_repositories.category_id`。
+
+### 3.9 `crawl_alerts` / `crawl_page_stats` 抓取告警（VPS 本地表）
 
 > 仅存在于 VPS 本地镜像库，不进入 D1；用于热榜抓取的容错基线与值班告警。
 
@@ -478,6 +498,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | monitoring_alerts | `(dedupe_key)`、`(status)` | 告警去重 / 未关闭列表 |
 | worker_metrics | `(metric_date)`、主键 `(metric_date, route, method, status_class)` | Workers 指标按日聚合与 UPSERT |
 | duplicate_dismissals | `(user_id, cluster_key)` UNIQUE、`(user_id, created_at DESC)` | 重复检测忽略幂等 / 列表 |
+| category_suggestions | `(user_id, repo_id, category_name)` UNIQUE、`(user_id, status, score DESC)`、`(user_id, repo_id)` | 建议生成幂等 / 列表 / 单仓库查询 |
 
 ## 5. 向量数据（M3）
 

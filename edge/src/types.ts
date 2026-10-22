@@ -483,6 +483,53 @@ export interface DuplicateDismissal {
   createdAt: string | null;
 }
 
+// ── 自动分类建议（M7-02）──────────────────────────────────────
+
+export interface CategorySuggestionRow {
+  id: string;
+  user_id: string;
+  repo_id: string;
+  category_name: string;
+  business_line: string;
+  score: number;
+  reason: string | null;
+  evidence: string | null;
+  status: 'pending' | 'accepted' | 'dismissed';
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface CategorySuggestionListItem {
+  id: string;
+  repoId: string;
+  repoName: string;
+  repoUrl: string;
+  summary: string | null;
+  categoryName: string;
+  businessLine: string;
+  score: number;
+  reason: string | null;
+  evidence: string | null;
+  status: 'pending' | 'accepted' | 'dismissed';
+  currentCategory: string | null;
+  updatedAt: string | null;
+}
+
+export interface CategorySuggestionSummary {
+  total: number;
+  pending: number;
+  accepted: number;
+  dismissed: number;
+  repos: number;
+  avgScore: number;
+}
+
+export interface CategorySuggestionListResponse {
+  items: CategorySuggestionListItem[];
+  summary: CategorySuggestionSummary;
+  categories: Array<{ id: string; name: string }>;
+}
+
 /** GitHub /user 接口返回（仅取所需字段） */
 export interface GithubUser {
   id: number;

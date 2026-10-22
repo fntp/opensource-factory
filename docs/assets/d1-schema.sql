@@ -255,3 +255,24 @@ CREATE UNIQUE INDEX idx_duplicate_dismissals_unique
     ON duplicate_dismissals (user_id, cluster_key);
 CREATE INDEX idx_duplicate_dismissals_user_time
     ON duplicate_dismissals (user_id, created_at DESC);
+
+-- REQ-202610-0961 自动分类建议（M7-02）
+CREATE TABLE IF NOT EXISTS category_suggestions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    repo_id TEXT NOT NULL,
+    category_name TEXT NOT NULL,
+    business_line TEXT NOT NULL,
+    score REAL NOT NULL DEFAULT 0,
+    reason TEXT,
+    evidence TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_category_suggestions_unique
+    ON category_suggestions (user_id, repo_id, category_name);
+CREATE INDEX IF NOT EXISTS idx_category_suggestions_user_status
+    ON category_suggestions (user_id, status, score DESC);
+CREATE INDEX IF NOT EXISTS idx_category_suggestions_repo
+    ON category_suggestions (user_id, repo_id);

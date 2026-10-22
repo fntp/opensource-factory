@@ -56,6 +56,7 @@ vps/
 │   │   ├── fulltext.py           # README 全文镜像 + FTS5 trigram 检索（短词 LIKE 回退）
 │   │   ├── similar_recommendations.py # 相似项目：种子向量近邻 + 水合（M6-02）
 │   │   ├── duplicates.py         # 重复检测：地址 / 名称 / 简介 / 向量复核 + 聚类 + 合并建议（M6-03）
+│   │   ├── category_suggestions.py # 自动分类建议：18 条业务线词表 + 加权打分 + 证据抽取（M7-02）
 │   │   └── degradation.py        # 降级路径自检（模型缺失 / 超预算，离线可跑）
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
@@ -68,6 +69,7 @@ vps/
 │   │   ├── vectors.py            # GET /api/vectors/stats、runs、单条向量
 │   │   ├── search.py             # /api/search/*（understand / embed / query / semantic / fulltext / similar / status）
 │   │   ├── duplicates.py         # POST /api/duplicates/scan（重复检测，只读）
+│   │   ├── category_suggestions.py # POST /api/category-suggestions/generate（分类建议，无状态）
 │   │   ├── degradation.py        # GET /api/degradation/status（降级自检）
 │   │   └── tasks.py              # /api/tasks/*（与边缘 Worker 的集成契约，X-Internal-Token 鉴权）
 │   └── tasks/                # Celery 任务（薄封装，调用 services + 落库）
@@ -426,6 +428,7 @@ Celery beat 每日 04:37 自动增量同步、05:17 自动对账；也可通过�
 | POST | `/api/search/fulltext/rebuild` | 全量重建 FTS 索引 | `200 {rebuilt}` |
 | POST | `/api/search/similar` | 相似项目向量近邻（未水合） | `200 {source,repoId,scope,count,topK,minScore,excludeSaved,model,backend,dim,scanned,seed,items:[{source,repoId,score}]}` |
 | POST | `/api/duplicates/scan` | 重复 / 相似项目检测（`scope` / `myRepoIds` / `maxRepos` / `maxClusters`；只读） | `200 {scanId,scope,scanned,compared,clusters,tookMs,thresholds}` |
+| POST | `/api/category-suggestions/generate` | 自动分类建议（`repos[]` 内联快照 / `perRepo` / `minScore`；18 条业务线规则，无状态） | `200 {generatedAt,scanned,suggested,skipped,items:[{repoId,suggestions:[...]}]}` |
 | GET | `/api/search/status` | 向量覆盖率、模型分布、最近运行与词表规模 | `200 {...}` |
 | POST | `/api/recommend/eval` | 推荐质量评估与调参（`sampleSize` / `topK` / `holdoutRatio` / `negativesPerPositive` / `seed` / `userId`） | `200 {status,metrics,thresholds,weights,recommended,...}` |
 | POST | `/api/tasks/sync-readmes` | 入队 README 全文索引补录（`source` / `repoId` / `limit` / `force`） | `202 {"taskId"}` |

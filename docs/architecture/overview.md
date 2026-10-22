@@ -428,6 +428,23 @@ admin 重复检测页 POST /api/duplicates/scan {scope, minScore?, maxClusters?}
 `DUPLICATE_MAX_REPOS`（500）、`DUPLICATE_MAX_CLUSTERS`（50）。检测为 O(n²) 有界扫描，
 超过 500 个仓库时按 Star 截断，后续可改为分桶 / 向量近邻候选。
 
+### 3.14 自动分类建议（M7-02）
+
+```
+admin 分类建议页 POST /api/category-suggestions/generate {limit?, perRepo?, minScore?}
+→ edge 读取当前用户仓库（名称 / 简介 / 语言 / README 摘要 / 标签，上限 500）
+→ VPS POST /api/category-suggestions/generate：
+   18 条业务线词表（AI / 金融支付 / 电商 / SaaS / 开发工具 / 数据工程 …）
+   → 名称 ×3、标签 / 简介 ×2、摘要 ×1.5、语言 ×0.5 加权
+   → 每仓库取 Top N（默认 3，≥0.55），产出分类名 / 业务线 / 分数 / 理由 / 证据
+→ edge 写入 D1 category_suggestions（user_id + repo_id + category_name 唯一）
+→ 用户采纳：确保分类存在（不存在则按业务线描述自动建）→ 写 my_repositories.category_id
+```
+
+降级：VPS 不可达或某仓库未返回建议时，edge 用同一套业务线词表本地兜底（`source=local` /
+`mixed`）；语言仅作弱信号，单独命中不会超过默认阈值。生成只写建议表，采纳前不修改仓库分类；
+已采纳 / 已忽略的建议不会被重复生成覆盖。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -476,6 +493,10 @@ admin 重复检测页 POST /api/duplicates/scan {scope, minScore?, maxClusters?}
 | `/api/duplicates/dismiss` | POST | 忽略一个重复簇（`clusterId` / `repoIds` / `reason`，按用户存 D1） |
 | `/api/duplicates/dismissed` | GET | 当前用户已忽略的重复簇 |
 | `/api/duplicates/dismiss/:clusterId` | DELETE | 取消忽略（恢复展示） |
+| `/api/category-suggestions` | GET | 当前用户分类建议（`?status=pending\|accepted\|dismissed\|all` / `?repoId=` / `?limit=` / `?offset=`；含汇总与分类列表） |
+| `/api/category-suggestions/generate` | POST | 批量生成建议（`repoIds?` / `limit?` / `perRepo?` / `minScore?`；VPS 规则 → 本地兜底） |
+| `/api/category-suggestions/accept` | POST | 采纳建议（`ids[]` 或 `repoId` + `categoryName`；自动建分类并写回仓库分类） |
+| `/api/category-suggestions/dismiss` | POST | 忽略建议（`ids[]`，保留用户决策） |
 
 ### 4.2 edge ↔ vps（内部 API，`X-Internal-Token`）
 
@@ -534,6 +555,7 @@ admin 重复检测页 POST /api/duplicates/scan {scope, minScore?, maxClusters?}
 | `/api/search/fulltext/rebuild` | POST | 全量重建 README 全文索引 |
 | `/api/search/similar` | POST | 相似项目向量近邻（`source` / `repoId` / `topK` / `scope` / `minScore` / `excludeSaved`；返回未水合 hits） |
 | `/api/duplicates/scan` | POST | 重复 / 相似项目检测（`scope` / `myRepoIds` / `maxRepos` / `maxClusters`；返回未水合簇，只读不落库） |
+| `/api/category-suggestions/generate` | POST | 自动分类建议（`repos[]` 内联快照 / `perRepo` / `minScore`；返回业务线建议，无状态不落库） |
 | `/api/search/status` | GET | 向量覆盖率、模型分布与最近向量化运行 |
 | `/api/vectors/stats` | GET | 向量覆盖率与最近运行 |
 | `/api/vectors/runs/{runId}` | GET | 向量化运行详情 |

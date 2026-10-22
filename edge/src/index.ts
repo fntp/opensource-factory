@@ -3,7 +3,8 @@
  * 中间件：CORS（精确回显 ALLOWED_ORIGIN，允许 credentials）+ 请求日志
  * 路由：/api/auth、/api/repos、/api/trending、/api/recommendations、
  *       /api/notifications、/api/push-preferences、/api/categories、
- *       /api/dashboard、/api/sync、/api/internal/trending、/api/search、/api/similar
+ *       /api/dashboard、/api/sync、/api/internal/trending、/api/search、/api/similar、
+ *       /api/category-suggestions
  */
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -28,6 +29,7 @@ import internalTrendingRoutes from './routes/internal-trending';
 import searchRoutes from './routes/search';
 import similarRoutes from './routes/similar';
 import duplicatesRoutes from './routes/duplicates';
+import categorySuggestionsRoutes from './routes/category-suggestions';
 import internalVectorsRoutes from './routes/internal-vectors';
 import internalRecommendationsRoutes from './routes/internal-recommendations';
 import internalSecurityRoutes from './routes/internal-security';
@@ -166,6 +168,7 @@ app.route('/api/internal/trending', internalTrendingRoutes);
 app.route('/api/search', searchRoutes);
 app.route('/api/similar', similarRoutes);
 app.route('/api/duplicates', duplicatesRoutes);
+app.route('/api/category-suggestions', categorySuggestionsRoutes);
 app.route('/api/internal/vectors', internalVectorsRoutes);
 app.route('/api/internal/recommendations', internalRecommendationsRoutes);
 app.route('/api/internal/security', internalSecurityRoutes);

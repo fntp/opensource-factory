@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 
 from app.api import (
     backup,
+    category_suggestions,
     duplicates,
     degradation,
     local,
@@ -106,6 +107,7 @@ app.include_router(push_policy.router)
 app.include_router(vectors.router)
 app.include_router(vector_index.router)
 app.include_router(search.router)
+app.include_router(category_suggestions.router)
 app.include_router(duplicates.router)
 app.include_router(degradation.router)
 app.include_router(push.router)

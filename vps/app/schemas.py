@@ -1505,3 +1505,49 @@ class DuplicateScanResponse(BaseModel):
     clusters: list[DuplicateClusterOut]
     tookMs: int
     thresholds: DuplicateThresholdsOut
+
+
+class CategorySuggestionRepoIn(BaseModel):
+    """自动分类建议的仓库快照（M7-02，由 edge 内联传入）。"""
+
+    repoId: str = Field(min_length=1, max_length=255)
+    name: str = Field(default="", max_length=255)
+    description: str = Field(default="", max_length=4000)
+    language: str = Field(default="", max_length=64)
+    summary: str = Field(default="", max_length=4000)
+    tags: list[str] = Field(default_factory=list, max_length=20)
+
+
+class CategorySuggestionGenerateRequest(BaseModel):
+    """批量生成分类建议请求。"""
+
+    repos: list[CategorySuggestionRepoIn] = Field(default_factory=list, max_length=500)
+    perRepo: int = Field(default=3, ge=1, le=5, description="每个仓库最多建议条数")
+    minScore: float = Field(default=0.55, ge=0.0, le=1.0, description="最低置信度")
+
+
+class CategorySuggestionItemOut(BaseModel):
+    """单条分类建议。"""
+
+    categoryName: str
+    businessLine: str
+    score: float
+    reason: str
+    evidence: str
+
+
+class CategorySuggestionRepoOut(BaseModel):
+    """一个仓库的分类建议集合。"""
+
+    repoId: str
+    suggestions: list[CategorySuggestionItemOut] = Field(default_factory=list)
+
+
+class CategorySuggestionGenerateResponse(BaseModel):
+    """批量生成分类建议响应。"""
+
+    generatedAt: str
+    scanned: int
+    suggested: int
+    skipped: int
+    items: list[CategorySuggestionRepoOut] = Field(default_factory=list)

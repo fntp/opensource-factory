@@ -121,3 +121,4 @@
 | 2026-10-22 | 交付 | IT-0028 / M6-01 全文检索（REQ-202610-0948）：VPS `repo_readmes` 全文镜像 + FTS5 trigram 触发器同步、全文 / 状态 / 重建 API、每日补索引任务；edge 全文代理与用户过滤、admin 全文 / 语义切换与命中片段；计划见 `plan-req-202610-0948-fulltext-search.md` |
 | 2026-10-22 | 交付 | IT-0045 / M6-02 完成（REQ-202610-0949）：相似项目向量近邻接口 + edge local→keyword 降级 + admin 详情页「看了又看」；计划见 `plan-req-202610-0949-similar-recommendations.md` |
 | 2026-10-22 | 交付 | IT-0046 / M6-03 完成（REQ-202610-0950）：VPS 重复检测（地址 / 名称 / 简介 / 向量复核 + 合并建议）、edge 扫描与按用户忽略（migration 0013）、admin 重复检测页；计划见 `plan-req-202610-0950-duplicate-detection.md` |
+| 2026-10-22 | 交付 | IT-0047 / M7-02 完成（REQ-202610-0961）：18 条业务线分类规则（VPS 纯函数 + edge 本地兜底）、可解释建议生成、edge 建议表与采纳写回（migration 0014）、admin 分类建议页；计划见 `plan-req-202610-0961-auto-classification.md` |

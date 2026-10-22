@@ -41,7 +41,8 @@ edge/
 │   ├── 0011_security_hardening.sql  # 限流 / 登录尝试 / 安全事件（M5-05）
 │   └── 0012_worker_metrics.sql  # Workers 请求指标按日聚合（M5-03）
 │   ├── 0009_recommendation_feedback.sql # 推荐反馈明细（M3-07）
-│   └── 0013_duplicate_dismissals.sql    # 重复检测按用户忽略（M6-03）
+│   ├── 0013_duplicate_dismissals.sql    # 重复检测按用户忽略（M6-03）
+│   └── 0014_category_suggestions.sql    # 自动分类建议（M7-02）
 └── src/
     ├── index.ts          # Hono 入口：CORS、日志、/healthz、路由挂载、404/500
     ├── types.ts          # Env 绑定 + 数据库行 + API 响应实体
@@ -53,6 +54,9 @@ edge/
     │   └── helpers.ts    # 相似推荐参数归一化 + 关键词兜底打分（纯函数）
     ├── duplicates/
     │   └── helpers.ts    # 重复检测：地址 / 名称归一化、本地聚类、合并建议（纯函数）
+    ├── category-suggestions/
+    │   ├── rules.ts      # 业务线词表 + 本地打分兜底（纯函数，与 VPS 词表一致）
+    │   └── helpers.ts    # 状态 / 参数归一化、稳定建议 id（纯函数）
     └── routes/
         ├── auth.ts       # /api/auth/*（login / callback / me / logout）
         ├── repos.ts      # /api/repos
@@ -69,6 +73,7 @@ edge/
         ├── search.ts     # /api/search/semantic（语义三级降级）· /api/search/fulltext（README FTS）
         ├── similar.ts    # /api/similar（相似项目：VPS 向量近邻 → D1 关键词兜底）
         ├── duplicates.ts # /api/duplicates/*（重复检测：VPS 规则 + 向量 → 本地兜底；按用户忽略）
+        ├── category-suggestions.ts # /api/category-suggestions/*（生成 / 列表 / 采纳 / 忽略）
         └── internal-vectors.ts # /api/internal/vectors/*（VPS → Vectorize，X-Internal-Token）
 ```
 
@@ -219,6 +224,10 @@ npm run test:m2 -- --strict \
 | `POST /api/duplicates/dismiss` | 忽略重复簇，body `{clusterId, repoIds?, reason?}`；按 `user_id + cluster_key` 幂等 |
 | `GET /api/duplicates/dismissed` | `{count, items:[{clusterId, repoIds, reason, createdAt}]}`（当前用户） |
 | `DELETE /api/duplicates/dismiss/:clusterId` | 取消忽略，返回 `{removed, clusterId}` |
+| `GET /api/category-suggestions` | `{items,summary,categories}`：query `status=pending\|accepted\|dismissed\|all` / `repoId` / `limit` / `offset`；需登录 |
+| `POST /api/category-suggestions/generate` | body `{repoIds?, limit?, perRepo?, minScore?}`；返回 `{generatedAt,scanned,suggested,skipped,source}`；VPS 规则引擎失败时 edge 本地兜底 |
+| `POST /api/category-suggestions/accept` | body `{ids[]}` 或 `{repoId,categoryName}`；自动建分类并写回 `my_repositories.category_id`，返回 `{accepted,categoriesCreated,items}` |
+| `POST /api/category-suggestions/dismiss` | body `{ids[]}`；返回 `{dismissed}`，已忽略建议不会被重复生成覆盖 |
 | `GET /healthz` | `{"status":"ok"}` |
 
 JSON 形状（前端契约，勿改字段名）：
