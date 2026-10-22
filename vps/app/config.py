@@ -160,6 +160,19 @@ class Settings(BaseSettings):
     TRENDING_RETENTION_HOUR: int = Field(default=4, ge=0, le=23)
     TRENDING_RETENTION_MINUTE: int = Field(default=17, ge=0, le=59)
 
+    # 备份与恢复（M5-04 / REQ-202610-0942）
+    # 每日 SQLite 快照 + 每周恢复演练；目录建议放在运行目录 backups/ 下
+    BACKUP_ENABLED: bool = True
+    BACKUP_DIR: str = "./data/backups"
+    BACKUP_RETENTION_COUNT: int = Field(default=7, ge=1, le=365)
+    # 备份总量上限（MB）；0 = 不限制。资源规划预算 3 GB。
+    BACKUP_MAX_TOTAL_MB: int = Field(default=3072, ge=0)
+    BACKUP_DRILL_ENABLED: bool = True
+    BACKUP_HOUR: int = Field(default=3, ge=0, le=23)
+    BACKUP_MINUTE: int = Field(default=50, ge=0, le=59)
+    BACKUP_DRILL_HOUR: int = Field(default=4, ge=0, le=23)
+    BACKUP_DRILL_MINUTE: int = Field(default=20, ge=0, le=59)
+
     # CORS（开发默认允许全部来源）
     CORS_ORIGINS: str = "*"
 

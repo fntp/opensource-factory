@@ -300,3 +300,21 @@ admin 搜索页展示「查询理解」标签，edge 关键词兜底使用扩展
 | edge | Cloudflare Workers | `wrangler deploy`；绑定 D1 / Vectorize |
 | vps | 本地服务器 | uvicorn + celery worker + celery beat + redis + ollama |
 | 数据 | D1 + VPS 本地 SQLite | D1 为主数据；VPS 侧为算力缓存/镜像 |
+
+### 3.12 备份与恢复（M5-04）
+
+```
+Celery beat 03:50（每日）→ SQLite backup API 快照 → integrity_check → gzip + manifest
+→ backups/sqlite/sqlite-*.sqlite3.gz + .json → 按份数 / 总量清理
+
+cron 04:10（每日）→ deploy/scripts/backup-d1.sh → wrangler d1 export（远端 D1）
+→ 临时 SQLite 导入校验（integrity / 表清单 / 行数）→ gzip + manifest
+→ backups/d1/d1-*.sql.gz + .json
+
+Celery beat 周日 04:20 → backup_drill → 快照恢复到临时库 → 完整性 / 表行数核对
+→ 报告落日志；生产恢复仅允许 CLI（restore-sqlite.sh，默认拒绝覆盖）
+```
+
+D1 凭据只存在于部署控制面，VPS 不持有 Cloudflare 凭据；备份目录 700 / 文件 600，
+保留最近 7 份、总量 3 GB（`resource-plan.md` §4）。详见
+[backup-restore.md](../guides/backup-restore.md)。

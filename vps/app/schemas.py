@@ -577,3 +577,86 @@ class DegradationStatusOut(BaseModel):
     llmDegraded: bool
     budgetMb: int
     checks: list[DegradationCheckOut]
+
+
+class BackupEntryOut(BaseModel):
+    """一份备份产物（文件 + 清单）。"""
+
+    kind: str
+    name: str
+    path: str
+    createdAt: str
+    sizeBytes: int
+    sha256: str = ""
+
+
+class BackupKindStatusOut(BaseModel):
+    """按类型汇总的备份状态。"""
+
+    count: int
+    totalBytes: int
+    latest: Optional[BackupEntryOut] = None
+
+
+class BackupStatusOut(BaseModel):
+    """备份目录状态（M5-04）。"""
+
+    backupDir: str
+    retention: int
+    maxTotalBytes: int
+    totalBytes: int
+    usagePercent: float
+    withinBudget: bool
+    freeBytes: Optional[int] = None
+    counts: dict[str, int]
+    kinds: dict[str, BackupKindStatusOut]
+    latest: Optional[BackupEntryOut] = None
+
+
+class BackupFilesOut(BaseModel):
+    """备份产物列表。"""
+
+    count: int
+    items: list[BackupEntryOut]
+
+
+class BackupCheckOut(BaseModel):
+    """备份校验 / 演练的单项检查。"""
+
+    name: str
+    ok: bool
+    detail: str
+
+
+class BackupVerifyOut(BaseModel):
+    """SQLite 快照 / D1 导出校验报告。"""
+
+    ok: bool
+    name: str
+    path: str
+    checks: list[BackupCheckOut]
+    tableCounts: dict[str, int]
+    sizeBytes: int
+    sha256: str
+    error: str = ""
+
+
+class BackupDrillOut(BaseModel):
+    """恢复演练报告。"""
+
+    ok: bool
+    snapshot: str
+    restoredPath: str
+    checks: list[BackupCheckOut]
+    tableCounts: dict[str, int]
+    durationMs: int
+    error: str = ""
+
+
+class BackupActionIn(BaseModel):
+    """手动备份 / 校验 / 演练请求。"""
+
+    name: Optional[str] = None
+    label: str = ""
+    keep: Optional[int] = Field(default=None, ge=1, le=365)
+    maxTotalMb: Optional[int] = Field(default=None, ge=0)

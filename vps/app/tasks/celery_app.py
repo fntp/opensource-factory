@@ -2,7 +2,8 @@
 
 - broker / backend：`REDIS_URL`（默认 `redis://localhost:6379/0`）；
 - `CELERY_TASK_ALWAYS_EAGER=1` 时任务同步执行（本地调试 / 测试）；
-- beat 计划：每日抓取热榜（全局页 + 多语言页）、每日 08:30 生成推荐、每日 09:00 推送准备。
+- beat 计划：每日抓取热榜（全局页 + 多语言页）、每日 08:30 生成推荐、每日 09:00 推送准备、
+  每日 SQLite 快照（默认 03:50）与每周日恢复演练（默认 04:20）。
 """
 from __future__ import annotations
 
@@ -69,6 +70,19 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.jobs.reconcile_vector_index",
         "schedule": crontab(minute=17, hour=5),
         "kwargs": {"scope": "all", "repair": False},
+    },
+    # 备份与恢复（M5-04）：每日 SQLite 快照 + 每周日恢复演练
+    "backup-sqlite-daily": {
+        "task": "app.tasks.jobs.backup_sqlite",
+        "schedule": crontab(minute=settings.BACKUP_MINUTE, hour=settings.BACKUP_HOUR),
+    },
+    "backup-drill-weekly": {
+        "task": "app.tasks.jobs.backup_drill",
+        "schedule": crontab(
+            minute=settings.BACKUP_DRILL_MINUTE,
+            hour=settings.BACKUP_DRILL_HOUR,
+            day_of_week="sunday",
+        ),
     },
 }
 

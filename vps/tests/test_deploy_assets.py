@@ -145,6 +145,10 @@ PRODUCTION_SCRIPTS = (
     "deploy-all.sh",
     "smoke-test.sh",
     "setup-https.sh",
+    "backup-d1.sh",
+    "backup-all.sh",
+    "backup-drill.sh",
+    "restore-sqlite.sh",
 )
 
 

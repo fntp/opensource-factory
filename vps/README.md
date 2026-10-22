@@ -26,6 +26,7 @@ vps/
 │   ├── db.py                 # SQLAlchemy engine / Session / init_db
 │   ├── models.py             # 数据库模型（D1 表结构的本地镜像）
 │   ├── schemas.py            # Pydantic 出入参模型
+│   ├── backup.py             # 备份 / 校验 / 恢复 / 演练 CLI（python -m app.backup）
 │   ├── degradation.py        # 降级路径自检 CLI（python -m app.degradation check）
 │   ├── services/             # 业务逻辑（单一职责，可独立单测）
 │   │   ├── github_service.py     # GitHub REST v3 异步客户端（分页、README base64 解码）
@@ -54,10 +55,11 @@ vps/
 │   │   ├── vectors.py            # GET /api/vectors/stats、runs、单条向量
 │   │   ├── search.py             # /api/search/*（understand / embed / query / semantic / status）
 │   │   ├── degradation.py        # GET /api/degradation/status（降级自检）
+│   │   ├── backup.py             # /api/backup/*（状态 / 快照 / 校验 / 演练，X-Internal-Token）
 │   │   └── tasks.py              # /api/tasks/*（与边缘 Worker 的集成契约，X-Internal-Token 鉴权）
 │   └── tasks/                # Celery 任务（薄封装，调用 services + 落库）
 │       ├── celery_app.py         # Celery 应用与 beat 定时计划
-│       └── jobs.py               # sync / crawl / generate / daily_push / vectorize / vector_index / cleanup_trending_data 任务
+│       └── jobs.py               # sync / crawl / generate / daily_push / vectorize / vector_index / cleanup / backup 任务
 └── tests/                    # pytest（不访问网络）
 ```
 
@@ -104,7 +106,8 @@ deploy/scripts/bootstrap-runtime.sh --install-units   # 安装 systemd 单元（
 deploy/scripts/doctor.sh --services          # 基线自检
 ```
 
-完整步骤与验收标准见 [docs/guides/deployment-baseline.md](../docs/guides/deployment-baseline.md)。
+完整步骤与验收标准见 [docs/guides/deployment-baseline.md](../docs/guides/deployment-baseline.md)；
+备份 / 恢复 / 演练见 [docs/guides/backup-restore.md](../docs/guides/backup-restore.md)。
 
 ## 环境变量说明
 
@@ -158,6 +161,13 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | `RECOMMEND_EVAL_SEED` | `42` | 抽样随机种子（同种子结果可复现） |
 | `RECOMMEND_EVAL_MIN_SCORE_GRID` | `0.1,0.2,0.3,0.4,0.5` | min_score 扫描网格 |
 | `RECOMMEND_EVAL_WEIGHT_GRID` | `0.6,0.8,1.0` | 相似度权重扫描网格（热榜权重 = 1 - w） |
+| `BACKUP_ENABLED` | `true` | 每日 SQLite 快照 / 每周演练总开关 |
+| `BACKUP_DIR` | `./data/backups` | 备份根目录（生产 `@RUNTIME_DIR@/backups`） |
+| `BACKUP_RETENTION_COUNT` | `7` | 每类备份保留份数 |
+| `BACKUP_MAX_TOTAL_MB` | `3072` | 备份总量上限（MB，0 = 不限制） |
+| `BACKUP_DRILL_ENABLED` | `true` | 每周恢复演练开关 |
+| `BACKUP_HOUR` / `BACKUP_MINUTE` | `3` / `50` | 每日快照时刻（Asia/Shanghai） |
+| `BACKUP_DRILL_HOUR` / `BACKUP_DRILL_MINUTE` | `4` / `20` | 每周日演练时刻 |
 | `SEARCH_DEFAULT_TOP_K` | `10` | 语义搜索默认返回条数 |
 | `SEARCH_MAX_TOP_K` | `50` | 语义搜索单次最大返回条数 |
 | `SEARCH_MIN_SCORE` | `0.0` | 最低余弦相似度（0 表示不过滤） |

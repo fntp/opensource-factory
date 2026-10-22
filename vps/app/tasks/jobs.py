@@ -654,3 +654,75 @@ def reconcile_vector_index(
     from app.services import vector_index
 
     return vector_index.reconcile_vectors(scope=scope, repair=repair, limit=limit)
+
+
+@celery_app.task(name="app.tasks.jobs.backup_sqlite")
+def backup_sqlite(
+    label: str = "",
+    keep: Optional[int] = None,
+    max_total_mb: Optional[int] = None,
+) -> dict[str, Any]:
+    """每日 SQLite 一致性快照（M5-04）。失败降级返回结构化结果。"""
+    settings = get_settings()
+    if not settings.BACKUP_ENABLED:
+        return {"status": "skipped", "reason": "BACKUP_ENABLED=false"}
+
+    from app.backup import create_sqlite_snapshot, sqlite_path_from_url
+
+    database = sqlite_path_from_url(settings.DATABASE_URL)
+    if database is None:
+        return {"status": "error", "error": "仅支持 SQLite 数据库快照"}
+
+    try:
+        entry = create_sqlite_snapshot(
+            database,
+            settings.BACKUP_DIR,
+            label=label,
+            keep=keep or settings.BACKUP_RETENTION_COUNT,
+            max_total_bytes=(
+                max_total_mb if max_total_mb is not None else settings.BACKUP_MAX_TOTAL_MB
+            )
+            * 1024
+            * 1024,
+        )
+        return {
+            "status": "ok",
+            "name": entry.name,
+            "sizeBytes": entry.size_bytes,
+            "createdAt": entry.created_at,
+        }
+    except Exception as exc:  # noqa: BLE001 - 备份失败不抛出，等待下次调度
+        logger.exception("SQLite 备份失败")
+        return {"status": "error", "error": str(exc)[:300]}
+
+
+@celery_app.task(name="app.tasks.jobs.backup_drill")
+def backup_drill(name: Optional[str] = None) -> dict[str, Any]:
+    """每周恢复演练：SQLite 快照 + 最新 D1 导出（M5-04）。"""
+    settings = get_settings()
+    if not settings.BACKUP_DRILL_ENABLED:
+        return {"status": "skipped", "reason": "BACKUP_DRILL_ENABLED=false"}
+
+    from app.backup import D1_KIND, list_backups, run_restore_drill, verify_d1_dump
+
+    try:
+        sqlite_report = run_restore_drill(settings.BACKUP_DIR, name=name)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("SQLite 恢复演练失败")
+        return {"status": "error", "error": str(exc)[:300]}
+
+    d1_report: dict[str, Any] | None = None
+    d1_entries = list_backups(settings.BACKUP_DIR, D1_KIND)
+    if d1_entries:
+        try:
+            d1_report = verify_d1_dump(d1_entries[0].path)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("D1 导出校验失败")
+            d1_report = {"ok": False, "error": str(exc)[:300]}
+
+    ok = bool(sqlite_report.get("ok")) and (d1_report is None or bool(d1_report.get("ok")))
+    return {
+        "status": "ok" if ok else "error",
+        "sqlite": sqlite_report,
+        "d1": d1_report,
+    }
