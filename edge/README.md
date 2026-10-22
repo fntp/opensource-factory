@@ -42,7 +42,8 @@ edge/
 │   ├── 0012_worker_metrics.sql  # Workers 请求指标按日聚合（M5-03）
 │   ├── 0013_duplicate_dismissals.sql  # 重复检测按用户忽略（M6-03）
 │   ├── 0014_repo_health.sql  # 仓库健康度字段（M6-05）
-│   └── 0015_license_compliance.sql  # License 识别字段（M6-06）
+│   ├── 0015_license_compliance.sql  # License 识别字段（M6-06）
+│   └── 0016_rerank.sql  # 精排分 / 名次 / 明细字段（M7-07）
 └── src/
     ├── index.ts          # Hono 入口：CORS、日志、/healthz、路由挂载、404/500
     ├── types.ts          # Env 绑定 + 数据库行 + API 响应实体
@@ -56,6 +57,8 @@ edge/
     │   └── helpers.ts    # 重复检测：地址 / 名称归一化、本地聚类、合并建议（纯函数）
     ├── dependencies/
     │   └── helpers.ts    # 依赖分析参数归一化 + D1 语言概览降级（纯函数）
+    ├── rerank/
+    │   └── helpers.ts    # 精排参数归一化 + 本地启发式精排（MMR，纯函数）
     └── routes/
         ├── auth.ts       # /api/auth/*（login / callback / me / logout）
         ├── repos.ts      # /api/repos
@@ -73,6 +76,7 @@ edge/
         ├── monitoring.ts # /api/monitoring/*（总览 / 检查 / 告警确认 + /api/internal/analytics）
         ├── similar.ts    # /api/similar（相似项目：VPS 向量近邻 → D1 关键词兜底）
         ├── duplicates.ts # /api/duplicates/*（重复检测：VPS 规则 + 向量 → 本地兜底；按用户忽略）
+        ├── rerank.ts     # /api/rerank/*（精排预览 / 应用：VPS 六路信号 → 本地 MMR 兜底）
         ├── analysis.ts   # /api/analysis/*（依赖分析：用户仓库 → VPS 聚合 → 本地语言概览）
         └── internal-vectors.ts # /api/internal/vectors/*（VPS → Vectorize，X-Internal-Token）
 ```
@@ -206,7 +210,9 @@ npm run test:m2 -- --strict \
 | `POST /api/internal/trending/snapshots` | 内部：VPS 批量 upsert 快照（`X-Internal-Token`，单批 ≤ 500） |
 | `GET /api/internal/trending/retention` | 内部：D1 快照总数与最早 / 最新日期（`X-Internal-Token`） |
 | `POST /api/internal/trending/retention/cleanup` | 内部：按 `{beforeDate, dryRun?}` 删除过期快照（`X-Internal-Token`，M2-08） |
-| `GET /api/recommendations` | `Recommendation[]`（用户私有 + 全局，按 `score` 降序；需登录） |
+| `GET /api/recommendations` | `Recommendation[]`（用户私有 + 全局，按精排分 / `score` 降序；需登录） |
+| `POST /api/rerank/preview` | 精排预览：`{topK?,poolSize?,mmrLambda?,weights?}` → 名次 / 信号 / 指标（需登录；VPS 不可达 `mode=local`） |
+| `POST /api/rerank/apply` | 应用精排并写回 `recommendations` 精排字段（需登录） |
 | `GET /api/notifications?status=&limit=&offset=` | `NotificationsPayload`（`all`/`unread`/`read`，limit ≤100；需登录；惰性物化 `pushed` 推荐） |
 | `GET /api/notifications/unread-count` | `{unread:number}`（侧边栏徽标） |
 | `POST /api/notifications/:id/read` | 单条标记已读（幂等；404 = 不存在或已忽略） |

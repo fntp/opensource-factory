@@ -21,6 +21,12 @@ settings = get_settings()
 # 字段名与 models.Recommendation 保持一致，仅 SQLite 生效。
 _RECOMMENDATION_COLUMNS: dict[str, str] = {
     "match_score": "REAL NOT NULL DEFAULT 0",
+    # Rerank 精排（M7-07）
+    "base_score": "REAL NOT NULL DEFAULT 0",
+    "rerank_score": "REAL NOT NULL DEFAULT 0",
+    "rerank_rank": "INTEGER",
+    "rerank_detail": "TEXT",
+    "reranked_at": "DATETIME",
     "quality_score": "REAL NOT NULL DEFAULT 0",
     "quality_detail": "TEXT",
     "evaluation_run_id": "TEXT",

@@ -168,6 +168,11 @@ export interface RecommendationRow {
   language: string | null;
   stars: number | null;
   score: number | null;
+  base_score?: number | null;
+  rerank_score?: number | null;
+  rerank_rank?: number | null;
+  rerank_detail?: string | null;
+  reranked_at?: string | null;
   reason: string | null;
   based_on: string | null;
   url: string | null;
@@ -328,6 +333,19 @@ export interface TrendingRepo {
 }
 
 /** GET /api/recommendations 列表项 */
+/** 精排明细（M7-07）：信号值 / 贡献 / 理由 / 前后名次 */
+export interface RerankDetail {
+  repoId?: string;
+  baseScore?: number;
+  rerankScore?: number;
+  rankBefore?: number;
+  rankAfter?: number;
+  signals?: Record<string, number>;
+  contributions?: Record<string, number>;
+  reasons?: string[];
+  diversityPenalty?: number;
+}
+
 export interface Recommendation {
   id: string;
   repoId: string | null;
@@ -337,6 +355,10 @@ export interface Recommendation {
   language: string | null;
   stars: number;
   score: number;
+  baseScore: number;
+  rerankScore: number;
+  rerankRank: number | null;
+  rerankDetail: RerankDetail | null;
   reason: string | null;
   basedOn: string[];
   url: string | null;

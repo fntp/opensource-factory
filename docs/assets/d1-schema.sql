@@ -112,7 +112,12 @@ CREATE TABLE recommendations (
     description TEXT,
     language TEXT,
     stars INTEGER DEFAULT 0,
-    score REAL,
+    score REAL,                      -- 当前展示分（精排开启时为精排分）
+    base_score REAL,                 -- 粗排分（M7-07 精排前）
+    rerank_score REAL,               -- 精排分（M7-07）
+    rerank_rank INTEGER,             -- 精排名次（1 起）
+    rerank_detail TEXT,              -- 精排明细 JSON（信号 / 贡献 / 理由）
+    reranked_at DATETIME,            -- 最近精排时间
     reason TEXT,
     based_on TEXT,                   -- JSON 数组字符串，如 '["tag:ai","lang:ts"]'
     url TEXT,
@@ -232,6 +237,7 @@ CREATE INDEX idx_sessions_user_id ON sessions (user_id);
 CREATE INDEX idx_sessions_expires_at ON sessions (expires_at);
 CREATE INDEX idx_recommendations_user_id ON recommendations (user_id);
 CREATE INDEX idx_recommendations_score ON recommendations (score DESC);
+CREATE INDEX idx_recommendations_rerank_score ON recommendations (rerank_score DESC);
 CREATE INDEX idx_repo_tags_tag_id ON repo_tags (tag_id);
 CREATE UNIQUE INDEX idx_recommendation_feedback_unique
     ON recommendation_feedback (user_id, recommendation_id, action);

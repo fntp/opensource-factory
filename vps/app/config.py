@@ -150,6 +150,21 @@ class Settings(BaseSettings):
     # 推荐反馈回流（M3-07）：生成前拉取 edge 反馈、生成后回写 D1
     RECOMMEND_FEEDBACK_SYNC: bool = True
 
+    # Rerank 精排（M7-07 / REQ-202610-0966）
+    # 总开关；关闭时保持 M3-05 粗排行为
+    RERANK_ENABLED: bool = True
+    # 进入精排的粗排候选池大小（必须 >= 每日 top_k，实际取二者较大值）
+    RERANK_POOL_SIZE: int = 100
+    # MMR 多样性系数：1 = 只看精排分，越小越强调多样性
+    RERANK_MMR_LAMBDA: float = 0.75
+    # 六路信号权重（内部按权重和归一化）
+    RERANK_WEIGHT_RELEVANCE: float = 0.45
+    RERANK_WEIGHT_AFFINITY: float = 0.15
+    RERANK_WEIGHT_FRESHNESS: float = 0.12
+    RERANK_WEIGHT_MOMENTUM: float = 0.10
+    RERANK_WEIGHT_POPULARITY: float = 0.08
+    RERANK_WEIGHT_HEALTH: float = 0.10
+
     # 每日评估（M4-01）
     # 匹配度硬门槛：原始余弦相似度低于该值的推荐直接 filtered
     EVAL_MATCH_THRESHOLD: float = 0.35

@@ -220,6 +220,17 @@ def _parse_based_on(raw: Optional[str]) -> list[str]:
     return [str(item) for item in values if str(item).strip()]
 
 
+def _parse_detail(raw: Optional[str]) -> dict[str, Any] | None:
+    """解析精排明细 JSON；非法值返回 None。"""
+    if not raw:
+        return None
+    try:
+        value = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
 def build_push_items(db: Session, user_id: str) -> list[dict[str, Any]]:
     """把用户本地推荐转换为 edge upsert 契约。"""
     rows = list(
@@ -245,6 +256,10 @@ def build_push_items(db: Session, user_id: str) -> list[dict[str, Any]]:
                 "id": row.id,
                 "repoId": repo_id,
                 "score": round(float(row.score or 0), 6),
+                "baseScore": round(float(getattr(row, "base_score", 0) or 0), 6),
+                "rerankScore": round(float(getattr(row, "rerank_score", 0) or 0), 6),
+                "rerankRank": getattr(row, "rerank_rank", None),
+                "rerankDetail": _parse_detail(getattr(row, "rerank_detail", None)),
                 "reason": row.reason or "",
                 "basedOn": _parse_based_on(getattr(row, "based_on", None)),
                 "owner": owner or None,

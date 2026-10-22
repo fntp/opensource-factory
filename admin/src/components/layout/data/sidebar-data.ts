@@ -14,6 +14,7 @@ import {
   Scale,
   Search,
   Settings,
+  SlidersHorizontal,
   Sparkles,
   User,
 } from 'lucide-react'
@@ -44,6 +45,7 @@ export const sidebarData: SidebarData = {
         { title: '热榜', url: '/trending', icon: Flame },
         { title: 'License 合规', url: '/licenses', icon: Scale },
         { title: '推荐', url: '/recommend', icon: Sparkles },
+        { title: '精排工作台', url: '/rerank', icon: SlidersHorizontal },
         { title: '语义搜索', url: '/search', icon: Search },
         { title: '重复检测', url: '/duplicates', icon: GitMerge },
         { title: '技术栈图谱', url: '/tech-stack', icon: Network },

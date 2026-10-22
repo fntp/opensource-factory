@@ -133,7 +133,8 @@ VPS 生成（Celery / POST /api/tasks/generate-recommendations）
 
 ```
 Celery beat 08:30 → 收藏库平均向量（复用 repo_vectors）→ 热榜候选
-→ 排除已收藏 → 相似度 × 0.8 + 热榜热度 × 0.2 → 阈值过滤 → top_k
+→ 排除已收藏 → 相似度 × 0.8 + 热榜热度 × 0.2 → 阈值过滤 → 粗排候选池
+→ Rerank 精排（六路信号 + MMR 多样性）→ top_k
 → upsert recommendations（status=new、match_score=原始相似度；旧 new 未入选标记 expired）
 08:45 每日评估 → 质量分 = 仓库质量 × 0.7 + 理由质量 × 0.3
 → 双重门槛：match_score ≥ EVAL_MATCH_THRESHOLD 且 quality_score ≥ EVAL_QUALITY_THRESHOLD
@@ -141,6 +142,23 @@ Celery beat 08:30 → 收藏库平均向量（复用 repo_vectors）→ 热榜�
 → 推送准备按用户偏好（时间 / 阈值 / 通道）经 M4-07 静默 / 去重 / 日限额闸门
 → 通过的 qualified 标记为 pushed，并写 push_events 账本
 ```
+
+### 3.4.2 Rerank 精排（M7-07 / REQ-202610-0966）
+
+```
+粗排候选池（RERANK_POOL_SIZE，默认 100）
+→ 六路信号：相关性 / 画像亲和 / 时效 / 动量 / 人气 / 健康度
+→ 权重归一化加权（RERANK_WEIGHT_*，默认 0.45 / 0.15 / 0.12 / 0.10 / 0.08 / 0.10）
+→ MMR 多样性重排（RERANK_MMR_LAMBDA，默认 0.75；相似度优先用仓库向量，缺失回退语言 / 技术栈）
+→ top_k → recommendations：score=精排分，base_score / rerank_score / rerank_rank / rerank_detail / reranked_at
+```
+
+- 纯函数实现 `vps/app/services/rerank.py`，不访问网络 / 数据库，测试可完全离线；
+- 每日生成自动接入；`RERANK_ENABLED=false` 时严格回退 M3-05 粗排行为；
+- `POST /api/recommend/rerank/preview|apply` 支持按用户预览 / 落库；请求体传 `items` 时走无状态精排，
+  供 edge 把 D1 候选发给 VPS（`POST /api/rerank/preview|apply`）；
+- edge 不可达 VPS 时 `edge/src/rerank/helpers.ts` 用 D1 字段做本地启发式精排（`mode=local`）；
+- admin `/rerank` 精排工作台展示名次变化、信号贡献、理由与整体指标。
 
 ### 3.5 模型选型与推理预算（M3-01）
 

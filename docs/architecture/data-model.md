@@ -175,7 +175,12 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | user_id | 目标用户（NULL = 全局） |
 | repo_id TEXT | 稳定仓库 id（`owner/name`，M3-07 起） |
 | owner / name / description / language / stars / url | 推荐项目快照 |
-| score REAL | 综合得分 0~1（相似度 × 0.8 + 热榜热度 × 0.2） |
+| score REAL | 当前展示分 0~1（精排开启时为精排分；关闭时同 M3-05 综合得分） |
+| base_score REAL | 粗排分（M7-07 精排前；历史数据为 0 时回退 `score`） |
+| rerank_score REAL | 精排分（M7-07 六路信号加权） |
+| rerank_rank INTEGER | 精排名次（1 起） |
+| rerank_detail TEXT | 精排明细 JSON（信号 / 贡献 / 理由 / 前后名次 / 多样性惩罚） |
+| reranked_at DATETIME | 最近精排时间 |
 | match_score REAL | 原始余弦相似度（M4-01 匹配度硬门槛；历史数据缺失时回退到 `score`） |
 | quality_score REAL | 每日评估质量分 0~1（仓库质量 × 0.7 + 理由质量 × 0.3） |
 | quality_detail TEXT | 评估明细 JSON（各分量、阈值、是否通过） |
