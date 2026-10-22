@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useLocation } from '@tanstack/react-router'
 import { logout } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
@@ -11,11 +12,14 @@ interface SignOutDialogProps {
 export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
   const navigate = useNavigate()
   const location = useLocation()
+  const queryClient = useQueryClient()
   const { auth } = useAuthStore()
 
   const handleSignOut = () => {
-    void logout() // 通知边缘服务清除会话（失败不影响本地退出）
+    // 通知边缘服务清除会话（失败不影响本地退出）
+    void logout().catch(() => undefined)
     auth.reset()
+    queryClient.clear()
     // 记录当前位置，登录后可跳回
     const currentPath = location.href
     navigate({

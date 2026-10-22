@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Sparkles } from 'lucide-react'
-import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -12,22 +11,26 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { ConfigDrawer } from '@/components/config-drawer'
+import { EmptyState, ErrorState, LoadingState } from '@/components/data-state'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
-import { fetchRecommendations, MOCK_RECOMMENDATIONS } from './api'
+import { fetchRecommendations } from './api'
+
+function scorePercent(score: number): number {
+  const percent = score <= 1 ? score * 100 : score
+  return Math.max(0, Math.min(100, Math.round(percent)))
+}
 
 export function Recommend() {
-  const { data } = useQuery({
+  const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['recommendations'],
     queryFn: fetchRecommendations,
   })
   const [dismissed, setDismissed] = useState<string[]>([])
-  const items = (data ?? MOCK_RECOMMENDATIONS).filter(
-    (item) => !dismissed.includes(item.id)
-  )
+  const items = (data ?? []).filter((item) => !dismissed.includes(item.id))
 
   return (
     <>
@@ -52,79 +55,102 @@ export function Recommend() {
           </div>
         </div>
 
-        <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-3'>
-          {items.map((item) => (
-            <Card key={item.id} className='flex flex-col'>
-              <CardHeader>
-                <div className='flex items-start justify-between gap-2'>
-                  <div>
-                    <CardTitle className='text-base'>
-                      <a
-                        href={item.url}
-                        target='_blank'
-                        rel='noreferrer'
-                        className='hover:underline'
+        {isPending ? (
+          <Card>
+            <CardContent className='pt-6'>
+              <LoadingState label='正在加载推荐…' rows={4} />
+            </CardContent>
+          </Card>
+        ) : isError ? (
+          <Card>
+            <CardContent className='pt-6'>
+              <ErrorState
+                error={error}
+                title='推荐加载失败'
+                onRetry={() => void refetch()}
+              />
+            </CardContent>
+          </Card>
+        ) : items.length === 0 ? (
+          <Card>
+            <CardContent className='pt-6'>
+              <EmptyState
+                icon={Sparkles}
+                title='暂时没有新的推荐'
+                description='每日推荐任务运行后，这里会展示与你收藏相关的项目。'
+              />
+            </CardContent>
+          </Card>
+        ) : (
+          <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-3'>
+            {items.map((item) => (
+              <Card key={item.id} className='flex flex-col'>
+                <CardHeader>
+                  <div className='flex items-start justify-between gap-2'>
+                    <div>
+                      <CardTitle className='text-base'>
+                        {item.url ? (
+                          <a
+                            href={item.url}
+                            target='_blank'
+                            rel='noreferrer'
+                            className='hover:underline'
+                          >
+                            {item.owner ?? '未知'}/{item.name ?? '未命名'}
+                          </a>
+                        ) : (
+                          `${item.owner ?? '未知'}/${item.name ?? '未命名'}`
+                        )}
+                      </CardTitle>
+                      <CardDescription className='mt-1'>
+                        {item.description ?? '暂无描述'}
+                      </CardDescription>
+                    </div>
+                    <Badge className='shrink-0'>
+                      匹配度 {scorePercent(item.score)}%
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className='flex flex-1 flex-col justify-between gap-4'>
+                  <p className='text-sm text-muted-foreground'>
+                    {item.reason ?? '暂无推荐理由'}
+                  </p>
+                  <div className='space-y-3'>
+                    <div className='flex flex-wrap items-center gap-1'>
+                      {item.basedOn.map((tag) => (
+                        <Badge key={tag} variant='outline'>
+                          {tag}
+                        </Badge>
+                      ))}
+                      <span className='ms-auto text-xs text-muted-foreground'>
+                        {item.language ?? '未知语言'} ·{' '}
+                        {item.stars.toLocaleString()} stars
+                      </span>
+                    </div>
+                    <div className='flex gap-2'>
+                      {item.url ? (
+                        <Button size='sm' asChild>
+                          <a href={item.url} target='_blank' rel='noreferrer'>
+                            查看仓库
+                          </a>
+                        </Button>
+                      ) : null}
+                      <Button
+                        size='sm'
+                        variant='ghost'
+                        onClick={() =>
+                          setDismissed((prev) => [...prev, item.id])
+                        }
                       >
-                        {item.owner}/{item.name}
-                      </a>
-                    </CardTitle>
-                    <CardDescription className='mt-1'>
-                      {item.description}
-                    </CardDescription>
+                        忽略
+                      </Button>
+                    </div>
                   </div>
-                  <Badge className='shrink-0'>
-                    匹配度 {Math.round(item.score * 100)}%
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className='flex flex-1 flex-col justify-between gap-4'>
-                <p className='text-sm text-muted-foreground'>{item.reason}</p>
-                <div className='space-y-3'>
-                  <div className='flex flex-wrap items-center gap-1'>
-                    {item.basedOn.map((tag) => (
-                      <Badge key={tag} variant='outline'>
-                        {tag}
-                      </Badge>
-                    ))}
-                    <span className='ms-auto text-xs text-muted-foreground'>
-                      {item.language} · {item.stars.toLocaleString()} stars
-                    </span>
-                  </div>
-                  <div className='flex gap-2'>
-                    <Button size='sm' asChild>
-                      <a href={item.url} target='_blank' rel='noreferrer'>
-                        查看仓库
-                      </a>
-                    </Button>
-                    <Button
-                      size='sm'
-                      variant='secondary'
-                      onClick={() => toast.success('已加入收藏（演示）')}
-                    >
-                      加入收藏
-                    </Button>
-                    <Button
-                      size='sm'
-                      variant='ghost'
-                      onClick={() =>
-                        setDismissed((prev) => [...prev, item.id])
-                      }
-                    >
-                      忽略
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-          {items.length === 0 && (
-            <Card className='md:col-span-2 xl:col-span-3'>
-              <CardContent className='flex h-40 items-center justify-center text-muted-foreground'>
-                暂时没有新的推荐，明天再来看看吧。
-              </CardContent>
-            </Card>
-          )}
-        </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </Main>
     </>
   )

@@ -10,21 +10,24 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { ConfigDrawer } from '@/components/config-drawer'
+import { ErrorState } from '@/components/data-state'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
-import { fetchDashboardStats, MOCK_DASHBOARD_STATS } from './api'
+import { fetchDashboardStats } from './api'
 import { Overview } from './components/overview'
 import { RecentTrending } from './components/recent-trending'
 
 export function Dashboard() {
-  const { data } = useQuery({
+  const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: fetchDashboardStats,
   })
-  const stats = data ?? MOCK_DASHBOARD_STATS
+
+  const value = (n: number | undefined) =>
+    isPending || isError || n === undefined ? '—' : n.toLocaleString('zh-CN')
 
   return (
     <>
@@ -51,6 +54,18 @@ export function Dashboard() {
           </Button>
         </div>
 
+        {isError ? (
+          <Card className='mb-4'>
+            <CardContent className='pt-6'>
+              <ErrorState
+                error={error}
+                title='统计加载失败'
+                onRetry={() => void refetch()}
+              />
+            </CardContent>
+          </Card>
+        ) : null}
+
         <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
           <Card>
             <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
@@ -58,7 +73,9 @@ export function Dashboard() {
               <FolderGit2 className='h-4 w-4 text-muted-foreground' />
             </CardHeader>
             <CardContent>
-              <div className='text-2xl font-bold'>{stats.totalRepos}</div>
+              <div className='text-2xl font-bold'>
+                {value(data?.totalRepos)}
+              </div>
               <p className='text-xs text-muted-foreground'>
                 已同步的 GitHub 仓库
               </p>
@@ -70,7 +87,9 @@ export function Dashboard() {
               <Flame className='h-4 w-4 text-muted-foreground' />
             </CardHeader>
             <CardContent>
-              <div className='text-2xl font-bold'>{stats.trendingToday}</div>
+              <div className='text-2xl font-bold'>
+                {value(data?.trendingToday)}
+              </div>
               <p className='text-xs text-muted-foreground'>
                 今日抓取的热门项目
               </p>
@@ -83,7 +102,7 @@ export function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className='text-2xl font-bold'>
-                {stats.pendingRecommendations}
+                {value(data?.pendingRecommendations)}
               </div>
               <p className='text-xs text-muted-foreground'>
                 等待你查看的智能推荐
@@ -96,7 +115,9 @@ export function Dashboard() {
               <FolderTree className='h-4 w-4 text-muted-foreground' />
             </CardHeader>
             <CardContent>
-              <div className='text-2xl font-bold'>{stats.categoryCount}</div>
+              <div className='text-2xl font-bold'>
+                {value(data?.categoryCount)}
+              </div>
               <p className='text-xs text-muted-foreground'>
                 资产分类与标签体系
               </p>
@@ -107,8 +128,10 @@ export function Dashboard() {
         <div className='grid grid-cols-1 gap-4 lg:grid-cols-7'>
           <Card className='col-span-1 lg:col-span-4'>
             <CardHeader>
-              <CardTitle>Star 增长趋势</CardTitle>
-              <CardDescription>近 12 个月全部仓库累计 Star 数</CardDescription>
+              <CardTitle>Star 分布</CardTitle>
+              <CardDescription>
+                按仓库 Star 数排序（Top 8，数据来自已同步仓库）
+              </CardDescription>
             </CardHeader>
             <CardContent className='ps-2'>
               <Overview />

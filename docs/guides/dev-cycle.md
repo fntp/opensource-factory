@@ -27,7 +27,7 @@
 
 - **范围**：鉴权配置（仅 GitHub）、规范落实、文档落实、文档管理、功能集成、参考项目融合、实施步骤（梳理需求 → 项目基建 → UI 风格延续模板）、沟通机制（待确认问题记录）；
 - **交付**：
-  - `admin/`：基于 shadcn-admin 的控制台（GitHub 登录 / 演示模式、仪表盘、仓库、分类标签、热榜、推荐）；
+  - `admin/`：基于 shadcn-admin 的控制台（GitHub 登录、仪表盘、仓库、分类标签、热榜、推荐）；2026-10-22 起关闭演示模式，统一接入真实边缘 API；
   - `edge/`：Hono + D1 边缘 API 骨架（鉴权、元数据读写、任务调度）；
   - `vps/`：FastAPI + Celery 算力节点（同步、爬虫、清洗、摘要、向量化、推荐）；
   - `docs/`：四类规范 + 维护 / 周期文档 + 规划 + 需求 + 架构 + 数据资产；
@@ -40,6 +40,13 @@
 - **交付**：`docs/requirements/backlog.md`（需求池）、`docs/planning/roadmap.md`（扩展）、`docs/planning/resource-plan.md`（新增）、`docs/planning/task-planning.md`（排期）；
 - **验证**：三端检查（admin lint/build/test、edge typecheck、vps pytest）全绿；文档同步（索引 / 问答 / 周期）；
 - **遗留**：平台 keyId 39 修复仍待处理（Q7）；部署口径确认（Q9）。
+
+### REQ-202610-0906 · admin 关闭演示模式、真实接口联调（2026-10-22）
+
+- **范围**：移除 `VITE_DEMO_MODE` / 演示登录入口 / 演示会话 Cookie / 全部 `MOCK_*` 兜底；admin 统一走真实边缘 API，覆盖登录态、空数据态与错误态；
+- **交付**：`admin/src/lib/api.ts`（`apiFetch` / `ApiHttpError` / `ApiNetworkError` / 错误文案）、`components/data-state.tsx`（加载 / 空 / 错误三态）、`authenticated-layout.tsx`（会话状态机）、登录 / 仓库 / 热榜 / 推荐 / 分类 / 仪表盘页面真实接口改造、`vite.config.ts` 开发代理；edge 增加 OAuth 失败浏览器回跳与 `/api/auth/me` 的 `Cache-Control: no-store`，`POST /api/sync` 要求登录；
+- **验证**：admin `lint` / `build` / `test` 全绿（87 个用例），edge `typecheck` 通过；
+- **遗留**：真实 GitHub OAuth / D1 环境联调需在配置好 `GITHUB_CLIENT_ID`、`GITHUB_CLIENT_SECRET`、`ALLOWED_ORIGIN` 与 D1 的环境执行；分类 / 标签 CRUD 与任务进度页由 M1-08~10 分支承载。
 
 ### 后续周期（规划）
 

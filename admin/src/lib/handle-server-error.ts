@@ -1,13 +1,12 @@
-import { AxiosError } from 'axios'
 import { toast } from 'sonner'
+import { apiErrorMessage } from './api'
 
+/** 统一的请求错误提示（页面级错误态另行展示，这里负责全局 toast） */
 export function handleServerError(error: unknown) {
   if (import.meta.env.DEV) {
     // eslint-disable-next-line no-console
     console.log(error)
   }
-
-  let errMsg = 'Something went wrong!'
 
   if (
     error &&
@@ -15,15 +14,9 @@ export function handleServerError(error: unknown) {
     'status' in error &&
     Number(error.status) === 204
   ) {
-    errMsg = 'No content.'
+    toast.error('请求成功但无返回内容')
+    return
   }
 
-  if (error instanceof AxiosError) {
-    const title = error.response?.data?.title
-    if (typeof title === 'string' && title.length > 0) {
-      errMsg = title
-    }
-  }
-
-  toast.error(errMsg)
+  toast.error(apiErrorMessage(error, '操作失败，请稍后重试'))
 }

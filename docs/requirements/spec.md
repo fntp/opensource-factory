@@ -59,7 +59,7 @@
 
 | # | 要求 | 落实 |
 | --- | --- | --- |
-| 1 | 鉴权配置：仅 GitHub 授权登录 | edge `/api/auth/github/*` + admin 登录页（含演示模式兜底） |
+| 1 | 鉴权配置：仅 GitHub 授权登录 | edge `/api/auth/github/*` + admin 登录页（真实 OAuth，无演示兜底） |
 | 2 | 规范落实（项目/代码约束/需求/编码） | `docs/standards/` 四份规范 |
 | 3 | 文档落实（维护/规划/计划/周期） | `docs/guides/`、`docs/planning/` |
 | 4 | 文档管理：根目录 docs 存放全部文档与数据资产 | `docs/` 全量落位 |

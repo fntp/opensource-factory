@@ -15,12 +15,13 @@
 - 技术栈：React 19 + TypeScript + Vite + TanStack Router（文件式路由）+ TanStack Query + Tailwind 4 + shadcn/ui；
 - 目录约定：
   - `src/routes/**`：仅做路由声明，组件从 `src/features/**` 引入；
-  - `src/features/<feature>/`：内聚 `api.ts`（接口 + 演示数据兜底）与页面组件；
+  - `src/features/<feature>/`：内聚 `api.ts`（接口调用 + 类型定义）与页面组件；
   - `src/components/ui/**`：shadcn/ui 基础组件，**不直接改**（定制走业务组件或扩展）；
   - `src/lib/**`：与框架无关的工具；
-- 数据获取：统一走 `@tanstack/react-query` + `src/lib/api.ts` 的 `apiFetch` / `fetchWithFallback`；
-- 无后端时必须可用：所有 API 调用提供演示数据兜底（`VITE_DEMO_MODE`）；
-- 演示数据（mock）标注 `MOCK_` 前缀，集中放在对应 `api.ts` 中；
+- 数据获取：统一走 `@tanstack/react-query` + `src/lib/api.ts` 的 `apiFetch`（真实边缘 API，Cookie 会话，`credentials: 'include'`）；
+- 不使用演示数据 / mock 兜底：接口失败时展示可读错误与重试入口，禁止静默回退到假数据；
+- 页面必须区分并实现三种状态：加载中（`LoadingState`）、空数据（`EmptyState`，与「搜索无结果」分开）、请求失败（`ErrorState` + 重试）；
+- 会话：登录态以 `GET /api/auth/me` 为准（httpOnly Cookie），401 跳转 `/sign-in`，网络 / 5xx 展示可重试错误态，不得误判为未登录；
 - `src/routeTree.gen.ts` 自动生成，禁止手改；新增路由后运行 `npm run build` 或 `npx vite build` 重新生成。
 
 ## 3. edge（Cloudflare Workers）

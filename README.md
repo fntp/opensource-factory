@@ -53,7 +53,7 @@ opensource-factory/
 ```bash
 cd admin
 npm install
-cp .env.example .env      # 未配置后端时自动进入「演示模式」
+cp .env.example .env      # 配置 VITE_EDGE_URL（默认代理到 http://127.0.0.1:8787）
 npm run dev               # http://localhost:5173
 ```
 
