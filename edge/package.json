@@ -1,0 +1,28 @@
+{
+  "name": "opensource-factory-edge",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test:trending": "node --experimental-strip-types --test scripts/trending-query.test.mjs scripts/trending-detail.test.mjs",
+    "test:m2": "node scripts/m2-acceptance.mjs",
+    "test:vectorize": "node --test scripts/vectorize-route.test.mjs",
+    "test:notifications": "node --test scripts/notification-route.test.mjs",
+    "test:push-preferences": "node --test scripts/push-preferences-route.test.mjs",
+    "test:security": "node --test scripts/security-route.test.mjs",
+    "test:monitoring": "node --test scripts/monitoring-route.test.mjs",
+    "test": "node --experimental-strip-types --experimental-loader ./scripts/ts-import-loader.mjs --test scripts/*.test.mjs",
+    "db:migrate:local": "wrangler d1 migrations apply opensource-factory --local"
+  },
+  "dependencies": {
+    "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "latest",
+    "typescript": "^5.6.0",
+    "wrangler": "^4.0.0"
+  }
+}
