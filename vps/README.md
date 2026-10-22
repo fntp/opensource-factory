@@ -99,7 +99,18 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | `OLLAMA_MODEL` | `qwen2.5:7b` | Ollama 摘要模型 |
 | `DEEPSEEK_API_KEY` | 空 | 可选；配置后作为 LLM 云端降级（OpenAI 兼容） |
 | `EMBEDDING_MODEL` | `BAAI/bge-m3` | 向量模型名（sentence-transformers / FlagEmbedding） |
-| `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
+| `EDGE_BASE_URL` | 空 | 边缘 Worker 地址（如 `https://api.example.com`）；与 `INTERNAL_TOKEN` 同时配置后才启用 Vectorize 同步 |
+| `VECTORIZE_SYNC_ENABLED` | `true` | 总开关；`false` 时同步任务直接返回 `disabled` |
+| `VECTORIZE_INDEX_NAME` | `opensource-factory-vectors` | 索引名（仅用于状态展示，实际绑定在 edge `wrangler.toml`） |
+| `VECTORIZE_INDEX_DIM` | `1024` | 索引维度校验；`0` 表示不校验 |
+| `VECTORIZE_SYNC_BATCH_SIZE` | `100` | 单批 upsert 条数（上限 1000） |
+| `VECTORIZE_SYNC_MAX_PER_RUN` | `1000` | 单次运行最多处理的向量数 |
+| `VECTORIZE_SYNC_MAX_RETRIES` | `3` | 单批失败重试次数（指数退避） |
+| `VECTORIZE_SYNC_RETRY_BASE_MS` | `500` | 退避基数（毫秒） |
+| `VECTORIZE_SYNC_TIMEOUT_SECONDS` | `30` | 调用 edge 的超时（秒） |
+| `VECTORIZE_SYNC_DELETE_ORPHANS` | `false` | 对账时是否删除索引中本地已不存在的向量 |
+| `VECTORIZE_SYNC_MAX_ORPHANS` | `100` | 单次对账最多清理的孤儿数 |
+| `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/vector-index/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
 | `CELERY_TASK_ALWAYS_EAGER` | `0` | 置 `1` 时任务同步执行（本地调试 / 测试用） |
 | `GITHUB_TOKEN` | 空 | GitHub PAT（仅需 read 权限）；为空时同步任务跳过 |
 
@@ -116,6 +127,16 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | POST | `/api/tasks/generate-recommendations` | 入队推荐生成（可选 `user_id`、`top_k`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/daily-push` | 入队每日推送准备（将 `new` 推荐标记为 `pushed`） | `202 {"taskId": "..."}` |
 | GET | `/api/tasks/{task_id}` | 查询任务状态（`pending/started/success/failure`） | `200 {"taskId","status","result"}` |
+
+Vectorize 索引维护接口（同样使用 `X-Internal-Token`）：
+
+| 方法 | 路径 | 说明 | 返回 |
+| --- | --- | --- | --- |
+| POST | `/api/vector-index/sync` | 入队增量 / 全量同步（`mode`、`scope`、`limit`、`batchSize`） | `202 {"taskId","runId"}` |
+| POST | `/api/vector-index/reconcile` | 对账（`scope`、`repair`、`limit`），同步执行 | `200` 运行统计 |
+| GET | `/api/vector-index/status` | 本地向量数、状态分布、最近运行 | `200` |
+| GET | `/api/vector-index/runs?limit=20` | 最近运行列表 | `200 {"items": [...]}` |
+| GET | `/api/vector-index/runs/{run_id}` | 单次运行详情 | `200` / `404` |
 
 约定：
 

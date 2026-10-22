@@ -39,6 +39,21 @@ class Settings(BaseSettings):
     # 向量模型
     EMBEDDING_MODEL: str = "BAAI/bge-m3"
 
+    # Vectorize 索引同步（M3-03）
+    # 边缘 Worker 地址与内部令牌：两者都配置后才能同步（VPS 不持有 Cloudflare 凭据）
+    EDGE_BASE_URL: str = ""
+    VECTORIZE_SYNC_ENABLED: bool = True
+    VECTORIZE_INDEX_NAME: str = "opensource-factory-vectors"
+    # 索引维度需与 Cloudflare Vectorize 索引一致（BGE-M3 = 1024；0 表示不校验）
+    VECTORIZE_INDEX_DIM: int = 1024
+    VECTORIZE_SYNC_BATCH_SIZE: int = 100
+    VECTORIZE_SYNC_MAX_PER_RUN: int = 1000
+    VECTORIZE_SYNC_MAX_RETRIES: int = 3
+    VECTORIZE_SYNC_RETRY_BASE_MS: int = 500
+    VECTORIZE_SYNC_TIMEOUT_SECONDS: float = 30.0
+    VECTORIZE_SYNC_DELETE_ORPHANS: bool = False
+    VECTORIZE_SYNC_MAX_ORPHANS: int = 100
+
     # 内部接口鉴权（设置后 /api/tasks/* 校验 X-Internal-Token）
     INTERNAL_TOKEN: str = ""
 

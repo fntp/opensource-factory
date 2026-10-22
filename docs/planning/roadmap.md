@@ -58,7 +58,7 @@
 
 - [ ] 模型选型与 2G 预算验证（bge-m3 量化 + ≤2B LLM）
 - [ ] BGE-M3 向量化管线（本地）
-- [ ] Vectorize 索引同步（edge）
+- [x] Vectorize 索引同步（edge）— REQ-202610-0921（批量 upsert / 重试 / 对账）
 - [ ] 自然语言语义匹配（RAG）
 - [ ] 推荐结果解释（reason 生成）
 
