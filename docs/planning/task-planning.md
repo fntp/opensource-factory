@@ -70,8 +70,8 @@
 | IT-0033 | M4-08 | 推送记录与回执（送达状态） | M4-03~05 | ✅ 已完成（2026-10-22） |
 | IT-0034 | M4-09 | M4 验收与回顾 | M4-01~08 | 🔄 进行中 |
 | IT-0035 | M5-01 | 正式部署（Pages / Workers + 本机节点 + 域名 HTTPS） | IT-0025；Q3 | 🟡 工具链就绪（待 Q3 凭据执行） |
-| IT-0038 | M5-04 | 备份与恢复（SQLite 快照 / D1 导出 / 恢复演练 / 保留策略） | IT-0035；M5-01 | ✅ 已完成（2026-10-22） |
 | IT-0036 | M5-02 | 本机一体化部署模式评估与落地（LOCAL_MODE + admin 静态托管 + 只读 API） | Q9；M1-01 | ✅ 已完成（2026-10-22） |
+| IT-0037 | M5-03 | 监控与告警（健康检查 / 资源监控 / 日志 / Workers Analytics） | IT-0035；M5-01 | ✅ 已完成（2026-10-22） |
 | IT-0038 | M5-04 | 备份与恢复（SQLite 快照 / D1 导出 / 恢复演练 / 保留策略） | IT-0035；M5-01 | ✅ 已完成（2026-10-22） |
 | IT-0039 | M5-05 | 接口限流与安全加固（限流 / 内部令牌轮换 / 登录防护） | IT-0035；M5-01 | ✅ 已完成（2026-10-22） |
 
@@ -107,15 +107,3 @@
 | 2026-10-22 | 交付 | IT-0024 / M3-10 完成（REQ-202610-0928）：同义词 / 技术栈词表扩展接入 VPS 搜索链路、edge 关键词兜底与 admin 查询理解标签；计划见 `plan-req-202610-0928-query-understanding.md` |
 | 2026-10-22 | 验收 | IT-0025 / M3-11 完成（REQ-202610-0929）：集成 M3-01~10 十个分支，跨分支 E2E 23 项全 PASS；报告见 `acceptance-m3.md` / `acceptance-m3-report.md` |
 | 2026-10-22 | 交付 | IT-0026 / M4-01 完成（REQ-202610-0930）：每日评估（质量分 = 仓库 × 0.7 + 理由 × 0.3，匹配度 / 质量分双门槛）+ Celery beat 08:45；计划见 `plan-req-202610-0930-daily-evaluation.md` |
-| 2026-10-22 | 交付 | IT-0027 / M4-02 完成（REQ-202610-0931）：站内通知中心（D1 惰性物化、列表 / 未读数 / 已读 / 忽略、admin 徽标轮询） |
-| 2026-10-22 | 交付 | IT-0028 / M4-03 完成（REQ-202610-0932）：Bark 推送通道（`pushed` 推荐 09:05 投递、幂等与重试、测试 / 状态 / 手动触发、dry-run）+ 17 用例；计划见 `plan-req-202610-0932-bark-channel.md` |
-| 2026-10-22 | 交付 | IT-0029 / M4-04 完成（REQ-202610-0933）：Telegram 每日摘要（HTML 转义 / 3800 字符分片 / 429 与 5xx 退避 / `telegram_deliveries` 幂等）；计划见 `plan-req-202610-0933-telegram-channel.md` |
-| 2026-10-22 | 交付 | IT-0030 / M4-05 完成（REQ-202610-0934）：Email 每日摘要（STARTTLS/SSL/AUTH、瞬时错误重试、`email_deliveries` 同日幂等）；计划见 `plan-req-202610-0934-email-channel.md` |
-| 2026-10-22 | 交付 | IT-0031 / M4-06 完成：推送偏好（时间 / 时区 / 双阈值 / 四通道开关）+ D1 迁移 0011 + edge API + VPS 每 10 分钟按偏好推送；计划见 `plan-req-202610-0935-push-preferences.md` |
-| 2026-10-22 | 交付 | IT-0032 / M4-07 完成：`push_events` 推送账本 + 静默时段 / 跨通道去重 / 每日上限 + `retry_deferred_push` + `/api/push/policy/*`；计划见 `plan-req-202610-0936-push-dedupe-silence.md` |
-| 2026-10-22 | 交付 | IT-0033 / M4-08 完成（REQ-202610-0937）：统一推送记录 `push_deliveries` + 回执流水 `push_receipts` + 列表 / 统计 / 详情 / 回执接口，接入 Bark / Telegram / Email；计划见 `plan-req-202610-0937-push-records.md` |
-| 2026-10-22 | 交付 | IT-0035 / M5-01 部署工具链（REQ-202610-0939）：新增三端预检 / 部署 / 冒烟脚本、Pages / Workers 生产模板、Caddy HTTPS 模板、GitHub Actions 部署工作流与正式部署手册；真实上线待 Q3 凭据；计划见 `plan-req-202610-0939-production-deploy.md` |
-| 2026-10-22 | 交付 | IT-0038 / M5-04 备份与恢复（REQ-202610-0942）：SQLite 一致性快照 + D1 导出校验 + 恢复演练 + 7 份 / 3 GB 保留策略 + 内部运维接口 + Celery 每日 / 每周调度 + 受保护恢复脚本；计划见 `plan-req-202610-0942-backup-restore.md`，SOP 见 `guides/backup-restore.md` |
-| 2026-10-22 | 交付 | IT-0036 / M5-02 完成（REQ-202610-0940）：`LOCAL_MODE=1` 单进程托管 admin + `/local/api/*` 只读接口，离线自托管可切换；计划见 `plan-req-202610-0940-local-allinone.md`，指南见 `guides/local-allinone-deployment.md` |
-| 2026-10-22 | 交付 | IT-0038 / M5-04 备份与恢复（REQ-202610-0942）：SQLite 一致性快照 + D1 导出校验 + 恢复演练 + 7 份 / 3 GB 保留策略 + 内部运维接口 + Celery 每日 / 每周调度 + 受保护恢复脚本；计划见 `plan-req-202610-0942-backup-restore.md`，SOP 见 `guides/backup-restore.md` |
-| 2026-10-22 | 交付 | IT-0039 / M5-05 安全加固（REQ-202610-0943）：edge D1 固定窗口限流（auth / write / read）+ 登录失败锁定 + 内部令牌双令牌轮换；VPS 进程内滑动窗口与 `/api/security/status`；新增迁移 0011、轮换脚本与运维手册；计划见 `plan-req-202610-0943-security-hardening.md` |

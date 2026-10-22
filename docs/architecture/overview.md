@@ -62,8 +62,8 @@
 | 组件 | 目录 | 职责 | 不该做的事 |
 | --- | --- | --- | --- |
 | 前端控制台 | `admin/` | 展示、交互、调用 edge API | 不存密钥、不做业务计算 |
-| 边缘 API | `edge/` | 鉴权、调度、D1 读写、Vectorize 检索 | 不跑长任务、不跑模型 |
-| 算力节点 | `vps/` | 爬虫、清洗、摘要、向量化、推荐、推送 | 不对外暴露（仅内网/内部 token） |
+| 边缘 API | `edge/` | 鉴权、调度、D1 读写、Vectorize 检索、Workers 请求指标聚合 | 不跑长任务、不跑模型 |
+| 算力节点 | `vps/` | 爬虫、清洗、摘要、向量化、推荐、推送、健康检查与资源监控 | 不对外暴露（仅内网/内部 token） |
 | 数据资产 | `docs/assets/` | Schema、样例数据 | — |
 
 ## 3. 关键数据流
@@ -330,7 +330,7 @@ Bark / Telegram / Email 每次实际发送
 
 ```
 
-### 3.12 限流与登录防护（M5-05）
+### 3.19 限流与登录防护（M5-05）
 
 ```
 admin / 匿名请求 → edge /api/*
@@ -351,6 +351,25 @@ GitHub OAuth callback → login_attempts / security_events
 - edge 侧 `/api/internal/*` 不走 IP 限流（由内部令牌保护），避免 VPS 批量任务被误伤；
 - VPS 侧另有进程内滑动窗口（`RATE_LIMIT_*`），`/api/tasks`、`/api/vector-index`、`/api/search`、`/api/recommend/eval` 使用更低的「重接口」阈值；
 - 限流身份只落 sha-256 哈希，不存明文 IP；`rate_limit_counters` 过期行与历史安全事件由 `POST /api/internal/security/cleanup` 定期清理。
+
+### 3.20 监控与告警流（M5-03）
+
+```
+Celery beat（每 5 分钟）→ VPS monitoring.run_monitoring_check
+  ├── 采集：cgroup / 进程 RSS 内存、/proc/loadavg、运行目录磁盘、日志目录
+  ├── 健康检查：数据库 / 运行目录 / Redis(TCP) / edge /healthz / 模型预算
+  ├── 阈值判定：内存 3.5G 预警 / 4G 严重、磁盘 13G / 15G、日志预算、失败检查
+  ├── 告警：monitoring_alerts 按 dedupe_key 去重（冷却窗口累计次数，恢复自动 resolved）
+  └── 历史：monitoring_check_runs 保存最近检查快照（默认保留 7 天）
+        ↓
+edge 中间件按 日期/路由/方法/状态类 UPSERT worker_metrics（D1，迁移 0012）
+        ↓
+admin /monitoring → GET /api/monitoring/overview（edge 合并 VPS 状态 + Workers 指标）
+```
+
+VPS 端点同时提供 `GET /healthz/ready`（数据库 + 运行目录就绪探针）与
+`/api/monitoring/{status,check,history,alerts,logs}`（全部要求 `X-Internal-Token`）；
+edge 侧 `/api/monitoring/overview` 需登录，`/api/internal/analytics` 供内部工具读取 Workers 聚合。
 
 ## 4. 接口边界
 
@@ -387,6 +406,9 @@ GitHub OAuth callback → login_attempts / security_events
 | `/api/push-preferences` | PUT | 保存推送偏好（时间 / 时区 / 阈值 / 通道开关） |
 | `/api/sync` | POST | 触发同步任务（202） |
 | `/api/search/semantic` | POST | 语义搜索（`query` / `topK` / `scope`；vectorize → local → keyword 三级降级） |
+| `/api/monitoring/overview` | GET | 监控总览（登录态；合并 VPS 状态与 Workers 指标，`?days=1..30`） |
+| `/api/monitoring/check` | POST | 触发一次 VPS 监控检查（登录态代理） |
+| `/api/monitoring/alerts/:id/ack` | POST | 确认监控告警（登录态代理） |
 
 ### 4.2 edge ↔ vps（内部 API，`X-Internal-Token`）
 
@@ -453,7 +475,14 @@ GitHub OAuth callback → login_attempts / security_events
 | `/api/push/records/stats` | GET | 投递统计（分通道 / 分状态 / 回执 / 送达率） |
 | `/api/push/records/{id}` | GET | 投递详情 + 回执时间线 |
 | `/api/push/receipts` | POST | 写入送达回执（服务商 / 人工，幂等） |
-| `/healthz` | GET | 健康检查 |
+| `/api/monitoring/status` | GET | 实时监控快照（内存 / 磁盘 / 负载 / 日志 / 健康检查 / 活跃告警） |
+| `/api/monitoring/check` | POST | 执行一次检查并落库（告警去重 / 自动恢复 / 历史记录） |
+| `/api/monitoring/history` | GET | 最近检查历史（`?limit=`） |
+| `/api/monitoring/alerts` | GET | 告警列表（`?status=` / `?limit=`） |
+| `/api/monitoring/alerts/{id}/ack` | POST | 确认告警 |
+| `/api/monitoring/logs` | GET | 日志目录统计与文件列表 |
+| `/api/monitoring/logs/cleanup` | POST | 日志清理（`?retention_days=` / `?dry_run=`） || `/healthz` | GET | 健康检查 |
+| `/healthz/ready` | GET | 就绪检查（数据库 / 运行目录，异常返回 503） |
 
 ### 4.3 vps → edge（Vectorize 内部接口，`X-Internal-Token`）
 
@@ -473,7 +502,7 @@ GitHub OAuth callback → login_attempts / security_events
 | `/api/internal/security/status`（edge） | GET | 限流 / 登录防护 / 双令牌状态与指纹（`X-Internal-Token`） |
 | `/api/internal/security/cleanup`（edge） | POST | 清理过期限流计数、30 天前登录失败与 90 天前安全事件（`X-Internal-Token`） |
 | `/api/security/status`（vps） | GET | VPS 侧限流参数与双令牌状态（`X-Internal-Token`） |
-
+| `/api/internal/analytics` | GET | Workers 请求指标聚合（`?days=1..30`，`X-Internal-Token`） |
 ## 5. 安全边界
 
 - 浏览器侧仅持有 httpOnly 会话 Cookie（`of_session`），**不接触任何第三方 token**；
@@ -492,7 +521,7 @@ GitHub OAuth callback → login_attempts / security_events
 | vps | 本地服务器 | uvicorn + celery worker + celery beat + redis + ollama |
 | 数据 | D1 + VPS 本地 SQLite | D1 为主数据；VPS 侧为算力缓存/镜像 |
 
-### 3.12 备份与恢复（M5-04）
+### 3.21 备份与恢复（M5-04）
 
 ```
 Celery beat 03:50（每日）→ SQLite backup API 快照 → integrity_check → gzip + manifest

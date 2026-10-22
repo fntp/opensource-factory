@@ -13,6 +13,7 @@
     "test:notifications": "node --test scripts/notification-route.test.mjs",
     "test:push-preferences": "node --test scripts/push-preferences-route.test.mjs",
     "test:security": "node --test scripts/security-route.test.mjs",
+    "test:monitoring": "node --test scripts/monitoring-route.test.mjs",
     "test": "node --test scripts/*.test.mjs",
     "db:migrate:local": "wrangler d1 migrations apply opensource-factory --local"
   },

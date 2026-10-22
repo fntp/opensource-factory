@@ -382,6 +382,57 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | detail | 事件上下文（scope / 原因等） |
 | created_at | 事件时间 |
 
+### 3.17 `monitoring_alerts` / `monitoring_check_runs` 监控告警（VPS 本地表，M5-03）
+
+> 仅存在于 VPS 本地镜像库，不进入 D1；由 Celery beat 每 5 分钟执行一次检查。
+
+`monitoring_alerts`（告警记录）：
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | 告警 id（UUID hex） |
+| kind | `memory` / `disk` / `logs` / `health`（资源红线或健康检查失败） |
+| severity | `warning` / `critical` |
+| message / details | 中文摘要 / JSON 明细（当前值、阈值、检查项） |
+| dedupe_key TEXT | 去重键（如 `memory:critical`、`health:redis`） |
+| status | `open` / `acknowledged` / `resolved` |
+| occurrences | 累计出现次数（冷却窗口内累加） |
+| first_seen_at / last_seen_at | 首次 / 最近出现时间 |
+| acknowledged_at / resolved_at | 确认 / 恢复时间（可空） |
+
+同一 `dedupe_key` 只保留一条未关闭告警；`ALERT_COOLDOWN_MINUTES` 窗口内重复出现累加
+`occurrences`，超出窗口重置为 1；条件消失时自动置 `resolved`。
+
+`monitoring_check_runs`（检查历史）：
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | 运行 id |
+| status | `ok` / `warning` / `critical` |
+| checks | JSON 数组：各项健康检查结果（数据库 / 运行目录 / Redis / edge / 模型预算） |
+| resources | JSON 对象：内存、磁盘、负载、日志快照 |
+| findings | JSON 数组：本次命中的阈值告警 |
+| created_at | 检查时间 |
+
+历史默认保留 `MONITOR_HISTORY_RETENTION_DAYS`（7）天，由每日清理任务删除。
+
+### 3.18 `worker_metrics` Workers 请求指标（D1，迁移 `0012`）
+
+> D1 表，edge 请求中间件按「日期 + 路由 + 方法 + 状态类」UPSERT，用于 Workers Analytics。
+
+| 字段 | 说明 |
+| --- | --- |
+| metric_date TEXT | UTC 日期 `YYYY-MM-DD`（联合主键） |
+| route TEXT | 归一化路由（数字 / UUID / 长 hex 折叠，最多 5 段；联合主键） |
+| method TEXT | HTTP 方法（联合主键） |
+| status_class TEXT | `2xx` / `3xx` / `4xx` / `5xx`（联合主键） |
+| requests INTEGER | 请求数 |
+| total_ms INTEGER | 累计耗时（毫秒） |
+| max_ms INTEGER | 单次最大耗时 |
+| updated_at TEXT | 更新时间 |
+
+跳过 `OPTIONS` / `HEAD` 与 `/api/internal/*`；索引 `idx_worker_metrics_date (metric_date)` 供按日查询。
+
 ## 4. 索引策略
 
 | 表 | 索引 | 用途 |
@@ -405,6 +456,9 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | rate_limit_counters | `(expires_at)` | 过期限流计数清理 |
 | login_attempts | `(ip_hash, created_at)` | 失败窗口统计 / 清理 |
 | security_events | `(event_type, created_at)` | 安全事件检索 / 清理 |
+
+| monitoring_alerts | `(dedupe_key)`、`(status)` | 告警去重 / 未关闭列表 |
+| worker_metrics | `(metric_date)`、主键 `(metric_date, route, method, status_class)` | Workers 指标按日聚合与 UPSERT |
 
 ## 5. 向量数据（M3）
 

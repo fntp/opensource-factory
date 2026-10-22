@@ -175,7 +175,18 @@ CREATE TABLE push_preferences (
     channel_telegram INTEGER NOT NULL DEFAULT 0,
     channel_email INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL
-);
+
+-- ── Workers 请求指标（M5-03，迁移 0012）───────────────────────
+CREATE TABLE worker_metrics (
+    metric_date TEXT NOT NULL,                     -- UTC 日期 YYYY-MM-DD
+    route TEXT NOT NULL,                           -- 归一化路由
+    method TEXT NOT NULL,
+    status_class TEXT NOT NULL,                    -- 2xx / 3xx / 4xx / 5xx
+    requests INTEGER NOT NULL DEFAULT 0,
+    total_ms INTEGER NOT NULL DEFAULT 0,
+    max_ms INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (metric_date, route, method, status_class));
 
 -- ── 索引 ────────────────────────────────────────────────────────
 CREATE INDEX idx_my_repositories_user_id ON my_repositories (user_id);
@@ -227,3 +238,4 @@ CREATE TABLE IF NOT EXISTS security_events (
 CREATE INDEX IF NOT EXISTS idx_rate_limit_counters_expires ON rate_limit_counters (expires_at);
 CREATE INDEX IF NOT EXISTS idx_login_attempts_ip_created ON login_attempts (ip_hash, created_at);
 CREATE INDEX IF NOT EXISTS idx_security_events_type_created ON security_events (event_type, created_at);
+CREATE INDEX idx_worker_metrics_date ON worker_metrics (metric_date);

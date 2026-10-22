@@ -12,11 +12,13 @@ from typing import AsyncIterator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api import (
     backup,
     degradation,
     local,
+    monitoring,
     notifications,
     push,
     push_policy,
@@ -31,9 +33,11 @@ from app.api import (
     vectors,
 )
 from app.config import get_settings
-from app.db import init_db
+from app.db import SessionLocal, init_db
 from app.local_ui import mount_local_ui
 from app.middleware.rate_limit import install_rate_limit_middleware
+from app.schemas import ReadyCheckOut
+from app.services import monitoring as monitoring_service
 
 settings = get_settings()
 
@@ -102,6 +106,7 @@ app.include_router(degradation.router)
 app.include_router(push.router)
 app.include_router(backup.router)
 app.include_router(security.router)
+app.include_router(monitoring.router)
 
 # 本机一体化只读 API：/local/api/*（LOCAL_MODE=false 时统一 404）
 app.include_router(local.router, prefix="/local")
@@ -113,6 +118,27 @@ install_rate_limit_middleware(app)
 @app.get("/healthz", tags=["health"], summary="健康检查")
 async def healthz() -> dict[str, str]:
     return {"status": "ok", "service": "opensource-factory-vps", "version": settings.VERSION}
+
+
+@app.get("/healthz/ready", tags=["health"], summary="就绪检查（数据库 / 运行目录）")
+def healthz_ready() -> JSONResponse:
+    """就绪探针：数据库或显式配置的运行目录不可用时返回 503。"""
+    db = SessionLocal()
+    try:
+        checks = [
+            monitoring_service.check_database(db),
+            monitoring_service.check_runtime_home(monitoring_service.resolve_home(settings)),
+        ]
+    finally:
+        db.close()
+    ok = all(item["ok"] for item in checks)
+    payload = ReadyCheckOut(
+        status="ok" if ok else "degraded",
+        service="opensource-factory-vps",
+        version=settings.VERSION,
+        checks=checks,
+    )
+    return JSONResponse(status_code=200 if ok else 503, content=payload.model_dump())
 
 
 # admin 静态托管（仅 LOCAL_MODE=true；必须最后注册，避免覆盖 API 路由）

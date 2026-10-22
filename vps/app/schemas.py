@@ -1188,3 +1188,116 @@ class LocalStatus(BaseModel):
     adminDir: str
     adminReady: bool
     database: str
+
+
+# ── 监控与告警（M5-03）─────────────────────────────────────────
+
+
+class MonitoringCheckItemOut(BaseModel):
+    """单项健康检查结果。"""
+
+    name: str
+    ok: bool
+    detail: str
+    severity: str = "info"
+
+
+class MonitoringAlertOut(BaseModel):
+    """监控告警。"""
+
+    id: str
+    kind: str
+    severity: str
+    message: str
+    details: dict[str, Any] = Field(default_factory=dict)
+    dedupeKey: str
+    status: str
+    occurrences: int
+    firstSeenAt: Optional[datetime] = None
+    lastSeenAt: Optional[datetime] = None
+    acknowledgedAt: Optional[datetime] = None
+    resolvedAt: Optional[datetime] = None
+
+
+class MonitoringStatusOut(BaseModel):
+    """实时监控状态。"""
+
+    status: str
+    checkedAt: str
+    checks: list[MonitoringCheckItemOut]
+    resources: dict[str, Any]
+    findings: list[dict[str, Any]] = Field(default_factory=list)
+    thresholds: dict[str, int] = Field(default_factory=dict)
+    alerts: list[MonitoringAlertOut] = Field(default_factory=list)
+    latestRun: Optional[dict[str, Any]] = None
+
+
+class MonitoringCheckResultOut(BaseModel):
+    """一轮检查的执行结果。"""
+
+    id: str
+    status: str
+    checkedAt: str
+    checks: list[MonitoringCheckItemOut]
+    resources: dict[str, Any]
+    findings: list[dict[str, Any]]
+    alerts: dict[str, int]
+    run: dict[str, Any]
+
+
+class MonitoringHistoryOut(BaseModel):
+    """检查历史。"""
+
+    items: list[dict[str, Any]]
+    count: int
+
+
+class MonitoringAlertsOut(BaseModel):
+    """告警列表。"""
+
+    items: list[MonitoringAlertOut]
+    count: int
+
+
+class MonitoringLogItemOut(BaseModel):
+    """日志文件条目。"""
+
+    name: str
+    sizeMb: float
+    modifiedAt: str
+    expired: bool
+
+
+class MonitoringLogsOut(BaseModel):
+    """日志统计与保留策略。"""
+
+    path: str
+    exists: bool
+    files: int
+    totalMb: float
+    budgetMb: int
+    retentionDays: int
+    oldFiles: int
+    items: list[MonitoringLogItemOut] = Field(default_factory=list)
+
+
+class MonitoringCleanupOut(BaseModel):
+    """日志清理结果。"""
+
+    status: str
+    path: str
+    retentionDays: int
+    cutoff: str
+    deleted: int
+    kept: int
+    freedMb: float
+    dryRun: bool = False
+
+
+class ReadyCheckOut(BaseModel):
+    """就绪探针响应。"""
+
+    status: str
+    service: str
+    version: str
+    checks: list[MonitoringCheckItemOut]

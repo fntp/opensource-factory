@@ -281,6 +281,35 @@ class Settings(BaseSettings):
     BACKUP_MINUTE: int = Field(default=50, ge=0, le=59)
     BACKUP_DRILL_HOUR: int = Field(default=4, ge=0, le=23)
     BACKUP_DRILL_MINUTE: int = Field(default=20, ge=0, le=59)
+    # 监控与告警（M5-03）：健康检查 / 4G / 15G 资源红线 / 日志治理
+    MONITOR_ENABLED: bool = True
+    # 定时检查间隔（分钟，1~60）；Celery beat 按该间隔轮询
+    MONITOR_INTERVAL_MINUTES: int = Field(default=5, ge=1, le=60)
+    # 运行目录；留空时依次使用 OPENFACTORY_HOME、/opt/openfactory
+    MONITOR_HOME: str = ""
+    # 内存红线（MB）：项目预算 4G，3.5G 预警、4G 严重
+    MONITOR_MEMORY_BUDGET_MB: int = Field(default=4096, ge=128)
+    MONITOR_MEMORY_WARN_MB: int = Field(default=3584, ge=128)
+    MONITOR_MEMORY_CRITICAL_MB: int = Field(default=4096, ge=128)
+    # 磁盘红线（MB）：项目预算 15G，13G 预警、15G 严重
+    MONITOR_DISK_BUDGET_MB: int = Field(default=15360, ge=128)
+    MONITOR_DISK_WARN_MB: int = Field(default=13312, ge=128)
+    MONITOR_DISK_CRITICAL_MB: int = Field(default=15360, ge=128)
+    # 日志：占用预算与保留天数
+    MONITOR_LOG_BUDGET_MB: int = Field(default=1024, ge=16)
+    MONITOR_LOG_RETENTION_DAYS: int = Field(default=14, ge=1, le=3650)
+    # 检查历史保留天数（0 = 不清理）
+    MONITOR_HISTORY_RETENTION_DAYS: int = Field(default=30, ge=0, le=3650)
+    # 告警去重冷却窗口与可选 webhook（留空则只落库 + 日志）
+    MONITOR_ALERT_COOLDOWN_MINUTES: int = Field(default=60, ge=0)
+    MONITOR_ALERT_WEBHOOK_URL: str = ""
+    # 依赖探测超时
+    MONITOR_EDGE_TIMEOUT_SECONDS: float = Field(default=3.0, ge=0.2, le=30)
+    MONITOR_REDIS_TIMEOUT_SECONDS: float = Field(default=2.0, ge=0.1, le=10)
+    # 进程 RSS 回退口径：逗号分隔，每项用 + 连接多个关键字（如 uvicorn+app.main:app）
+    MONITOR_PROCESS_PATTERNS: str = (
+        "uvicorn+app.main:app,celery+app.tasks.celery_app+worker,celery+beat,redis-server,ollama"
+    )
 
     # CORS（开发默认允许全部来源）
     CORS_ORIGINS: str = "*"

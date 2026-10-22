@@ -160,10 +160,6 @@
   - C. 多 VPS worker 场景引入 Redis 全局限流（当前为进程内计数，多进程各自独立）；
 - **默认处理**：A；单机单 worker 部署下进程内限流口径可用，扩容到多 worker 前需评估 C。
 
----
-
-> 处理约定：人工确认任一问题后，更新本文件状态并在 `docs/planning/task-planning.md` 记录。
-
 ## Q19. 备份的异地存储与 D1 恢复策略（REQ-202610-0942 新增）
 
 - **背景**：M5-04 已实现本机 SQLite 快照、D1 导出归档与恢复演练，但备份仍与生产库在同一块磁盘，
@@ -173,3 +169,17 @@
   - B. 本迭代内接入 S3 / R2 等对象存储并加密备份（需要额外凭据与预算）；
   - C. 大库改为「新建 D1 导入 + 切换 Worker 绑定」的恢复演练（需要 Cloudflare 账号操作）；
 - **默认处理**：A；运维边界已写入 `docs/guides/backup-restore.md` §9，M9-04 / M5-07 继续跟进。
+
+## Q20. Workers Analytics 数据口径（REQ-202610-0941 新增）
+
+- **背景**：M5-03 需要展示 Workers 请求量 / 错误率。Cloudflare GraphQL Analytics API 需要额外的
+  Account Analytics Token，且免费额度与采样口径不可控；
+- **选项**：
+  - A. edge 中间件自聚合到 D1 `worker_metrics`（按日 / 路由 / 方法 / 状态类），admin 直接读 D1（**当前默认**）；
+  - B. 接入 Cloudflare GraphQL Analytics API（需新增 `CF_ANALYTICS_TOKEN`，指标更全但多一处外部依赖）；
+- **默认处理**：A。已做路由归一化与内部路由排除控制基数；如后续需要 P50/P95 或边缘节点维度，
+  再评估 B 并与本表并行展示。
+
+---
+
+> 处理约定：人工确认任一问题后，更新本文件状态并在 `docs/planning/task-planning.md` 记录。

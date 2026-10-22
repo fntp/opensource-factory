@@ -36,7 +36,9 @@ edge/
 │   ├── 0008_trending_detail.sql  # 热榜详情：平台/Star 查询索引（摘要列见 0007）
 │   ├── 0009_recommendation_feedback.sql  # 推荐反馈明细（M3-07）
 │   ├── 0010_notifications.sql  # 站内通知表 + 去重/列表索引（M4-02）
-│   └── 0011_push_preferences.sql  # 推送偏好表（M4-06）
+│   ├── 0011_push_preferences.sql  # 推送偏好表（M4-06）
+│   ├── 0011_security_hardening.sql  # 限流 / 登录尝试 / 安全事件（M5-05）
+│   └── 0012_worker_metrics.sql  # Workers 请求指标按日聚合（M5-03）
 └── src/
     ├── index.ts          # Hono 入口：CORS、日志、/healthz、路由挂载、404/500
     ├── types.ts          # Env 绑定 + 数据库行 + API 响应实体
@@ -54,6 +56,7 @@ edge/
         ├── push-preferences.ts # /api/push-preferences + /api/internal/push-preferences
         ├── sync.ts       # /api/sync
         ├── search.ts     # /api/search/semantic（查询理解 + Vectorize → 本地向量 → 关键词三级降级）
+        ├── monitoring.ts # /api/monitoring/*（总览 / 检查 / 告警确认 + /api/internal/analytics）
         └── internal-vectors.ts # /api/internal/vectors/*（VPS → Vectorize，X-Internal-Token）
 ```
 
@@ -82,6 +85,7 @@ npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FR
 
 ```bash
 npm run typecheck        # TypeScript 全量类型检查
+npm run test:monitoring  # Workers 指标归一化 / 汇总 / 状态合并用例（7 个）
 npm run test:trending    # 热榜查询 / 详情纯函数用例（11 个）
 npm run test:m2 -- --strict \
   --report-md docs/planning/acceptance-m2-report.md \
@@ -193,6 +197,10 @@ npm run test:m2 -- --strict \
 | `GET /api/dashboard/stats` | `DashboardStats` |
 | `POST /api/sync` | 202 `{"status":"queued"}`（已配置 VPS）或 `{"status":"accepted","note":"vps node not configured"}` |
 | `POST /api/search/semantic` | `SearchResponse`：body `{query, topK?, scope?}`；mode 为 `vectorize` / `local` / `keyword`；`my` 结果仅当前用户；响应可带 `understanding`（查询理解结果），关键词兜底用其扩展词做多词 OR LIKE |
+| `GET /api/monitoring/overview?days=7` | 监控总览（需登录）：`{status, generatedAt, edge, workers, workersError, vps, vpsError}`；合并 VPS 实时状态与 Workers 每日聚合，VPS 不可用时降级返回 Workers 部分 |
+| `POST /api/monitoring/check` | 触发 VPS 一次检查（需登录；VPS 未配置返回 503） |
+| `POST /api/monitoring/alerts/:id/ack` | 确认 VPS 告警（需登录） |
+| `GET /api/internal/analytics?days=7` | Workers 请求指标聚合（`X-Internal-Token`；`days` 1~30） |
 | `GET /healthz` | `{"status":"ok"}` |
 
 JSON 形状（前端契约，勿改字段名）：
@@ -248,6 +256,14 @@ DashboardStats  { totalRepos, trendingToday, pendingRecommendations, categoryCou
 | --- | --- |
 | `POST /api/internal/recommendations/upsert` | body `{userId, items: [...]}`，≤500 条；按 id upsert，`saved` / `dismissed` 状态不被生成任务覆盖 |
 | `GET /api/internal/recommendations/feedback?userId=` | 返回 `{savedRepoIds, dismissedRepoIds, clickedRepoIds}`，合并反馈表与推荐状态 |
+
+### Workers 请求指标（M5-03）
+
+`src/index.ts` 在 `/api/*` 上挂载轻量中间件：请求结束后按
+`metric_date + route + method + status_class` 对 `worker_metrics` 做 UPSERT，
+累计 `requests` / `total_ms` / `max_ms`。路由先经 `normalizeRoute` 归一化
+（数字、UUID、长 hex 折叠，最多 5 段），并跳过 `OPTIONS` / `HEAD` 与 `/api/internal/*`，
+控制基数、避免自观测放大。指标写入使用 `waitUntil`，不阻塞响应。
 
 ### 会话与安全
 
