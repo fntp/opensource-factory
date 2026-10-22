@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import { RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
+import { DEMO_MODE } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -26,12 +28,39 @@ import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
+import { triggerSync } from '@/features/tasks/api'
 import { fetchRepos, MOCK_REPOS } from './api'
 
 export function Repos() {
   const { data } = useQuery({ queryKey: ['repos'], queryFn: fetchRepos })
   const repos = data ?? MOCK_REPOS
   const [keyword, setKeyword] = useState('')
+  const navigate = useNavigate()
+
+  const syncMutation = useMutation({
+    mutationFn: triggerSync,
+    onSuccess: (result) => {
+      if (result.status === 'accepted') {
+        toast.info('VPS 节点未配置，同步任务未入队')
+        return
+      }
+      toast.success(
+        result.taskId
+          ? `同步任务已入队（${result.taskId.slice(0, 8)}）`
+          : '同步任务已入队'
+      )
+      navigate({ to: '/tasks' })
+    },
+    onError: () => toast.error('触发同步失败，请检查 edge / VPS 配置'),
+  })
+
+  const handleSync = () => {
+    if (DEMO_MODE) {
+      toast.success('已触发 GitHub 仓库同步（演示）')
+      return
+    }
+    syncMutation.mutate()
+  }
 
   const filtered = useMemo(() => {
     const q = keyword.trim().toLowerCase()
@@ -64,8 +93,10 @@ export function Repos() {
               已同步的 GitHub 仓库，支持按分类、标签与关键词快速查找。
             </p>
           </div>
-          <Button onClick={() => toast.success('已触发 GitHub 仓库同步（演示）')}>
-            <RefreshCw />
+          <Button onClick={handleSync} disabled={syncMutation.isPending}>
+            <RefreshCw
+              className={syncMutation.isPending ? 'animate-spin' : ''}
+            />
             同步仓库
           </Button>
         </div>
@@ -73,9 +104,7 @@ export function Repos() {
         <Card>
           <CardHeader>
             <CardTitle>仓库列表</CardTitle>
-            <CardDescription>
-              共 {filtered.length} 个仓库
-            </CardDescription>
+            <CardDescription>共 {filtered.length} 个仓库</CardDescription>
             <Input
               placeholder='搜索仓库、语言、分类或标签…'
               value={keyword}

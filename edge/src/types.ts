@@ -107,6 +107,19 @@ export interface TagCountRow {
   count: number;
 }
 
+export interface SyncTaskRow {
+  id: string;
+  user_id: string | null;
+  task_type: string;
+  status: string;
+  progress: string | null;
+  result: string | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+  finished_at: string | null;
+}
+
 // ── API 响应实体（前端契约）─────────────────────────────────────
 
 /** GET /api/auth/me */
@@ -170,6 +183,31 @@ export interface DashboardStats {
   trendingToday: number;
   pendingRecommendations: number;
   categoryCount: number;
+}
+
+/** 任务进度快照（与 VPS `GET /api/tasks/{taskId}` 的 progress 字段一致） */
+export interface TaskProgress {
+  phase?: string;
+  page?: number;
+  pagesTotal?: number | null;
+  fetched?: number;
+  total?: number | null;
+  percent?: number;
+  done?: boolean;
+}
+
+/** GET /api/tasks 列表项 / GET /api/tasks/{taskId} */
+export interface SyncTask {
+  taskId: string;
+  type: string;
+  status: string;
+  progress: TaskProgress | null;
+  result: unknown;
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
+  finishedAt: string | null;
+  stale?: boolean;
 }
 
 /** GitHub /user 接口返回（仅取所需字段） */

@@ -57,8 +57,10 @@ GitHub → /api/auth/github/callback?code → edge 换取 token → 拉取用户
 ### 3.2 同步流（资产）
 
 ```
-admin「同步仓库」→ POST /api/sync（edge）→ POST {VPS}/api/tasks/sync（X-Internal-Token）
-→ Celery 拉取 GitHub Starred/自有仓库 → upsert → 摘要（Ollama）→ 写回 D1 → 前端可见
+admin「同步仓库」→ POST /api/sync（edge）→ 写 D1 sync_tasks（pending）
+→ POST {VPS}/api/tasks/sync（X-Internal-Token）→ 返回 taskId
+→ Celery 拉取 GitHub Starred/自有仓库（PROGRESS 上报）→ upsert → 摘要（Ollama）→ 写回 D1
+→ admin 轮询 GET /api/tasks/{taskId} → edge 查询 VPS 并回写任务状态/进度 → 前端可见
 ```
 
 ### 3.3 热榜流
@@ -90,7 +92,9 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 | `/api/recommendations` | GET | 推荐列表 |
 | `/api/categories` | GET | 分类 + 标签 |
 | `/api/dashboard/stats` | GET | 仪表盘统计 |
-| `/api/sync` | POST | 触发同步任务（202） |
+| `/api/sync` | POST | 触发同步任务（202，返回 taskId） |
+| `/api/tasks` | GET | 当前用户同步任务列表（`?limit=`，默认 20 / 上限 100） |
+| `/api/tasks/{taskId}` | GET | 同步任务状态与进度（非终态时回源 VPS 并回写 D1） |
 
 ### 4.2 edge ↔ vps（内部 API，`X-Internal-Token`）
 
@@ -100,7 +104,7 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 | `/api/tasks/crawl-trending` | POST | 入队热榜抓取 |
 | `/api/tasks/generate-recommendations` | POST | 入队推荐生成 |
 | `/api/tasks/daily-push` | POST | 入队每日推送 |
-| `/api/tasks/{taskId}` | GET | 任务状态 |
+| `/api/tasks/{taskId}` | GET | 任务状态（含 `progress` 进度快照） |
 | `/healthz` | GET | 健康检查 |
 
 ## 5. 安全边界

@@ -44,6 +44,7 @@
 
 - [ ] GitHub OAuth 全链路联调（edge ↔ GitHub，会话持久化）
 - [ ] 同步任务：Starred + 个人仓库增量拉取（vps Celery）
+- [x] 同步任务状态回传与可视化（D1 `sync_tasks` + admin 任务页，REQ-202610-0900）
 - [ ] 分类树（无限级）与标签体系 CRUD
 - [ ] 组合筛选与秒级检索（D1 索引优化）
 - [ ] admin 页面联调（替换演示数据）

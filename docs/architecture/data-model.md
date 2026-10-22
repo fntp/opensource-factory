@@ -17,6 +17,7 @@ categories（parent_id 自关联，无限级）
 
 trending_repositories        （独立，公共数据）
 recommendations              （user_id 可空 = 全局推荐）
+sync_tasks                   （同步任务状态与进度，user_id 归属）
 ```
 
 ## 2. 核心表（需求原文，字段保持不变）
@@ -99,6 +100,21 @@ recommendations              （user_id 可空 = 全局推荐）
 | status TEXT | `new` / `saved` / `dismissed` / `pushed` |
 | created_at | 生成时间 |
 
+### 3.5 `sync_tasks` 同步任务（REQ-202610-0900）
+
+| 字段 | 说明 |
+| --- | --- |
+| `id` TEXT PK | VPS / Celery 返回的 taskId |
+| `user_id` | 触发用户（admin 仅能查看自己的任务） |
+| `task_type` TEXT | `sync` / `sync-starred` 等 |
+| `status` TEXT | `pending` / `started` / `progress` / `success` / `failure` / `unknown` |
+| `progress` TEXT | 进度快照 JSON（`phase/page/pagesTotal/fetched/total/percent/done`） |
+| `result` TEXT | 同步结果 JSON（`total/created/updated/unchanged` 等） |
+| `error` TEXT | 错误摘要（最多 500 字符） |
+| `created_at` / `updated_at` / `finished_at` | 创建 / 最近刷新 / 结束时间 |
+
+> 状态由 edge 在 admin 轮询 `GET /api/tasks/{taskId}` 时向 VPS 拉取并回写；终态为 `success` / `failure`。
+
 ## 4. 索引策略
 
 | 表 | 索引 | 用途 |
@@ -108,6 +124,7 @@ recommendations              （user_id 可空 = 全局推荐）
 | sessions | `(user_id)`、`(expires_at)` | 会话校验与清理 |
 | repo_tags | `(repo_id)`、`(tag_id)` | 反查 |
 | recommendations | `(user_id, score DESC)` | 推荐列表 |
+| sync_tasks | `(user_id, created_at DESC)`、`(status)` | 任务列表 / 活跃任务 |
 
 ## 5. 向量数据（Vectorize，M3）
 

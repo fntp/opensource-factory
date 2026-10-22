@@ -26,6 +26,9 @@ venv/
 *.db
 *.sqlite3
 **/data/
+# 例外：admin 侧边栏导航数据是源码（不是本地数据），必须入库
+!admin/src/components/layout/data/
+!admin/src/components/layout/data/**
 
 # ── 测试产物 ──────────────────────────────────────────
 coverage/
