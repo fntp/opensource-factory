@@ -99,6 +99,17 @@
   - C. 先补 `my_repositories.user_id` 与 D1 同步，再做按用户画像（工作量较大，建议随 M3-07 推进）；
 - **默认处理**：A + C 后续排期；单用户自托管场景下当前口径可用。
 
+## Q14. 健康度分档与 issue 压力口径（REQ-202610-0952 新增）
+
+- **背景**：M6-05 默认按最后提交 90 / 180 / 365 天分档（`REPO_HEALTH_ACTIVE_DAYS` 等可配置），
+  并用未关闭 issue 占 Star 比例做分数修正（≥50% 扣 20、≥20% 扣 10）。该比例对 Star 很少的
+  新项目可能过于敏感，且 GitHub `open_issues_count` 同时包含 PR；
+- **选项**：
+  - A. 先用当前默认值与比例阈值，观察真实数据分布后再调（**当前默认**）；
+  - B. 改为绝对 issue 数分档（如 >100 / >500），避免小项目被比例误伤；
+  - C. 接入 GitHub Search API 区分 issue 与 PR 后重新计算；
+- **默认处理**：A；如需调整只改 VPS 配置或 `evaluate_health` 阈值，D1 / admin 契约不变。
+
 ---
 
 > 处理约定：人工确认任一问题后，更新本文件状态并在 `docs/planning/task-planning.md` 记录。

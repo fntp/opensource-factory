@@ -59,6 +59,14 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.jobs.daily_push",
         "schedule": crontab(minute=0, hour=9),
     },
+    # 项目健康度元数据刷新（M6-05）：每日 06:12，避开抓取 / 推荐高峰
+    "refresh-repo-health-daily": {
+        "task": "app.tasks.jobs.refresh_repo_health",
+        "schedule": crontab(
+            minute=settings.REPO_HEALTH_MINUTE,
+            hour=settings.REPO_HEALTH_HOUR,
+        ),
+    },
     # Vectorize 索引：每日增量同步 + 对账（M3-03）
     "vector-index-sync-daily": {
         "task": "app.tasks.jobs.sync_vector_index",

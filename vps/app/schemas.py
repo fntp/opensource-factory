@@ -28,6 +28,49 @@ class RepoOut(ORMModel):
     created_at: Optional[datetime] = None
 
 
+class RepoHealthOut(BaseModel):
+    """单个仓库健康度（M6-05）。"""
+
+    repoId: str
+    name: str
+    htmlUrl: str = ""
+    language: Optional[str] = None
+    stars: int = 0
+    status: str  # active | attention | stale | archived | unknown
+    label: str
+    score: int = 0
+    lastPushAt: Optional[datetime] = None
+    daysSincePush: Optional[int] = None
+    openIssues: int = 0
+    archived: bool = False
+    reasons: list[str] = Field(default_factory=list)
+    checkedAt: Optional[datetime] = None
+
+
+class RepoHealthSummary(BaseModel):
+    """健康度汇总计数。"""
+
+    total: int = 0
+    active: int = 0
+    attention: int = 0
+    stale: int = 0
+    archived: int = 0
+    unknown: int = 0
+    averageScore: float = 0.0
+
+
+class RepoHealthListOut(BaseModel):
+    summary: RepoHealthSummary
+    items: list[RepoHealthOut]
+
+
+class RepoHealthRefreshRequest(BaseModel):
+    """健康度刷新请求。"""
+
+    repoIds: list[str] = Field(default_factory=list)
+    limit: int = Field(default=200, ge=1, le=1000)
+
+
 class TrendingRepoOut(ORMModel):
     """热榜仓库输出（含按日快照与趋势字段）。"""
 

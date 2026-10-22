@@ -94,3 +94,4 @@
 | 2026-10-22 | 交付 | IT-0024 / M3-10 完成（REQ-202610-0928）：同义词 / 技术栈词表扩展接入 VPS 搜索链路、edge 关键词兜底与 admin 查询理解标签；计划见 `plan-req-202610-0928-query-understanding.md` |
 | 2026-10-22 | 验收 | IT-0025 / M3-11 完成（REQ-202610-0929）：集成 M3-01~10 十个分支，跨分支 E2E 23 项全 PASS；报告见 `acceptance-m3.md` / `acceptance-m3-report.md` |
 | 2026-10-22 | 交付 | IT-0026 / M6-02 完成（REQ-202610-0949）：相似项目向量近邻接口 + edge local→keyword 降级 + admin 详情页「看了又看」；计划见 `plan-req-202610-0949-similar-recommendations.md` |
+| 2026-10-22 | 交付 | IT-0027 / M6-05 完成（REQ-202610-0952）：VPS 拉取 pushed_at / issue / 归档字段并计算健康度，每日任务 + 手动刷新回写 D1；edge 本地兜底计算与健康度接口；admin 仓库页汇总、筛选、徽章与刷新按钮；计划见 `plan-req-202610-0952-repo-health-tracking.md` |

@@ -22,7 +22,15 @@ CREATE TABLE my_repositories (
     owner TEXT,
     forks INTEGER DEFAULT 0,
     updated_at TEXT,
-    synced_at TEXT
+    synced_at TEXT,
+    -- 项目健康度（REQ-202610-0952 / M6-05）
+    pushed_at DATETIME,                  -- GitHub pushed_at：最后提交时间
+    open_issues_count INTEGER NOT NULL DEFAULT 0,
+    archived INTEGER NOT NULL DEFAULT 0,
+    disabled INTEGER NOT NULL DEFAULT 0,
+    health_status TEXT,                  -- active | attention | stale | archived | unknown
+    health_score INTEGER,                -- 0-100
+    health_checked_at DATETIME
 );
 
 -- ── 今日趋势仓库（爬虫写入）─────────────────────────────────────
@@ -144,6 +152,7 @@ CREATE TABLE IF NOT EXISTS trending_snapshots (
 -- ── 索引 ────────────────────────────────────────────────────────
 CREATE INDEX idx_my_repositories_user_id ON my_repositories (user_id);
 CREATE INDEX idx_my_repositories_category_id ON my_repositories (category_id);
+CREATE INDEX idx_my_repositories_health ON my_repositories (user_id, health_status);
 CREATE INDEX idx_trending_repositories_stars_today ON trending_repositories (stars_today DESC);
 CREATE INDEX idx_trending_snapshots_date_rank ON trending_snapshots (snapshot_date, rank);
 CREATE INDEX idx_trending_snapshots_repo_date ON trending_snapshots (repo_id, snapshot_date);

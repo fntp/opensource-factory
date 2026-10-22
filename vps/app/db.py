@@ -60,6 +60,26 @@ def _ensure_sqlite_columns() -> None:
                     connection.execute(text(f"ALTER TABLE trending_repositories ADD COLUMN {name} {ddl}"))
             logger.info("trending_repositories 已补齐列: %s", ", ".join(sorted(missing)))
 
+    if "my_repositories" in inspector.get_table_names():
+        existing = {column["name"] for column in inspector.get_columns("my_repositories")}
+        additions = {
+            # M6-05 项目健康度
+            "pushed_at": "DATETIME",
+            "updated_at": "DATETIME",
+            "open_issues_count": "INTEGER NOT NULL DEFAULT 0",
+            "archived": "BOOLEAN NOT NULL DEFAULT 0",
+            "disabled": "BOOLEAN NOT NULL DEFAULT 0",
+            "health_status": "TEXT",
+            "health_score": "INTEGER",
+            "health_checked_at": "DATETIME",
+        }
+        missing = {name: ddl for name, ddl in additions.items() if name not in existing}
+        if missing:
+            with engine.begin() as connection:
+                for name, ddl in missing.items():
+                    connection.execute(text(f"ALTER TABLE my_repositories ADD COLUMN {name} {ddl}"))
+            logger.info("my_repositories 已补齐列: %s", ", ".join(sorted(missing)))
+
     with engine.begin() as conn:
         rows = conn.exec_driver_sql("PRAGMA table_info(recommendations)").fetchall()
         if rows:

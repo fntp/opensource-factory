@@ -56,6 +56,18 @@ export interface RepoRow {
   forks: number | null;
   updated_at: string | null;
   synced_at: string | null;
+  /** 最近一次 push（GitHub pushed_at，M6-05） */
+  pushed_at?: string | null;
+  /** 未关闭 issue / PR 数（M6-05） */
+  open_issues_count?: number | null;
+  /** 是否归档（SQLite 0/1，M6-05） */
+  archived?: number | null;
+  /** 是否被 GitHub 禁用（SQLite 0/1，M6-05） */
+  disabled?: number | null;
+  /** 最近一次健康度计算结果（M6-05） */
+  health_status?: string | null;
+  health_score?: number | null;
+  health_checked_at?: string | null;
   /** JOIN 得到的分类名（可选） */
   category_name?: string | null;
   /** 聚合得到的标签名列表（可选） */
@@ -191,6 +203,34 @@ export interface RepoItem {
   tags: string[];
   updatedAt: string | null;
   url: string;
+  /** 项目健康度（M6-05，始终由 D1 字段本地计算，VPS 回写后可覆盖） */
+  health: RepoHealth;
+}
+
+/** 项目健康度状态（M6-05） */
+export type HealthStatus = 'active' | 'attention' | 'stale' | 'archived' | 'unknown';
+
+export interface RepoHealth {
+  status: HealthStatus;
+  label: string;
+  score: number;
+  lastPushAt: string | null;
+  daysSincePush: number | null;
+  openIssues: number;
+  archived: boolean;
+  reasons: string[];
+  checkedAt: string | null;
+}
+
+/** GET /api/repos/health 汇总 */
+export interface RepoHealthSummary {
+  total: number;
+  active: number;
+  attention: number;
+  stale: number;
+  archived: number;
+  unknown: number;
+  averageScore: number;
 }
 
 /** GET /api/trending 列表项 */

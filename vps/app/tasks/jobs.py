@@ -66,6 +66,8 @@ def sync_repositories(
         logger.exception("GitHub 同步失败")
         return {"status": "error", "error": str(exc)[:300]}
 
+    from app.services.repo_health import evaluate_health, utcnow
+
     created = 0
     updated = 0
     changed_ids: list[str] = []
@@ -77,17 +79,16 @@ def sync_repositories(
                 continue
             row = db.get(MyRepository, repo_id)
             if row is None:
-                db.add(
-                    MyRepository(
-                        id=repo_id,
-                        platform=item.get("platform") or "github",
-                        name=item.get("name") or repo_id.split("/")[-1],
-                        description=item.get("description") or "",
-                        html_url=item.get("html_url") or f"https://github.com/{repo_id}",
-                        stars=int(item.get("stars") or 0),
-                        language=item.get("language") or None,
-                    )
+                row = MyRepository(
+                    id=repo_id,
+                    platform=item.get("platform") or "github",
+                    name=item.get("name") or repo_id.split("/")[-1],
+                    description=item.get("description") or "",
+                    html_url=item.get("html_url") or f"https://github.com/{repo_id}",
+                    stars=int(item.get("stars") or 0),
+                    language=item.get("language") or None,
                 )
+                db.add(row)
                 created += 1
                 changed_ids.append(repo_id)
             else:
@@ -98,6 +99,27 @@ def sync_repositories(
                 row.language = item.get("language") or row.language
                 updated += 1
                 changed_ids.append(repo_id)
+            # M6-05：同步时顺带落 GitHub 元数据并计算健康度
+            if "pushed_at" in item:
+                row.pushed_at = item.get("pushed_at")
+            if "updated_at" in item:
+                row.updated_at = item.get("updated_at")
+            if "open_issues_count" in item:
+                row.open_issues_count = int(item.get("open_issues_count") or 0)
+            if "archived" in item:
+                row.archived = bool(item.get("archived"))
+            if "disabled" in item:
+                row.disabled = bool(item.get("disabled"))
+            snapshot = evaluate_health(
+                pushed_at=row.pushed_at,
+                open_issues_count=row.open_issues_count,
+                archived=row.archived,
+                disabled=row.disabled,
+                stars=row.stars,
+            )
+            row.health_status = snapshot.status
+            row.health_score = snapshot.score
+            row.health_checked_at = utcnow()
         db.commit()
     finally:
         db.close()
@@ -135,6 +157,55 @@ def sync_repositories(
         "updated": updated,
         "summaryTaskId": summary_task_id,
     }
+
+
+@celery_app.task(name="app.tasks.jobs.refresh_repo_health")
+def refresh_repo_health(
+    repo_ids: Optional[list[str]] = None,
+    limit: Optional[int] = None,
+    push_to_edge: bool = True,
+) -> dict[str, Any]:
+    """刷新仓库元数据并重算健康度（M6-05）。
+
+    - 只读 GitHub 公开仓库信息，不修改仓库本身；
+    - 更新 VPS 本地镜像后，按配置把健康度快照回写 edge / D1；
+    - 未配置 `GITHUB_TOKEN` 时跳过（匿名配额不足以支撑批量刷新）。
+    """
+    settings = get_settings()
+    if not settings.REPO_HEALTH_ENABLED:
+        return {"status": "skipped", "reason": "REPO_HEALTH_ENABLED=false"}
+    token = (settings.GITHUB_TOKEN or "").strip()
+    if not token:
+        return {"status": "skipped", "reason": "GITHUB_TOKEN 未配置，跳过健康度刷新"}
+
+    from app.services.repo_health import refresh_and_push
+
+    max_count = int(limit if limit is not None else settings.REPO_HEALTH_MAX_PER_RUN)
+    db = SessionLocal()
+    try:
+        result = _run_async(
+            refresh_and_push(
+                db,
+                repo_ids,
+                token=token,
+                max_count=max_count,
+                edge_base_url=settings.EDGE_BASE_URL if push_to_edge else "",
+                internal_token=settings.INTERNAL_TOKEN,
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 - 任务失败降级返回结构化结果
+        logger.exception("项目健康度刷新失败")
+        return {"status": "error", "error": str(exc)[:300]}
+    finally:
+        db.close()
+
+    logger.info(
+        "项目健康度刷新完成: 检查 %d / 跳过 %d / edge=%s",
+        result.get("checked", 0),
+        result.get("skipped", 0),
+        result.get("edge", {}).get("status"),
+    )
+    return result
 
 
 @celery_app.task(bind=True, name="app.tasks.jobs.summarize_readmes")

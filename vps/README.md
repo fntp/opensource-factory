@@ -165,9 +165,16 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | `SEARCH_MAX_VECTORS` | `50000` | 本地全量余弦扫描上限，超过后依赖 Vectorize |
 | `SEARCH_QUERY_EXPANSION_ENABLED` | `true` | 是否启用查询理解（同义词 / 技术栈词表扩展） |
 | `SEARCH_QUERY_EXPANSION_MAX_TERMS` | `12` | 单次查询最多扩展词数（1~50） |
-| `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/vector-index/*`、`/api/search/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
+| `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/vector-index/*`、`/api/search/*`、`/api/repos/health*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
 | `CELERY_TASK_ALWAYS_EAGER` | `0` | 置 `1` 时任务同步执行（本地调试 / 测试用） |
-| `GITHUB_TOKEN` | 空 | GitHub PAT（仅需 read 权限）；为空时同步任务跳过 |
+| `GITHUB_TOKEN` | 空 | GitHub PAT（仅需 read 权限）；为空时同步 / 健康度任务跳过 |
+| `REPO_HEALTH_ENABLED` | `true` | 项目健康度每日刷新总开关（M6-05） |
+| `REPO_HEALTH_ACTIVE_DAYS` | `90` | 最后提交 ≤ 该天数判定「活跃」 |
+| `REPO_HEALTH_ATTENTION_DAYS` | `180` | 最后提交 ≤ 该天数判定「需关注」 |
+| `REPO_HEALTH_STALE_DAYS` | `365` | 最后提交 ≤ 该天数判定「停滞」；超过仍为停滞但降到 20 分 |
+| `REPO_HEALTH_MAX_PER_RUN` | `200` | 单次刷新最多处理的仓库数（1~1000） |
+| `REPO_HEALTH_HOUR` | `6` | 每日刷新小时（Asia/Shanghai，0–23） |
+| `REPO_HEALTH_MINUTE` | `12` | 每日刷新分钟（0–59） |
 | `TRENDING_LANGUAGES` | `python,javascript,typescript,go,rust,java,cpp,c,php,ruby,swift,kotlin` | 每日抓取的 Trending 语言页（逗号分隔；留空只抓全局页） |
 | `TRENDING_CRAWL_HOUR` | `3` | 每日抓取小时（Asia/Shanghai，0–23） |
 | `TRENDING_CRAWL_MINUTE` | `27` | 每日抓取分钟（0–59） |
@@ -272,8 +279,11 @@ cd vps
 | GET | `/api/vector-index/status` | 本地向量覆盖率、状态分布与最近运行 | `200 {...}` |
 | GET | `/api/vector-index/runs?limit=20` | 最近同步运行记录 | `200 [...]` |
 | GET | `/api/vector-index/runs/{run_id}` | 单次运行详情 | `200 {...}` |
+| POST | `/api/repos/health/refresh` | 入队刷新仓库元数据并重算健康度（可选 `repoIds`、`limit`） | `202 {"taskId"}` |
+| GET | `/api/repos/health` | 健康度列表与汇总（`status` / `limit` / `offset`） | `200 {summary,items}` |
+| GET | `/api/repos/{repo_id}/health` | 单仓库健康度详情 | `200 RepoHealth` / `404` |
 
-Celery beat 每日 04:37 自动增量同步、05:17 自动对账；也可通过上述接口手动触发。
+Celery beat 每日 04:37 自动增量同步、05:17 自动对账；06:12 自动刷新项目健康度（M6-05）；也可通过上述接口手动触发。
 | GET | `/api/vectors/stats` | 向量覆盖率与最近运行 | `200` |
 | GET | `/api/vectors/runs?limit=20` | 最近向量化运行 | `200` |
 | GET | `/api/vectors/runs/{runId}` | 单次运行详情（含游标 / 计数 / 错误） | `200` |

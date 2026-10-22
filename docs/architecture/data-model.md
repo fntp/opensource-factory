@@ -40,6 +40,22 @@ recommendations              （user_id 可空 = 全局推荐）
 
 > 本仓库扩展列（不改变上述语义）：`user_id`、`owner`、`forks`、`updated_at`、`synced_at`。
 
+**项目健康度字段（REQ-202610-0952 / M6-05）**
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| pushed_at | DATETIME | GitHub `pushed_at`：最后一次提交时间 |
+| open_issues_count | INTEGER | 未关闭 issue / PR 数（GitHub 口径） |
+| archived | INTEGER | 是否归档（0/1）；归档后健康度固定 `archived` / 0 分 |
+| disabled | INTEGER | 是否被 GitHub 禁用（0/1）；禁用强制 `stale` 且分数 ≤30 |
+| health_status | TEXT | `active` / `attention` / `stale` / `archived` / `unknown` |
+| health_score | INTEGER | 0–100，按最后提交天数分档 + issue 压力修正 |
+| health_checked_at | DATETIME | 最近一次计算时间；VPS 每日任务回写 |
+
+> 计算口径：≤90 天 `active`、≤180 天 `attention`、≤365 天 `stale`、更久 `stale`（20 分）；
+> issue/Star ≥50% 扣 20 分、≥20% 扣 10 分，无 issue 加 5 分，分数不影响天数分档状态。
+> D1 迁移见 `edge/migrations/0010_repo_health.sql`；VPS SQLite 在 `init_db()` 中幂等补列。
+
 ### 2.2 `trending_repositories` 热榜项目
 
 | 字段 | 类型 | 说明 |
@@ -205,7 +221,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 
 | 表 | 索引 | 用途 |
 | --- | --- | --- |
-| my_repositories | `(user_id)`、`(category_id)`、`(platform)` | 列表与筛选 |
+| my_repositories | `(user_id)`、`(category_id)`、`(platform)`、`(user_id, health_status)` | 列表与筛选、健康度筛选 |
 | trending_repositories | `(stars_today DESC)`、`(crawled_at)` | 榜单查询 |
 | trending_snapshots | `(snapshot_date, rank)`、`(snapshot_date, language)` | 按日榜单、日期/语言筛选 |
 | sessions | `(user_id)`、`(expires_at)` | 会话校验与清理 |
