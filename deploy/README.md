@@ -52,6 +52,8 @@ deploy/scripts/doctor.sh --services
 | `openfactory-beat.service` | celery beat | `data/celerybeat-schedule` | 192M |
 
 合计上限约 1.66G，落在应用侧 2G 预算内（见 [resource-plan.md](../docs/planning/resource-plan.md) §2）。
+部署后用 `deploy/scripts/resource-budget.sh` 实测；2026-10-22 基线见
+[resource-budget-verification.md](../docs/guides/resource-budget-verification.md)。
 
 ## 4. 环境模板对齐
 
@@ -74,6 +76,8 @@ deploy/scripts/doctor.sh --services
 deploy/scripts/bootstrap-runtime.sh --help
 deploy/scripts/doctor.sh                 # 目录 / 权限 / 环境文件自检
 deploy/scripts/doctor.sh --services      # 额外探测 Redis
+deploy/scripts/resource-budget.sh        # 4G / 15G 资源预算实测（M5-06）
+deploy/scripts/resource-budget.sh --json # JSON 输出，供监控 / 验收脚本消费
 python3 -m app.runtime layout --home /opt/openfactory   # 在 vps/ 下执行
 journalctl -u openfactory-api -f         # 查看进程日志
 ```
