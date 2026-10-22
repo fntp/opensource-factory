@@ -11,6 +11,8 @@ const sync = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 sync.post('/', async (c) => {
   const user = c.get('user');
+  if (!user) return c.json({ error: 'unauthorized' }, 401);
+
   const vpsUrl = c.env.VPS_NODE_URL?.trim();
 
   if (!vpsUrl) {

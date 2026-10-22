@@ -1,4 +1,3 @@
-import { clearCookies } from '@/test-utils/cookies'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 async function importAuthStore() {
@@ -16,27 +15,13 @@ const sampleUser = {
 
 describe('useAuthStore', () => {
   beforeEach(() => {
-    clearCookies()
     vi.resetModules()
   })
 
-  it('starts signed out when nothing is persisted', async () => {
+  it('starts signed out', async () => {
     const { useAuthStore } = await importAuthStore()
 
     expect(useAuthStore.getState().auth.user).toBeNull()
-  })
-
-  it('persists the demo session so a fresh store instance reads it back', async () => {
-    const { saveDemoSession } = await importAuthStore()
-    saveDemoSession(sampleUser)
-
-    // 通过查询参数击穿模块缓存，模拟「刷新页面后重新加载 store」
-    vi.resetModules()
-    const { useAuthStore } = (await import(
-      /* @vite-ignore */ `./auth-store?fresh=${Date.now()}`
-    )) as typeof import('./auth-store')
-
-    expect(useAuthStore.getState().auth.user).toEqual(sampleUser)
   })
 
   it('updates the signed-in user via setUser', async () => {
@@ -47,19 +32,17 @@ describe('useAuthStore', () => {
     expect(useAuthStore.getState().auth.user).toEqual(sampleUser)
   })
 
-  it('reset clears user and drops persistence', async () => {
-    const { useAuthStore, saveDemoSession } = await importAuthStore()
-    saveDemoSession(sampleUser)
+  it('reset clears the user without persisting anything', async () => {
+    const { useAuthStore } = await importAuthStore()
     useAuthStore.getState().auth.setUser({ ...sampleUser })
 
     useAuthStore.getState().auth.reset()
 
     expect(useAuthStore.getState().auth.user).toBeNull()
 
+    // 刷新页面后不会从浏览器存储恢复用户，需重新走 /api/auth/me
     vi.resetModules()
-    const { useAuthStore: useAuthStoreAfterReload } = (await import(
-      /* @vite-ignore */ `./auth-store?fresh=${Date.now()}`
-    )) as typeof import('./auth-store')
+    const { useAuthStore: useAuthStoreAfterReload } = await importAuthStore()
 
     expect(useAuthStoreAfterReload.getState().auth.user).toBeNull()
   })

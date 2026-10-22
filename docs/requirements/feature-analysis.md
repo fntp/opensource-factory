@@ -11,7 +11,7 @@
 - **解读**：登录体系仅实现 GitHub OAuth；Gitee / 邮箱密码 / 注册等一律不做。
 - **落实**：
   - edge：`GET /api/auth/github/login|callback`、`GET /api/auth/me`、`POST /api/auth/logout`（会话存 D1，httpOnly Cookie）；
-  - admin：登录页仅一个「使用 GitHub 登录」按钮 + 演示模式入口；移除模板中 Clerk / 注册 / 找回密码 / OTP 等全部内容；
+  - admin：登录页仅一个「使用 GitHub 登录」按钮（演示模式已于 REQ-202610-0906 移除）；移除模板中 Clerk / 注册 / 找回密码 / OTP 等全部内容；
   - **验收**：无任何其他登录入口残留（代码检索 `clerk` / `sign-up` 无业务引用）。
 
 ### #2 规范落实
@@ -68,7 +68,7 @@
 
 ## 2. 功能点清单（本迭代实现）
 
-- [x] F1 登录页：GitHub 登录按钮 + 演示模式（无后端可预览）
+- [x] F1 登录页：GitHub 登录按钮（真实 OAuth；演示模式已移除）
 - [x] F2 会话管理：`/api/auth/me` 拉取用户、退出登录
 - [x] F3 仪表盘：资产统计卡 + Star 增长图 + 今日热榜
 - [x] F4 我的仓库：列表 / 搜索 / 分类 / 标签 / Star 数

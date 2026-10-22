@@ -1,34 +1,53 @@
+import { useQuery } from '@tanstack/react-query'
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from 'recharts'
+import { FolderGit2 } from 'lucide-react'
+import { EmptyState, ErrorState, LoadingState } from '@/components/data-state'
+import { fetchRepos } from '@/features/repos/api'
 
-/** 近 12 个月累计 Star 数（演示数据，接入后端后由 /api/dashboard/stats 提供） */
-const data = [
-  { name: '1月', total: 3240 },
-  { name: '2月', total: 3620 },
-  { name: '3月', total: 4050 },
-  { name: '4月', total: 4410 },
-  { name: '5月', total: 4870 },
-  { name: '6月', total: 5240 },
-  { name: '7月', total: 5680 },
-  { name: '8月', total: 6120 },
-  { name: '9月', total: 6540 },
-  { name: '10月', total: 7010 },
-  { name: '11月', total: 7480 },
-  { name: '12月', total: 7960 },
-]
-
+/** 仓库 Star 分布（Top 8，数据来自 GET /api/repos） */
 export function Overview() {
+  const { data, isPending, isError, error, refetch } = useQuery({
+    queryKey: ['repos'],
+    queryFn: fetchRepos,
+  })
+
+  if (isPending) {
+    return <LoadingState label='正在加载 Star 分布…' rows={4} />
+  }
+
+  if (isError) {
+    return <ErrorState error={error} onRetry={() => void refetch()} />
+  }
+
+  const top = [...(data ?? [])]
+    .sort((a, b) => b.stars - a.stars)
+    .slice(0, 8)
+    .map((repo) => {
+      const parts = repo.fullName.split('/')
+      return {
+        name: parts[parts.length - 1] ?? repo.fullName,
+        total: repo.stars,
+      }
+    })
+
+  if (top.length === 0) {
+    return (
+      <EmptyState
+        icon={FolderGit2}
+        title='暂无仓库数据'
+        description='同步 GitHub 仓库后，这里会展示 Star 分布。'
+      />
+    )
+  }
+
   return (
     <ResponsiveContainer width='100%' height={350}>
-      <BarChart data={data}>
-        <XAxis
-          dataKey='name'
-          stroke='#888888'
-          fontSize={12}
-          tickLine={false}
-          axisLine={false}
-        />
+      <BarChart data={top} layout='vertical' margin={{ left: 8, right: 16 }}>
+        <XAxis type='number' stroke='#888888' fontSize={12} tickLine={false} axisLine={false} />
         <YAxis
-          direction='ltr'
+          type='category'
+          dataKey='name'
+          width={130}
           stroke='#888888'
           fontSize={12}
           tickLine={false}
@@ -37,7 +56,7 @@ export function Overview() {
         <Bar
           dataKey='total'
           fill='currentColor'
-          radius={[4, 4, 0, 0]}
+          radius={[0, 4, 4, 0]}
           className='fill-primary'
         />
       </BarChart>

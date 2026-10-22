@@ -41,6 +41,6 @@ cd vps
 ## 目录内约定
 
 - `admin/src/routes/**` 为 TanStack Router 文件式路由；新增页面需同时创建 `routes/` 文件与 `features/` 组件；`routeTree.gen.ts` 自动生成，勿手改。
-- `admin/src/features/<feature>/` 内聚 api.ts（含演示数据兜底）+ 组件；演示数据统一使用 `fetchWithFallback`。
+- `admin/src/features/<feature>/` 内聚 api.ts（真实 API 调用 + 类型）+ 组件；统一使用 `apiFetch`，不使用演示数据兜底，页面需覆盖加载 / 空 / 错误三态。
 - `edge/src/routes/*.ts` 按资源划分；SQL 一律通过 D1 绑定 `DB`，禁止在客户端暴露任何密钥。
 - `vps/app/services/*` 单一职责；对外部依赖（LLM / 模型）必须有降级路径，测试不得依赖网络。

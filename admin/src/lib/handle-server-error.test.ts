@@ -1,5 +1,5 @@
-import { AxiosError } from 'axios'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiHttpError, ApiNetworkError } from './api'
 import { handleServerError } from './handle-server-error'
 
 const toastError = vi.hoisted(() => vi.fn())
@@ -16,51 +16,35 @@ beforeEach(() => {
 
 describe('handleServerError', () => {
   it('shows a generic message when the error is not recognised', () => {
-    handleServerError(new Error('network'))
+    handleServerError(new Error(''))
 
-    expect(toastError).toHaveBeenCalledWith('Something went wrong!')
+    expect(toastError).toHaveBeenCalledWith('操作失败，请稍后重试')
   })
 
   it('maps a plain object with status 204 to the no-content message', () => {
     handleServerError({ status: 204 })
 
-    expect(toastError).toHaveBeenCalledWith('No content.')
+    expect(toastError).toHaveBeenCalledWith('请求成功但无返回内容')
   })
 
-  it('prefers the API title when the error is an Axios error with response data', () => {
-    const error = new AxiosError('Bad request')
-    error.response = {
-      status: 422,
-      data: { title: 'Validation failed' },
-    } as AxiosError['response']
+  it('maps ApiHttpError status to a readable message', () => {
+    handleServerError(new ApiHttpError(401, 'Unauthorized', { error: 'unauthorized' }))
 
-    handleServerError(error)
-
-    expect(toastError).toHaveBeenCalledWith('Validation failed')
+    expect(toastError).toHaveBeenCalledWith('登录已过期，请重新登录')
   })
 
-  it('falls back to the generic message when Axios response has no data.title', () => {
-    const error = new AxiosError('Request failed')
-    error.response = {
-      status: 500,
-      data: {},
-    } as AxiosError['response']
+  it('prefers the backend error code mapping', () => {
+    handleServerError(
+      new ApiHttpError(502, 'Bad Gateway', { error: 'vps_node_unreachable' })
+    )
 
-    handleServerError(error)
-
-    expect(toastError).toHaveBeenCalledWith('Something went wrong!')
+    expect(toastError).toHaveBeenCalledWith('无法连接 VPS 节点，请稍后重试')
   })
 
-  it('falls back to the generic message when Axios data.title is an empty string', () => {
-    const error = new AxiosError('Bad request')
-    error.response = {
-      status: 400,
-      data: { title: '' },
-    } as AxiosError['response']
+  it('shows the network error message', () => {
+    handleServerError(new ApiNetworkError('无法连接服务器，请检查网络或服务状态'))
 
-    handleServerError(error)
-
-    expect(toastError).toHaveBeenCalledWith('Something went wrong!')
+    expect(toastError).toHaveBeenCalledWith('无法连接服务器，请检查网络或服务状态')
   })
 
   it('logs the error to the console in development', () => {

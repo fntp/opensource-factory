@@ -26,6 +26,8 @@ venv/
 *.db
 *.sqlite3
 **/data/
+# admin 的布局导航数据是源码，不是本地数据
+!admin/src/components/layout/data/
 
 # ── 测试产物 ──────────────────────────────────────────
 coverage/

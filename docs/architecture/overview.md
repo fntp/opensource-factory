@@ -92,6 +92,8 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 | `/api/dashboard/stats` | GET | 仪表盘统计 |
 | `/api/sync` | POST | 触发同步任务（202） |
 
+admin 自 REQ-202610-0906 起不再提供演示模式：页面数据全部来自上述真实接口，会话以 httpOnly Cookie + `GET /api/auth/me` 为准；401 跳转 `/sign-in`，网络 / 5xx 展示可重试错误态；列表页统一实现加载 / 空数据 / 请求失败三态，空数据与「搜索无结果」分开展示。OAuth 失败时 edge 对浏览器请求 302 回 `/sign-in?error=<code>`，对 API 请求返回 JSON 错误码。
+
 ### 4.2 edge ↔ vps（内部 API，`X-Internal-Token`）
 
 | 端点 | 方法 | 说明 |

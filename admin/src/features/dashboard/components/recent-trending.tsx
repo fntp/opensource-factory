@@ -1,13 +1,33 @@
 import { useQuery } from '@tanstack/react-query'
+import { Flame } from 'lucide-react'
 import { IconGithub } from '@/assets/brand-icons'
-import { fetchRecentTrending, MOCK_TRENDING } from '../api'
+import { EmptyState, ErrorState, LoadingState } from '@/components/data-state'
+import { fetchRecentTrending } from '../api'
 
 export function RecentTrending() {
-  const { data } = useQuery({
+  const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['recent-trending'],
     queryFn: fetchRecentTrending,
   })
-  const items = data ?? MOCK_TRENDING
+  const items = data ?? []
+
+  if (isPending) {
+    return <LoadingState label='正在加载热榜…' rows={4} />
+  }
+
+  if (isError) {
+    return <ErrorState error={error} onRetry={() => void refetch()} />
+  }
+
+  if (items.length === 0) {
+    return (
+      <EmptyState
+        icon={Flame}
+        title='今日暂无热榜'
+        description='热榜抓取任务运行后会自动展示。'
+      />
+    )
+  }
 
   return (
     <div className='space-y-6'>
@@ -27,13 +47,13 @@ export function RecentTrending() {
                 {item.owner}/{item.name}
               </a>
               <p className='max-w-60 truncate text-sm text-muted-foreground'>
-                {item.description}
+                {item.description ?? '暂无描述'}
               </p>
             </div>
             <div className='text-end'>
               <div className='text-sm font-medium'>+{item.starsToday}</div>
               <div className='text-xs text-muted-foreground'>
-                {item.language}
+                {item.language ?? '未知语言'}
               </div>
             </div>
           </div>

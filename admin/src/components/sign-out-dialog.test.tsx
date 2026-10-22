@@ -5,7 +5,8 @@ import { SignOutDialog } from './sign-out-dialog'
 
 const navigate = vi.fn()
 const reset = vi.fn()
-const logout = vi.fn()
+const clear = vi.fn()
+const logout = vi.fn().mockResolvedValue(undefined)
 
 const MOCK_HREF = 'https://app.test/dashboard?tab=1'
 
@@ -18,6 +19,14 @@ vi.mock('@/stores/auth-store', () => ({
 vi.mock('@/lib/api', () => ({
   logout: (...args: unknown[]) => logout(...args),
 }))
+
+vi.mock('@tanstack/react-query', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@tanstack/react-query')>()
+  return {
+    ...actual,
+    useQueryClient: () => ({ clear }),
+  }
+})
 
 vi.mock('@tanstack/react-router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@tanstack/react-router')>()
@@ -33,7 +42,7 @@ describe('SignOutDialog', () => {
     vi.clearAllMocks()
   })
 
-  it('calls auth.reset and navigates to sign-in with current location as redirect', async () => {
+  it('calls auth.reset, clears query cache, and navigates to sign-in', async () => {
     const { getByRole } = await render(
       <SignOutDialog open onOpenChange={vi.fn()} />
     )
@@ -41,6 +50,7 @@ describe('SignOutDialog', () => {
     await userEvent.click(getByRole('button', { name: /^退出登录$/ }))
 
     expect(reset).toHaveBeenCalledOnce()
+    expect(clear).toHaveBeenCalledOnce()
     expect(logout).toHaveBeenCalledOnce()
     expect(navigate).toHaveBeenCalledWith({
       to: '/sign-in',
@@ -57,6 +67,7 @@ describe('SignOutDialog', () => {
     await userEvent.click(getByRole('button', { name: /^取消$/ }))
 
     expect(reset).not.toHaveBeenCalled()
+    expect(clear).not.toHaveBeenCalled()
     expect(navigate).not.toHaveBeenCalled()
   })
 })
