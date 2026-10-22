@@ -49,7 +49,7 @@ class RecommendQuery(BaseModel):
 
 
 class RecommendItem(BaseModel):
-    """单条推荐结果。"""
+    """单条推荐结果（含中文理由与依据字段）。"""
 
     repo_id: str
     name: str
@@ -58,6 +58,7 @@ class RecommendItem(BaseModel):
     description: str = ""
     score: float
     reason: str
+    based_on: list[str] = Field(default_factory=list, description="理由依据字段")
 
 
 class RecommendResponse(BaseModel):
@@ -66,6 +67,24 @@ class RecommendResponse(BaseModel):
     query: str
     count: int
     items: list[RecommendItem]
+
+
+class RecommendationOut(BaseModel):
+    """本地已生成的推荐结果（含理由与依据字段）。"""
+
+    id: str
+    user_id: str
+    repo_id: str
+    name: str = ""
+    html_url: str = ""
+    description: str = ""
+    language: str = ""
+    tech_stack: str = ""
+    score: float
+    reason: str = ""
+    based_on: list[str] = Field(default_factory=list)
+    status: str = "new"
+    created_at: Optional[datetime] = None
 
 
 class TaskEnqueued(BaseModel):

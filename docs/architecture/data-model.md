@@ -99,6 +99,10 @@ recommendations              （user_id 可空 = 全局推荐）
 | status TEXT | `new` / `saved` / `dismissed` / `pushed` |
 | created_at | 生成时间 |
 
+> 本地 VPS 镜像同样保留 `reason` / `based_on`：`based_on` 为 JSON 数组字符串
+> （如 `["相似度 87%","语言 Python","技术栈 FastAPI"]`），旧 SQLite 库由 `init_db()` 幂等补列；
+> 生成逻辑见 `vps/app/services/recommend_reason.py`（纯规则，不调用 LLM）。
+
 ## 4. 索引策略
 
 | 表 | 索引 | 用途 |

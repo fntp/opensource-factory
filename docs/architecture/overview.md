@@ -97,7 +97,18 @@ Celery beat（每 30 分钟）或 POST /api/vector-index/sync
 对账（kind=reconcile）：POST /api/internal/vectors/check 比对缺失 / 过期向量并修复；
 可选 list + delete 清理孤儿（默认关闭）。
 ```
+
+### 3.7 推荐理由生成流（M3-06）
+
 ```
+generate_recommendations / POST /api/recommend/query
+→ build_user_profile（收藏库语言 / 技术栈 / 分类）
+→ build_reason_detail（相似度分档 + 共同语言 / 技术栈 / 分类 / 今日热度 / 简介）
+→ reason（中文）+ based_on（JSON 数组）
+→ 写 recommendations.reason / based_on；存量可 POST /api/tasks/regenerate-recommendation-reasons 回填
+```
+
+纯规则、不调用 LLM；收藏库为空时退化为候选字段 + 相似度，不虚构用户偏好。
 
 ## 4. 接口边界
 
@@ -123,7 +134,10 @@ Celery beat（每 30 分钟）或 POST /api/vector-index/sync
 | `/api/tasks/sync` | POST | 入队仓库同步 |
 | `/api/tasks/crawl-trending` | POST | 入队热榜抓取 |
 | `/api/tasks/generate-recommendations` | POST | 入队推荐生成 |
+| `/api/tasks/regenerate-recommendation-reasons` | POST | 入队重算存量推荐理由与依据字段 |
 | `/api/tasks/daily-push` | POST | 入队每日推送 |
+| `/api/recommend/query` | POST | 语义查询（返回 `reason` + `based_on`） |
+| `/api/recommend/list` | GET | 本地已生成推荐（`reason` + `based_on`） |
 | `/api/tasks/vectorize` | POST | 入队向量化（批量 / 增量 / 断点续跑） |
 | `/api/tasks/{taskId}` | GET | 任务状态 |
 | `/api/vector-index/sync` | POST | 入队 Vectorize 同步 / 对账（`kind` / `scope` / `force`） |

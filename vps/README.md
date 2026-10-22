@@ -31,7 +31,8 @@ vps/
 │   │   ├── embedding.py          # BGE-M3（懒加载）与确定性 hash 降级向量
 │   │   ├── vector_pipeline.py    # 收藏库 / 热榜向量化：批量、增量、断点续跑
 │   │   ├── summarizer.py         # Ollama → DeepSeek → 截断降级 的摘要生成
-│   │   ├── recommender.py        # 余弦排序 + 中文推荐理由模板
+│   │   ├── recommender.py        # 余弦排序（理由生成委托 recommend_reason）
+│   │   ├── recommend_reason.py   # 中文推荐理由 + based_on 依据字段（纯规则）
 │   │   └── vector_sync.py        # Vectorize 批量 upsert / 重试 / 对账 / 孤儿清理
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
@@ -134,6 +135,7 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | POST | `/api/tasks/sync` | 入队 GitHub 仓库同步（自己的 + Starred） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/crawl-trending` | 入队热榜抓取（`platform=github\|gitee\|all`，可选 `language`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/generate-recommendations` | 入队推荐生成（可选 `user_id`、`top_k`） | `202 {"taskId": "..."}` |
+| POST | `/api/tasks/regenerate-recommendation-reasons` | 入队重算存量推荐理由与 `based_on`（可选 `user_id`、`limit`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/daily-push` | 入队每日推送准备（将 `new` 推荐标记为 `pushed`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/vectorize` | 入队向量化（`scope=my\|trending\|all`，可选 `limit` / `batch_size` / `force` / `run_id`） | `202 {"taskId","runId"}` |
 | GET | `/api/tasks/{task_id}` | 查询任务状态（`pending/started/success/failure`） | `200 {"taskId","status","result"}` |
@@ -152,7 +154,10 @@ Celery beat 每 30 分钟（`7,37` 分）自动执行一次增量同步；对账
 
 - **鉴权**：当服务端设置 `INTERNAL_TOKEN` 时，请求必须携带请求头 `X-Internal-Token: <token>`，否则返回 `401`；
 - **异步语义**：任务接口一律 `202` + `{"taskId": ...}`（camelCase），由边缘侧轮询 `GET /api/tasks/{task_id}` 获取结果；
-- **直接查询接口**（供边缘回源或调试）：`GET /api/repos`、`GET /api/trending`、`POST /api/recommend/query`；
+- **直接查询接口**（供边缘回源或调试）：`GET /api/repos`、`GET /api/trending`、`POST /api/recommend/query`、`GET /api/recommend/list`；
+- **推荐理由**：`reason` 为中文可读文案，`based_on` 为 JSON 数组字符串（如 `["相似度 87%","语言 Python","技术栈 FastAPI"]`），
+  由 `services/recommend_reason.py` 基于用户画像与候选字段生成，不调用 LLM；存量数据可调用
+  `POST /api/tasks/regenerate-recommendation-reasons` 批量回填；
 - **数据契约**：本地表结构与 D1 Schema 保持一致（`my_repositories` / `trending_repositories` / `categories` 字段名与语义镜像），边缘侧按 `id`（`owner/repo`）对齐；
 - **降级语义**：外部依赖不可用时任务返回 `{"status": "skipped"|"error", ...}` 而不是失败抛错，边缘侧可安全重试。
 

@@ -40,11 +40,26 @@ engine = create_engine(settings.DATABASE_URL, connect_args=_connect_args, future
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
 
 
+def _ensure_sqlite_columns() -> None:
+    """为旧 SQLite 库幂等补充新增列（`create_all` 不会修改已存在的表）。"""
+    if not settings.DATABASE_URL.startswith("sqlite"):
+        return
+    with engine.begin() as conn:
+        rows = conn.exec_driver_sql("PRAGMA table_info(recommendations)").fetchall()
+        if not rows:
+            return
+        columns = {row[1] for row in rows}
+        if "based_on" not in columns:
+            conn.exec_driver_sql("ALTER TABLE recommendations ADD COLUMN based_on TEXT")
+            logger.info("已为 recommendations 补充 based_on 列")
+
+
 def init_db() -> None:
     """建表（幂等）。在应用启动与任务执行前调用。"""
     from app import models  # noqa: F401  确保所有模型已注册到 Base.metadata
 
     Base.metadata.create_all(bind=engine)
+    _ensure_sqlite_columns()
     logger.info("数据库已就绪: %s", settings.DATABASE_URL)
 
 

@@ -62,3 +62,4 @@
 | 2026-10-13 | 交付 | IT-0002 交付完成：三端检查全绿（admin 73 用例 / edge tsc / vps 20 用例）、分支 feat/req-202610-0462-planning 已推送、平台回报已确认 |
 | 2026-10-22 | 交付 | IT-0013 / M3-03 完成：VPS Vectorize 同步服务 + edge 内部向量接口 + Celery beat；vps pytest 51 用例全绿、edge tsc 通过 |
 | 2026-10-22 | 交付 | M3-02 向量化管线完成（REQ-202610-0920）：收藏库 + 热榜、批量 / 增量 / 断点续跑；计划见 `plan-req-202610-0920-vector-pipeline.md` |
+| 2026-10-22 | 交付 | M3-06 推荐理由生成完成（REQ-202610-0924）：画像感知中文理由 + `based_on`、存量回填任务；计划见 `plan-req-202610-0924-recommend-reason.md` |

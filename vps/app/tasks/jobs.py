@@ -16,7 +16,7 @@ from sqlalchemy import select
 
 from app.config import get_settings
 from app.db import SessionLocal
-from app.models import MyRepository, Recommendation, TrendingRepository, User
+from app.models import Category, MyRepository, Recommendation, TrendingRepository, User
 from app.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -162,7 +162,8 @@ def crawl_trending(platform: str = "github", language: Optional[str] = None) -> 
 def generate_recommendations(user_id: Optional[str] = None, top_k: int = 20) -> dict[str, Any]:
     """生成推荐：以本地仓库集合的平均向量为用户画像，对热榜候选排序后落库。"""
     from app.services.embedding import get_embedding_service
-    from app.services.recommender import build_reason, recommend
+    from app.services.recommend_reason import build_reason_detail, build_user_profile
+    from app.services.recommender import recommend
 
     service = get_embedding_service()
     db = SessionLocal()
@@ -178,7 +179,7 @@ def generate_recommendations(user_id: Optional[str] = None, top_k: int = 20) -> 
                     db.commit()
                 target_users = ["default"]
 
-        # 用户画像：本地镜像仓库文本的平均向量
+        # 用户画像：本地镜像仓库文本的平均向量 + 语言 / 技术栈 / 分类偏好
         my_repos = db.execute(select(MyRepository).limit(1000)).scalars().all()
         profile_texts = [
             " ".join(filter(None, [r.name, r.description or "", r.readme_summary or "", r.language or ""]))
@@ -186,6 +187,11 @@ def generate_recommendations(user_id: Optional[str] = None, top_k: int = 20) -> 
         ]
         if not profile_texts:
             return {"status": "skipped", "reason": "本地没有仓库数据，无法构建用户画像"}
+
+        category_names = {
+            row.id: row.name for row in db.execute(select(Category)).scalars().all()
+        }
+        interest_profile = build_user_profile(my_repos, category_names)
 
         profile_vectors = service.encode(profile_texts)
         dim = len(profile_vectors[0])
@@ -214,6 +220,7 @@ def generate_recommendations(user_id: Optional[str] = None, top_k: int = 20) -> 
             row = by_id.get(repo_id)
             if row is None:
                 continue
+            detail = build_reason_detail(row, score, interest_profile)
             for uid in target_users:
                 existing = db.execute(
                     select(Recommendation).where(
@@ -222,7 +229,8 @@ def generate_recommendations(user_id: Optional[str] = None, top_k: int = 20) -> 
                 ).scalar_one_or_none()
                 if existing is not None:
                     existing.score = float(score)
-                    existing.reason = build_reason(row, score)
+                    existing.reason = detail.reason
+                    existing.based_on = detail.based_on_json
                     continue
                 db.add(
                     Recommendation(
@@ -230,7 +238,8 @@ def generate_recommendations(user_id: Optional[str] = None, top_k: int = 20) -> 
                         user_id=uid,
                         repo_id=repo_id,
                         score=float(score),
-                        reason=build_reason(row, score),
+                        reason=detail.reason,
+                        based_on=detail.based_on_json,
                         status="new",
                     )
                 )
@@ -241,6 +250,61 @@ def generate_recommendations(user_id: Optional[str] = None, top_k: int = 20) -> 
 
     logger.info("推荐生成完成: 用户 %s，新增 %d 条", target_users, created)
     return {"status": "ok", "users": target_users, "created": created}
+
+
+@celery_app.task(name="app.tasks.jobs.regenerate_recommendation_reasons")
+def regenerate_recommendation_reasons(
+    user_id: Optional[str] = None, limit: int = 500
+) -> dict[str, Any]:
+    """按当前模板重算存量推荐的中文理由与依据字段（模板升级 / 画像变化后使用）。"""
+    from app.services.recommend_reason import build_reason_detail, build_user_profile
+
+    db = SessionLocal()
+    try:
+        my_repos = db.execute(select(MyRepository).limit(1000)).scalars().all()
+        category_names = {
+            row.id: row.name for row in db.execute(select(Category)).scalars().all()
+        }
+        interest_profile = build_user_profile(my_repos, category_names)
+
+        stmt = select(Recommendation).order_by(Recommendation.score.desc()).limit(max(1, int(limit)))
+        if user_id:
+            stmt = stmt.where(Recommendation.user_id == user_id)
+        rows = list(db.execute(stmt).scalars().all())
+        if not rows:
+            return {"status": "skipped", "reason": "没有可回填的推荐", "updated": 0}
+
+        repo_ids = {row.repo_id for row in rows}
+        trending = {
+            item.id: item
+            for item in db.execute(
+                select(TrendingRepository).where(TrendingRepository.id.in_(repo_ids))
+            ).scalars().all()
+        }
+        mine = {
+            item.id: item
+            for item in db.execute(
+                select(MyRepository).where(MyRepository.id.in_(repo_ids))
+            ).scalars().all()
+        }
+
+        updated = 0
+        for row in rows:
+            source = trending.get(row.repo_id) or mine.get(row.repo_id)
+            detail = build_reason_detail(
+                source if source is not None else {"id": row.repo_id, "name": row.repo_id},
+                float(row.score or 0),
+                interest_profile,
+            )
+            row.reason = detail.reason
+            row.based_on = detail.based_on_json
+            updated += 1
+        db.commit()
+    finally:
+        db.close()
+
+    logger.info("推荐理由回填完成: %d 条", updated)
+    return {"status": "ok", "updated": updated}
 
 
 @celery_app.task(name="app.tasks.jobs.daily_push")
