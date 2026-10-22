@@ -376,6 +376,55 @@ export interface SearchResponse {
   understanding?: SearchUnderstanding;
 }
 
+/** 多轮问答式检索（M6-09） */
+export type ChatScope = 'my' | 'trending' | 'all';
+export type ChatIntent = 'list' | 'count' | 'more' | 'detail' | 'compare';
+export type ChatMode = 'hybrid' | 'vector' | 'keyword';
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface ChatResultItem extends SearchResultItem {
+  /** 答案中的 [n] 引用编号 */
+  citation: number;
+}
+
+export interface ChatFilters {
+  language: string;
+  concepts: string[];
+  terms: string[];
+}
+
+export interface ChatFacets {
+  languages: Array<{ name: string; count: number }>;
+  sources: Array<{ name: string; count: number }>;
+}
+
+/** POST /api/search/chat 响应 */
+export interface ChatResponse {
+  question: string;
+  answer: string;
+  intent: ChatIntent;
+  scope: ChatScope;
+  topic: string;
+  language: string;
+  filters: ChatFilters;
+  count: number;
+  total: number;
+  items: ChatResultItem[];
+  facets: ChatFacets;
+  suggestions: string[];
+  mode: ChatMode;
+  tookMs: number;
+  turn: number;
+  backend: string;
+  model: string;
+  /** VPS 不可达时为 true（mode=keyword） */
+  fallback?: boolean;
+}
+
 /** GitHub /user 接口返回（仅取所需字段） */
 export interface GithubUser {
   id: number;

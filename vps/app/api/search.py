@@ -15,6 +15,8 @@ from sqlalchemy.orm import Session
 from app.security import require_internal_token
 from app.db import get_db
 from app.schemas import (
+    SearchChatRequest,
+    SearchChatResponse,
     SearchEmbedResponse,
     SearchQuery,
     SearchQueryResponse,
@@ -22,6 +24,7 @@ from app.schemas import (
     SearchStatusResponse,
     SearchUnderstandingOut,
 )
+from app.services.conversation_search import ChatError, chat_search
 from app.services.embedding import get_embedding_service
 from app.services.query_understanding import QueryUnderstandingError, understand_query
 from app.services.semantic_search import (
@@ -100,6 +103,22 @@ def semantic_search(payload: SearchQuery, db: Session = Depends(get_db)) -> Sear
     except SearchError as exc:
         raise _bad_request(exc) from exc
     return SearchSemanticResponse(**result)
+
+
+@router.post("/chat", response_model=SearchChatResponse, summary="多轮问答式检索")
+def chat(payload: SearchChatRequest, db: Session = Depends(get_db)) -> SearchChatResponse:
+    try:
+        result = chat_search(
+            db,
+            payload.messages,
+            my_repo_ids=payload.myRepoIds,
+            shown_ids=payload.shownIds,
+            top_k=payload.topK,
+            scope=payload.scope,
+        )
+    except (ChatError, SearchError, QueryUnderstandingError) as exc:
+        raise _bad_request(exc) from exc
+    return SearchChatResponse(**result)
 
 
 @router.get("/status", response_model=SearchStatusResponse, summary="语义搜索可用性")

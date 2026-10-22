@@ -683,6 +683,74 @@ class SearchStatusResponse(BaseModel):
     vocabulary: dict[str, int]
     latestRuns: list[VectorRunOut]
 
+
+class SearchChatMessageIn(BaseModel):
+    """多轮问答的一条消息。"""
+
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=500)
+
+
+class SearchChatRequest(BaseModel):
+    """多轮问答式检索请求。"""
+
+    messages: list[SearchChatMessageIn] = Field(min_length=1, max_length=20)
+    myRepoIds: list[str] = Field(default_factory=list, max_length=5000)
+    shownIds: list[str] = Field(default_factory=list, max_length=500)
+    topK: int = Field(default=8, ge=1, le=20)
+    scope: Optional[Literal["my", "trending", "all"]] = None
+
+
+class SearchChatItem(SearchItem):
+    """问答结果条目：带引用编号。"""
+
+    citation: int = 0
+
+
+class SearchChatFacet(BaseModel):
+    """问答结果 facet。"""
+
+    name: str
+    count: int
+
+
+class SearchChatFacets(BaseModel):
+    """问答结果分布。"""
+
+    languages: list[SearchChatFacet] = Field(default_factory=list)
+    sources: list[SearchChatFacet] = Field(default_factory=list)
+
+
+class SearchChatFilters(BaseModel):
+    """本轮实际生效的过滤条件。"""
+
+    language: str = ""
+    concepts: list[str] = Field(default_factory=list)
+    terms: list[str] = Field(default_factory=list)
+
+
+class SearchChatResponse(BaseModel):
+    """多轮问答式检索响应。"""
+
+    question: str
+    answer: str
+    intent: str
+    scope: str
+    topic: str
+    language: str
+    filters: SearchChatFilters
+    count: int
+    total: int
+    items: list[SearchChatItem]
+    facets: SearchChatFacets
+    suggestions: list[str]
+    mode: str
+    tookMs: int
+    turn: int
+    backend: str = ""
+    model: str = ""
+
+
 class DegradationCheckOut(BaseModel):
     """单项降级检查结果。"""
 

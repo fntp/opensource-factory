@@ -190,6 +190,23 @@ Vectorize 未绑定 / 查询失败 / 水合 0 条 → VPS POST /api/search/query
 → VPS 不可达 → edge D1 关键词 LIKE 检索（mode=keyword，使用 understanding.keywordTerms 多词 OR 召回）
 ```
 
+### 3.8.1 多轮问答式检索流（M6-09）
+
+```
+admin /search/chat POST /api/search/chat（登录态，携带 messages[] / shownIds[] / scope）
+→ edge 校验消息（≤20 条、每条 ≤500 字）并从 D1 读取当前用户 my_repositories.id 白名单（≤5000）
+→ edge 调 VPS POST /api/search/chat（X-Internal-Token）
+   ↳ 无状态回放用户轮次：主题 / 语言 / 范围 / 意图 / 已展示排除
+   ↳ 查询理解扩展词 + 关键词匹配 + repo_vectors 本地向量混合召回
+   ↳ 按 myRepoIds 过滤、按语言过滤、排除 shownIds、排序分页
+   ↳ 生成带 [n] 引用的确定性答案 + facets + 追问建议
+→ edge 按 D1 重新水合（my 再按 user_id 二次过滤）→ 返回对话答案与项目卡片
+
+降级：VPS 不可达 / 响应非法 → edge 本地回放上下文 + D1 关键词 LIKE 检索（mode=keyword）
+```
+
+多轮规则：主题继承（「那 Rust 的呢？」）、范围切换（「只看热榜」）、翻页（「还有吗？」按 `shownIds` 排除）、数量 / 详情 / 对比意图；会话历史由客户端携带，不新增服务端会话表。
+
 ### 3.9 推荐理由生成流（M3-06）
 
 ```
@@ -406,6 +423,7 @@ edge 侧 `/api/monitoring/overview` 需登录，`/api/internal/analytics` 供内
 | `/api/push-preferences` | PUT | 保存推送偏好（时间 / 时区 / 阈值 / 通道开关） |
 | `/api/sync` | POST | 触发同步任务（202） |
 | `/api/search/semantic` | POST | 语义搜索（`query` / `topK` / `scope`；vectorize → local → keyword 三级降级） |
+| `/api/search/chat` | POST | 多轮问答式检索（`messages[]` / `shownIds[]` / `topK` / `scope`；my 结果按 user_id 二次过滤，VPS 不可达时关键词降级） |
 | `/api/monitoring/overview` | GET | 监控总览（登录态；合并 VPS 状态与 Workers 指标，`?days=1..30`） |
 | `/api/monitoring/check` | POST | 触发一次 VPS 监控检查（登录态代理） |
 | `/api/monitoring/alerts/:id/ack` | POST | 确认监控告警（登录态代理） |
@@ -461,6 +479,7 @@ edge 侧 `/api/monitoring/overview` 需登录，`/api/internal/analytics` 供内
 | `/api/search/embed` | POST | 查询向量化（供 edge 调用 Vectorize） |
 | `/api/search/query` | POST | 本地 `repo_vectors` 余弦检索（降级路径） |
 | `/api/search/semantic` | POST | 本地检索并水合完整项目信息 |
+| `/api/search/chat` | POST | 多轮问答检索（无状态回放上下文；`myRepoIds` 白名单 + 关键词 / 向量混合召回；返回答案、引用、facets、建议） |
 | `/api/search/status` | GET | 向量覆盖率、模型分布与最近向量化运行 |
 | `/api/vectors/stats` | GET | 向量覆盖率与最近运行 |
 | `/api/vectors/runs/{runId}` | GET | 向量化运行详情 |

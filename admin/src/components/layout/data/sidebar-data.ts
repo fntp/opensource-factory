@@ -5,6 +5,7 @@ import {
   FolderGit2,
   FolderTree,
   LayoutDashboard,
+  MessageSquareText,
   Monitor,
   Palette,
   Search,
@@ -39,6 +40,7 @@ export const sidebarData: SidebarData = {
         { title: '热榜', url: '/trending', icon: Flame },
         { title: '推荐', url: '/recommend', icon: Sparkles },
         { title: '语义搜索', url: '/search', icon: Search },
+        { title: '问答检索', url: '/search/chat', icon: MessageSquareText },
       ],
     },
     {

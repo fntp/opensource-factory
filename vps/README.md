@@ -53,6 +53,7 @@ vps/
 │   │   ├── resource_budget.py    # 4G / 15G 资源预算实测与超限建议（M5-06）│   │   ├── vector_index.py       # Vectorize 批量 upsert / 重试 / 对账 / 孤儿清理
 │   │   ├── query_understanding.py # 同义词 / 技术栈词表查询理解（离线、确定性）
 │   │   ├── semantic_search.py    # 查询向量化 + repo_vectors 余弦检索 + 结果水合
+│   │   ├── conversation_search.py # 多轮问答：上下文回放 / 混合召回 / 引用答案 / 追问建议（M6-09）
 │   │   └── degradation.py        # 降级路径自检（模型缺失 / 超预算，离线可跑）
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync

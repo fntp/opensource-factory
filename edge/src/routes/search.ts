@@ -19,7 +19,7 @@ import type {
   TrendingRow,
   Variables,
 } from '../types';
-import { all } from '../db';
+import { all } from '../db.ts';
 
 const search = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -29,7 +29,7 @@ const MAX_QUERY_LENGTH = 200;
 const HYDRATE_CHUNK = 50;
 const MAX_KEYWORD_TERMS = 8;
 
-type Scope = 'my' | 'trending' | 'all';
+export type Scope = 'my' | 'trending' | 'all';
 
 interface VpsEmbedResponse {
   vector?: number[];
@@ -53,24 +53,24 @@ interface VpsQueryResponse {
   understanding?: SearchUnderstanding;
 }
 
-interface Hit {
+export interface Hit {
   source: string;
   repoId: string;
   score: number;
 }
 
-function normalizeScope(value: unknown): Scope | null {
+export function normalizeScope(value: unknown): Scope | null {
   if (value === undefined || value === null || value === '') return 'all';
   return value === 'my' || value === 'trending' || value === 'all' ? value : null;
 }
 
-function clampTopK(value: unknown): number {
+export function clampTopK(value: unknown): number {
   const parsed = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10);
   if (!Number.isFinite(parsed)) return DEFAULT_TOP_K;
   return Math.min(MAX_TOP_K, Math.max(1, Math.trunc(parsed)));
 }
 
-async function postVps<T>(env: Env, path: string, body: unknown): Promise<T | null> {
+export async function postVps<T>(env: Env, path: string, body: unknown): Promise<T | null> {
   const base = env.VPS_NODE_URL?.trim();
   if (!base) return null;
   try {
@@ -141,7 +141,7 @@ function toItem(
 }
 
 /** 按 id 批量取行；`my` 额外按 user_id 过滤，避免跨用户泄漏。 */
-async function hydrate(
+export async function hydrate(
   env: Env,
   userId: string,
   hits: Hit[],
@@ -199,7 +199,7 @@ function likeFilter(columns: string[], terms: string[]): { sql: string; params: 
 }
 
 /** D1 关键词兜底：当前用户的收藏 + 全局热榜；使用查询理解的扩展词提升召回。 */
-async function keywordSearch(
+export async function keywordSearch(
   env: Env,
   userId: string,
   query: string,

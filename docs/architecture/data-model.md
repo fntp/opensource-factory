@@ -513,6 +513,14 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 
 增量判定：`text_hash + model + backend + dim` 任一变化或上次状态非 `synced` 时重新 upsert；`full` 模式忽略状态全量重传。
 
+### 5.3 多轮问答上下文（M6-09）
+
+多轮问答不新增会话表：admin 在请求中携带最近 20 条 `messages` 与已展示项目 `shownIds`，
+VPS 无状态回放用户轮次得到主题 / 语言 / 范围 / 意图 / 翻页排除；会话刷新即丢失。
+`my` 来源仍以 edge 从 D1 读取的当前用户 `my_repositories.id` 白名单约束，VPS 返回后 edge 再按
+`user_id` 水合过滤，因此 VPS 全局镜像不会造成跨用户泄漏。若后续需要跨设备持久化，再评估 D1
+会话表与保留策略（见 open-questions Q24）。
+
 ## 6. 一致性约定
 
 - D1 为**主数据**；VPS 本地 SQLite 为算力镜像（允许重建）；

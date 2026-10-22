@@ -57,6 +57,7 @@ edge/
         ├── push-preferences.ts # /api/push-preferences + /api/internal/push-preferences
         ├── sync.ts       # /api/sync
         ├── search.ts     # /api/search/semantic（查询理解 + Vectorize → 本地向量 → 关键词三级降级）
+        ├── search-chat.ts # /api/search/chat（多轮上下文 + 用户白名单 + VPS 代理 / D1 关键词降级）
         ├── monitoring.ts # /api/monitoring/*（总览 / 检查 / 告警确认 + /api/internal/analytics）
         └── internal-vectors.ts # /api/internal/vectors/*（VPS → Vectorize，X-Internal-Token）
 ```
