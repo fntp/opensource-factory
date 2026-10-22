@@ -15,6 +15,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api import (
+from app.api import (
+    analysis,
     backup,
     degradation,
     duplicates,
@@ -28,6 +30,12 @@ from app.api import (
     repos,
     search,
     security,
+    summaries,
+    tasks,
+    trending,
+    vector_index,
+    vectors,
+)
     summaries,
     tasks,
     trending,
@@ -120,6 +128,7 @@ app.include_router(local.router, prefix="/local")
 
 # 接口限流（M5-05）：进程内滑动窗口，默认开启
 install_rate_limit_middleware(app)
+app.include_router(analysis.router)
 
 
 @app.get("/healthz", tags=["health"], summary="健康检查")

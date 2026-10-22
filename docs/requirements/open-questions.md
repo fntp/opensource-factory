@@ -262,6 +262,17 @@
   - C. 仅展示 SPDX 标识，不给出风险等级与义务说明；
 - **默认处理**：A。`license_source` 保留识别来源便于排查，后续可增加人工修正入口。
 
+## Q29. 依赖清单覆盖面与版本约束解析（REQ-202610-0954 新增）
+
+- **背景**：M6-07 依赖分析当前支持 npm / PyPI / Go / Cargo / Maven / RubyGems / Composer
+  8 类常见清单；Gradle（`build.gradle`）、Bazel、锁文件（`package-lock.json` / `poetry.lock`）
+  与私有 registry 尚未解析，版本只保留原始约束字符串、不做语义化求交；
+- **选项**：
+  - A. 先覆盖主流生态与常见清单，后续按实际仓库缺口补 Gradle / 锁文件解析（**当前默认**）；
+  - B. 本期接入 Gradle / 锁文件解析（需额外依赖与更大的解析测试面）；
+  - C. 接入 semver / PEP 440 做版本冲突检测（建议与 M5-08 安全审计联动）；
+- **默认处理**：A；依赖漏洞比对不在本期范围，后续与 M5-08 联动。
+
 ---
 
 > 处理约定：人工确认任一问题后，更新本文件状态并在 `docs/planning/task-planning.md` 记录。

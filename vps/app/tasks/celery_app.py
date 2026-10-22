@@ -152,6 +152,12 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(minute=47, hour=6),
         "kwargs": {"scope": "all", "limit": 500, "force": False},
     },
+    # 依赖清单扫描（M6-07）：每日 06:23 增量补扫
+    "analyze-dependencies-daily": {
+        "task": "app.tasks.jobs.analyze_dependencies",
+        "schedule": crontab(minute=23, hour=6),
+        "kwargs": {"force": False},
+    },
 }
 
 # 兼容 `celery -A app.tasks.celery_app`（默认按属性名 app/celery 查找）

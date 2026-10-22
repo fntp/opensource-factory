@@ -479,6 +479,25 @@ VPS 定时任务 enrich_licenses（每日 06:47 beat，或 POST /api/tasks/enric
 分类与义务在读取时派生，数据库只存 SPDX 与来源，避免升级目录后存量数据口径不一致；
 提示为工程辅助信息，不构成法律意见。
 
+### 3.17 依赖分析流（M6-07）
+
+```
+admin「依赖分析」页 GET /api/analysis/dependencies（登录态）
+→ edge 从 D1 读取当前用户仓库 id / language（最多 100 个）
+→ edge 调 VPS GET /api/analysis/dependencies?repoIds=...&top=20（X-Internal-Token）
+   ↳ VPS 聚合 repo_dependencies + repo_dependency_scans + my_repositories.language
+→ 返回 summary / techStack / ecosystems / dependencies / links / repos
+
+刷新：admin POST /api/analysis/dependencies/refresh
+→ edge 以当前用户仓库 id 调 VPS POST /api/analysis/dependencies/refresh
+→ VPS 按仓库拉取 package.json / requirements.txt / pyproject.toml / go.mod /
+   Cargo.toml / pom.xml / Gemfile / composer.json，解析后覆盖式写入
+降级：VPS 不可达 → edge buildLocalOverview 只按 D1 语言给出本地概览（mode=local）
+```
+
+依赖明细只落 VPS 本地 SQLite，不复制到 D1；扫描按 `DEPENDENCY_SCAN_TTL_HOURS`
+跳过最近成功仓库，单仓库失败保留旧依赖并标记 `failed`；每日 06:23 由 Celery beat 增量补扫。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -528,6 +547,8 @@ VPS 定时任务 enrich_licenses（每日 06:47 beat，或 POST /api/tasks/enric
 | `/api/duplicates/dismiss/:clusterId` | DELETE | 取消忽略（恢复展示） |
 | `/api/licenses/catalog` | GET | License 目录（分类 / 风险 / 义务 / 提醒，公开） |
 | `/api/licenses/summary` | GET | License 分布与风险统计（`?scope=my\|trending\|all`；`my` / `all` 需登录） |
+| `/api/analysis/dependencies` | GET | 依赖分析聚合（`?top=`；当前用户仓库 → VPS；VPS 不可达回退 D1 语言概览） |
+| `/api/analysis/dependencies/refresh` | POST | 扫描当前用户仓库依赖清单（VPS 不可达返回 `status=unavailable`） |
 
 ### 4.2 edge ↔ vps（内部 API，`X-Internal-Token`）
 
@@ -596,6 +617,8 @@ VPS 定时任务 enrich_licenses（每日 06:47 beat，或 POST /api/tasks/enric
 | `/api/search/similar` | POST | 相似项目向量近邻（`source` / `repoId` / `topK` / `scope` / `minScore` / `excludeSaved`；返回未水合 hits） |
 | `/api/duplicates/scan` | POST | 重复 / 相似项目检测（`scope` / `myRepoIds` / `maxRepos` / `maxClusters`；返回未水合簇，只读不落库） |
 | `/api/search/status` | GET | 向量覆盖率、模型分布与最近向量化运行 |
+| `/api/analysis/dependencies` | GET | 依赖分析聚合（`repoIds` 逗号分隔 / `top`；只读本地表） |
+| `/api/analysis/dependencies/refresh` | POST | 扫描依赖清单并入库（`repoIds` / `force` / `limit`） |
 | `/api/vectors/stats` | GET | 向量覆盖率与最近运行 |
 | `/api/vectors/runs/{runId}` | GET | 向量化运行详情 |
 | `/api/vectors/{source}/{repoId}` | GET | 单条仓库向量 |

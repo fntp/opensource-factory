@@ -53,6 +53,8 @@ edge/
     │   └── helpers.ts    # 相似推荐参数归一化 + 关键词兜底打分（纯函数）
     ├── duplicates/
     │   └── helpers.ts    # 重复检测：地址 / 名称归一化、本地聚类、合并建议（纯函数）
+    ├── dependencies/
+    │   └── helpers.ts    # 依赖分析参数归一化 + D1 语言概览降级（纯函数）
     └── routes/
         ├── auth.ts       # /api/auth/*（login / callback / me / logout）
         ├── repos.ts      # /api/repos
@@ -70,6 +72,7 @@ edge/
         ├── search.ts     # /api/search/semantic（语义三级降级）· /api/search/fulltext（README FTS）
         ├── similar.ts    # /api/similar（相似项目：VPS 向量近邻 → D1 关键词兜底）
         ├── duplicates.ts # /api/duplicates/*（重复检测：VPS 规则 + 向量 → 本地兜底；按用户忽略）
+        ├── analysis.ts   # /api/analysis/*（依赖分析：用户仓库 → VPS 聚合 → 本地语言概览）
         └── internal-vectors.ts # /api/internal/vectors/*（VPS → Vectorize，X-Internal-Token）
 ```
 
@@ -224,6 +227,8 @@ npm run test:m2 -- --strict \
 | `POST /api/duplicates/dismiss` | 忽略重复簇，body `{clusterId, repoIds?, reason?}`；按 `user_id + cluster_key` 幂等 |
 | `GET /api/duplicates/dismissed` | `{count, items:[{clusterId, repoIds, reason, createdAt}]}`（当前用户） |
 | `DELETE /api/duplicates/dismiss/:clusterId` | 取消忽略，返回 `{removed, clusterId}` |
+| `GET /api/analysis/dependencies` | 依赖分析：query `top`；按当前用户仓库 id 调 VPS 聚合，mode 为 `vps` / `local`（D1 语言概览降级）；需登录 |
+| `POST /api/analysis/dependencies/refresh` | 扫描当前用户仓库依赖清单；VPS 不可达返回 `{status:"unavailable"}`，需登录 |
 | `GET /healthz` | `{"status":"ok"}` |
 
 JSON 形状（前端契约，勿改字段名）：

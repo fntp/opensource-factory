@@ -84,6 +84,7 @@
 | IT-0047 | M6-04 | 技术栈图谱视图（语言 / 框架聚合） | IT-0010；M1-11 | ✅ 已完成（2026-10-22） |
 | IT-0048 | M6-05 | 项目健康度追踪（最后提交 / issue 活跃 / 归档标记） | M1-05 | ✅ 已完成（2026-10-22） |
 | IT-0049 | M6-06 | License 识别与合规提示（GitHub 元数据 + README 兜底 / 合规总览） | M2-03 | ✅ 已完成（2026-10-22） |
+| IT-0050 | M6-07 | 依赖分析（清单解析 / 依赖入库 / 技术栈关联，edge 代理 + admin 依赖分析页） | IT-0047 | ✅ 已完成（2026-10-22） |
 
 > 说明：IT-0004 / IT-0005 在人工资源（Cloudflare 账号、OAuth App）就绪前，可先以 `wrangler --local` + 本地回调完成开发与验证；其余按需求池顺序滚动排期。
 
@@ -127,3 +128,5 @@
 | 2026-10-22 | 交付 | IT-0047 / M6-04 技术栈图谱（REQ-202610-0951）：新增 edge `GET /api/tech-stack`（D1 只读聚合，语言归一 + 标签 / 简介启发式框架识别）与 admin `/tech-stack` 页面（KPI、SVG 径向关系图、语言条形榜、框架排行、组合洞察、空状态）；计划见 `planning/plan-req-202610-0951-tech-stack-graph.md` |
 | 2026-10-22 | 交付 | IT-0048 / M6-05 项目健康度（REQ-202610-0952）：VPS 拉取 pushed_at / issue / 归档字段并计算健康度，每日任务 + 手动刷新回写 D1；edge 本地兜底计算与健康度接口；admin 仓库页汇总、筛选、徽章与刷新按钮；计划见 `planning/plan-req-202610-0952-repo-health-tracking.md` |
 | 2026-10-22 | 交付 | IT-0049 / M6-06 License 合规（REQ-202610-0953）：VPS License 识别任务（GitHub API + README 兜底）与目录 / 提示服务；edge `/api/licenses/*` 与 D1 回写；admin 仓库 / 热榜 License 徽章与合规总览；计划见 `planning/plan-req-202610-0953-license-compliance.md` |
+
+| 2026-10-22 | 交付 | IT-0050 / M6-07 依赖分析（REQ-202610-0954）：8 类依赖清单解析 + `repo_dependencies` / 扫描状态落库 + 技术栈关联聚合 + edge 用户级代理与本地降级 + admin「依赖分析」页；计划见 `planning/plan-req-202610-0954-dependency-analysis.md` |

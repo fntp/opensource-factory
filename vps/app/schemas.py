@@ -1567,3 +1567,36 @@ class DuplicateScanResponse(BaseModel):
     clusters: list[DuplicateClusterOut]
     tookMs: int
     thresholds: DuplicateThresholdsOut
+
+
+
+class DependencyRefreshRequest(BaseModel):
+    """依赖清单扫描请求（M6-07）。"""
+
+    repoIds: list[str] = Field(default_factory=list)
+    force: bool = False
+    limit: int = 0
+
+
+class DependencyRefreshResponse(BaseModel):
+    """依赖清单扫描结果。"""
+
+    status: str
+    scanned: int
+    ok: int
+    noManifest: int
+    failed: int
+    dependencies: int
+    repos: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class DependencyAnalysisResponse(BaseModel):
+    """依赖分析聚合结果（技术栈 / 生态 / 依赖覆盖 / 依赖 × 语言关联）。"""
+
+    generatedAt: str
+    summary: dict[str, int]
+    techStack: list[dict[str, Any]]
+    ecosystems: list[dict[str, Any]]
+    dependencies: list[dict[str, Any]]
+    links: list[dict[str, Any]]
+    repos: list[dict[str, Any]]

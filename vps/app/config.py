@@ -111,6 +111,12 @@ class Settings(BaseSettings):
     DUPLICATE_VECTOR_THRESHOLD: float = 0.88  # 向量余弦复核阈值
     DUPLICATE_MIN_CONFIDENCE: float = 0.70  # 低于该置信度的命中丢弃
     DUPLICATE_MAX_CLUSTERS: int = 50  # 单次返回的重复簇上限
+    # 依赖分析（M6-07）：清单扫描与聚合
+    DEPENDENCY_ANALYSIS_TOP: int = 20  # 聚合默认返回的热门依赖数
+    DEPENDENCY_SCAN_MAX_REPOS: int = 100  # 单次扫描仓库上限
+    DEPENDENCY_SCAN_TTL_HOURS: int = 24  # 非强制扫描的跳过窗口
+    DEPENDENCY_SCAN_TIMEOUT_SECONDS: float = 15.0  # 单份清单拉取超时
+    DEPENDENCY_MANIFEST_MAX_BYTES: int = 512000  # 单份清单大小上限
 
     # 推荐生成（M3-05）
     # 最终得分最低阈值（0~1）：相似度 × 权重 + 热榜热度 × 权重

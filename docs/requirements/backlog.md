@@ -119,7 +119,7 @@
 | M6-04 | 技术栈图谱视图（语言 / 框架聚合） | P2 | M1-11 | ✅ 已完成（2026-10-22，REQ-202610-0951）：edge `/api/tech-stack` + admin `/tech-stack`；见 `planning/plan-req-202610-0951-tech-stack-graph.md` |
 | M6-05 | 项目健康度追踪（最后提交 / issue 活跃 / 归档标记） | P1 | M1-05 | ✅ 已完成（2026-10-22）：REQ-202610-0952，见 `planning/plan-req-202610-0952-repo-health-tracking.md` |
 | M6-06 | License 识别与合规提示 | P2 | M2-03 | ✅ 已完成（2026-10-22）：REQ-202610-0953，见 `planning/plan-req-202610-0953-license-compliance.md` |
-| M6-07 | 依赖分析（项目依赖 ↔ 个人技术栈关联） | P2 | M6-04 | — |
+| M6-07 | 依赖分析（项目依赖 ↔ 个人技术栈关联） | P2 | M6-04 | ✅ 已完成（2026-10-22）：REQ-202610-0954，见 `planning/plan-req-202610-0954-dependency-analysis.md` |
 | M6-08 | 知识库导出（Markdown / JSON / Obsidian） | P2 | M9-04 | — |
 | M6-09 | 多轮问答式检索（「我的收藏里有哪些支付相关项目？」） | P1 | M3-04 | — |
 | M6-10 | 检索体验精修（搜索建议 / 历史 / 快捷键） | P2 | M6-01 | — |
