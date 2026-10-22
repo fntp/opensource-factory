@@ -12,6 +12,8 @@ export interface Env {
   GITHUB_CLIENT_SECRET: string;
   // 会话/签名密钥
   SESSION_SECRET: string;
+  // 会话 Cookie 的 Secure 开关：'true' 强制 / 'false' 关闭 / 缺省按请求协议自动判断
+  COOKIE_SECURE?: string;
   // 允许的前端 origin（CORS 精确回显）
   ALLOWED_ORIGIN: string;
   // 本地 VPS Python 节点（FastAPI + Celery），可为空

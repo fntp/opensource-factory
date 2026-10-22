@@ -84,7 +84,7 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 | `/api/auth/github/login` | GET | 302 → GitHub 授权（`redirect` 参数回跳） |
 | `/api/auth/github/callback` | GET | OAuth 回调（code → 会话） |
 | `/api/auth/me` | GET | 当前用户（未登录 401） |
-| `/api/auth/logout` | POST | 退出（204） |
+| `/api/auth/logout` | POST | 退出（204）；`{"all":true}` / `?all=true` 时退出全部设备 |
 | `/api/repos` | GET | 仓库列表（`?q=` / `?categoryId=`） |
 | `/api/trending` | GET | 热榜（`?limit=`） |
 | `/api/recommendations` | GET | 推荐列表 |
@@ -106,6 +106,9 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 ## 5. 安全边界
 
 - 浏览器侧仅持有 httpOnly 会话 Cookie（`of_session`），**不接触任何第三方 token**；
+- 会话 Cookie 属性：`HttpOnly; SameSite=Lax; Path=/`，HTTPS 下 `Secure`（`COOKIE_SECURE` 可显式覆盖）；会话 token 在 D1 中只存 SHA-256 摘要，有效期 30 天；
+- 过期会话三层清理：请求校验时惰性删除、登录时清理该用户过期会话、每日 Cron 全局清理；
+- `POST /api/auth/logout` 默认退出当前设备，`{"all":true}` 删除该用户全部会话（登出全端）；认证响应 `Cache-Control: no-store`；
 - GitHub access token 仅存在于 edge（换取用户信息后即弃）与 vps（同步任务使用，存服务端）；
 - edge → vps 调用必须带 `X-Internal-Token`；vps 不直接对公网暴露业务接口；
 - 所有密钥通过平台 secrets 注入，仓库内只有 `.env.example` 占位符。

@@ -3,12 +3,13 @@
  * 中间件：CORS（精确回显 ALLOWED_ORIGIN，允许 credentials）+ 请求日志
  * 路由：/api/auth、/api/repos、/api/trending、/api/recommendations、
  *       /api/categories、/api/dashboard、/api/sync
+ * 定时：每日清理过期会话（Cron Trigger，见 wrangler.toml）
  */
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import type { Env, Variables } from './types';
-import { getSessionUser } from './auth';
+import { cleanupExpiredSessions, getSessionUser } from './auth';
 import authRoutes from './routes/auth';
 import reposRoutes from './routes/repos';
 import trendingRoutes from './routes/trending';
@@ -63,4 +64,12 @@ app.onError((err, c) => {
   return c.json({ error: 'internal_error' }, 500);
 });
 
-export default app;
+// 定时任务：清理过期会话（wrangler.toml [triggers] crons 每日触发）
+const worker: ExportedHandler<Env> = {
+  fetch: app.fetch,
+  scheduled: (_controller, env, ctx) => {
+    ctx.waitUntil(cleanupExpiredSessions(env.DB));
+  },
+};
+
+export default worker;

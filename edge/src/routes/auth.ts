@@ -3,29 +3,36 @@
  * GET  /api/auth/github/login    302 → GitHub 授权页（设置 of_oauth_state cookie）
  * GET  /api/auth/github/callback 校验 state → 换 token → upsert 用户 → 建会话 → 跳转
  * GET  /api/auth/me              当前登录用户（AuthUser）或 401
- * POST /api/auth/logout          清除会话，204
+ * POST /api/auth/logout          清除当前会话；{ all: true } / ?all=true 时清除该用户全部会话，204
  */
 import { Hono } from 'hono';
 import type { Env, Variables } from '../types';
 import {
   buildGithubAuthorizeUrl,
   clearOAuthStateCookie,
-  clearSession,
   clearSessionCookie,
+  clearUserSessions,
   createSession,
+  destroySessionByToken,
   exchangeGithubCode,
   fetchGithubUser,
   generateToken,
   OAUTH_STATE_COOKIE,
   readCookie,
   resolveRedirectTarget,
+  SESSION_COOKIE,
   setOAuthStateCookie,
   setSessionCookie,
-  sha256Hex,
   upsertGithubUser,
 } from '../auth';
 
 const auth = new Hono<{ Bindings: Env; Variables: Variables }>();
+
+// 认证响应一律不缓存，避免登录态 / 重定向被中间层缓存
+auth.use('*', async (c, next) => {
+  c.header('Cache-Control', 'no-store');
+  await next();
+});
 
 // ── 登录：跳转 GitHub ───────────────────────────────────────────
 auth.get('/github/login', (c) => {
@@ -93,13 +100,29 @@ auth.get('/me', (c) => {
   });
 });
 
-// ── 登出 ────────────────────────────────────────────────────────
+// ── 登出（支持全端）────────────────────────────────────────────
 auth.post('/logout', async (c) => {
-  const cookie = readCookie(c, 'of_session');
-  if (cookie) {
-    const tokenHash = await sha256Hex(cookie);
-    await clearSession(c.env.DB, tokenHash);
+  const user = c.get('user');
+  const cookie = readCookie(c, SESSION_COOKIE);
+  const url = new URL(c.req.url);
+
+  // 全端登出：JSON body { all: true }，或 ?all=true / ?scope=all
+  let all = url.searchParams.get('all') === 'true' || url.searchParams.get('scope') === 'all';
+  if (!all) {
+    try {
+      const body = await c.req.json<{ all?: unknown }>();
+      all = body?.all === true;
+    } catch {
+      // 空 body / 非 JSON：按单会话登出处理
+    }
   }
+
+  if (all && user) {
+    await clearUserSessions(c.env.DB, user.id);
+  } else if (cookie) {
+    await destroySessionByToken(c.env.DB, cookie);
+  }
+
   clearSessionCookie(c);
   return c.body(null, 204);
 });

@@ -20,6 +20,13 @@ ALLOWED_ORIGIN = "http://localhost:5173"
 GITHUB_CLIENT_ID = ""
 # 本地 VPS Python 节点地址（FastAPI + Celery），例如 "https://node.example.com"；留空时 /api/sync 仅接受请求
 VPS_NODE_URL = ""
+# 会话 Cookie 的 Secure 覆盖：留空 = 按请求协议自动判断；反向代理终止 TLS 时可设为 "true"
+COOKIE_SECURE = ""
+
+# ── 定时任务（UTC）──────────────────────────────────────────────
+# 每日 03:17 清理过期会话（DELETE FROM sessions WHERE expires_at <= now）
+[triggers]
+crons = ["17 3 * * *"]
 
 # ── 机密（不要写进本文件！用 wrangler secret put 设置）──────────
 #   npx wrangler secret put GITHUB_CLIENT_SECRET   # GitHub OAuth App 的 Client Secret

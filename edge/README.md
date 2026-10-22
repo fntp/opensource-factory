@@ -91,7 +91,7 @@ npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FR
    ```
 
 5. 配置 `wrangler.toml` 的 `[vars]`：`ALLOWED_ORIGIN`（前端地址）、`GITHUB_CLIENT_ID`、`VPS_NODE_URL`。
-6. 部署：
+6. 部署（`wrangler deploy` 会同时发布 `[triggers]` 中的每日过期会话清理任务）：
 
    ```bash
    npm run deploy
@@ -105,6 +105,7 @@ npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FR
 | `ALLOWED_ORIGIN` | vars | 允许的前端 origin，CORS 精确回显（带 `Access-Control-Allow-Credentials: true`） |
 | `GITHUB_CLIENT_ID` | vars | GitHub OAuth App Client ID；留空时 `/api/auth/github/login` 返回 501 |
 | `VPS_NODE_URL` | vars | VPS 节点地址；留空时 `/api/sync` 返回 202 accepted 而不转发 |
+| `COOKIE_SECURE` | vars（可选） | 会话 Cookie 的 `Secure` 覆盖：`true` 强制 / `false` 关闭 / 留空按请求协议自动判断 |
 | `GITHUB_CLIENT_SECRET` | **secret** | `wrangler secret put GITHUB_CLIENT_SECRET` |
 | `SESSION_SECRET` | **secret** | `wrangler secret put SESSION_SECRET` |
 | `INTERNAL_TOKEN` | secret（可选） | 边缘调用 VPS 的 `X-Internal-Token` |
@@ -120,7 +121,7 @@ npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FR
 | `GET /api/auth/github/login?redirect=` | 302 → GitHub 授权页；设置 `of_oauth_state` cookie；`redirect` 会被回传并在 callback 校验 |
 | `GET /api/auth/github/callback` | 校验 state → 换 token → upsert 用户 → 建会话（`of_session` cookie）→ 跳转 `redirect`（仅允许 `/` 开头或 ALLOWED_ORIGIN 同源，否则回退 ALLOWED_ORIGIN） |
 | `GET /api/auth/me` | 200 `AuthUser` 或 401 |
-| `POST /api/auth/logout` | 204，清除会话 |
+| `POST /api/auth/logout` | 204，清除当前会话；body `{"all":true}`（或 `?all=true` / `?scope=all`）时清除该用户全部会话（登出全端） |
 
 `AuthUser`：`{id, login, name, email, avatarUrl}`
 
@@ -153,6 +154,8 @@ DashboardStats  { totalRepos, trendingToday, pendingRecommendations, categoryCou
 ### 会话与安全
 
 - 会话 token 为 32 字节随机值，D1 中仅存 sha-256 摘要；有效期 30 天。
-- cookie：`of_session` / `of_oauth_state`，`HttpOnly; SameSite=Lax`，HTTPS 下附加 `Secure`。
-- OAuth `state` 双重校验（cookie + 查询参数比对）防 CSRF。
+- cookie：`of_session` / `of_oauth_state`，`HttpOnly; SameSite=Lax; Path=/`，HTTPS 下附加 `Secure`（可用 `COOKIE_SECURE` 覆盖）。
+- 过期会话清理：请求校验时惰性删除 + 登录时清理该用户过期会话 + 每日 Cron（`[triggers] crons = ["17 3 * * *"]`）全局清理。
+- `POST /api/auth/logout` 默认只退出当前设备；`{"all":true}` 删除该用户全部会话，实现登出全端。
+- OAuth `state` 双重校验（cookie + 查询参数比对）防 CSRF；认证路由响应统一 `Cache-Control: no-store`。
 - 任何密钥仅存于 Worker secrets，绝不进入前端代码或仓库。

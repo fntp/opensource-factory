@@ -74,10 +74,17 @@ export async function fetchCurrentUser(): Promise<AuthUser | null> {
   }
 }
 
-/** 退出登录（通知边缘服务清除会话；失败不影响本地退出） */
-export async function logout(): Promise<void> {
+/**
+ * 退出登录（通知边缘服务清除会话；失败不影响本地退出）。
+ * `all: true` 时同时注销该账号在其他设备上的全部会话。
+ */
+export async function logout(options: { all?: boolean } = {}): Promise<void> {
   try {
-    await apiFetch('/api/auth/logout', { method: 'POST' })
+    await apiFetch('/api/auth/logout', {
+      method: 'POST',
+      headers: options.all ? { 'Content-Type': 'application/json' } : undefined,
+      body: options.all ? JSON.stringify({ all: true }) : undefined,
+    })
   } catch {
     // 忽略退出失败（例如离线或演示模式）
   }

@@ -42,11 +42,25 @@ describe('SignOutDialog', () => {
 
     expect(reset).toHaveBeenCalledOnce()
     expect(logout).toHaveBeenCalledOnce()
+    expect(logout).toHaveBeenCalledWith({ all: false })
     expect(navigate).toHaveBeenCalledWith({
       to: '/sign-in',
       search: { redirect: MOCK_HREF },
       replace: true,
     })
+  })
+
+  it('requests all-device logout when the checkbox is checked', async () => {
+    const { getByRole } = await render(
+      <SignOutDialog open onOpenChange={vi.fn()} />
+    )
+
+    await userEvent.click(getByRole('checkbox', { name: '同时退出所有设备' }))
+    await userEvent.click(getByRole('button', { name: /^退出登录$/ }))
+
+    expect(logout).toHaveBeenCalledOnce()
+    expect(logout).toHaveBeenCalledWith({ all: true })
+    expect(reset).toHaveBeenCalledOnce()
   })
 
   it('does not call reset or navigate when cancel is clicked', async () => {

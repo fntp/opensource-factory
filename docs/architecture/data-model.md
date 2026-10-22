@@ -81,6 +81,8 @@ recommendations              （user_id 可空 = 全局推荐）
 | user_id | 关联用户 |
 | created_at / expires_at | 创建 / 过期时间 |
 
+过期会话由 Worker 每日 Cron（03:17 UTC）全局清理；请求校验与登录时也会惰性删除，`(expires_at)` 索引保障清理效率。登出全端按 `user_id` 删除该用户全部会话。
+
 ### 3.3 `tags` / `repo_tags` 标签
 
 - `tags`：`id`、`name`（唯一）、`count`（冗余计数）；

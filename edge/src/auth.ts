@@ -1,8 +1,9 @@
 /**
  * 会话 + GitHub OAuth 辅助
  * - 会话 token 为随机值，DB 中仅存其 sha-256 摘要（sessions.id）
- * - 会话 cookie：of_session（httpOnly; SameSite=Lax; 生产环境 Secure）
+ * - 会话 cookie：of_session（HttpOnly; SameSite=Lax; Path=/; 生产 HTTPS 下 Secure）
  * - OAuth state cookie：of_oauth_state
+ * - 过期会话：请求时惰性删除 + 登录时用户级清理 + 每日 Cron 全局清理
  */
 import type { Context } from 'hono';
 import type { Env, GithubTokenResponse, GithubUser, SessionRow, UserRow, Variables } from './types';
@@ -38,13 +39,25 @@ export async function sha256Hex(input: string): Promise<string> {
   return bytesToHex(digest);
 }
 
-/** 是否生产环境（用于 cookie Secure 标记；wrangler dev 无 CF_PAGES 等标记时按开发处理） */
+/** 请求是否经 HTTPS 到达（Cloudflare 终止 TLS 后 c.req.url 为 https） */
 function isSecureRequest(c: AppContext): boolean {
   try {
     return new URL(c.req.url).protocol === 'https:';
   } catch {
     return false;
   }
+}
+
+/**
+ * Cookie 是否加 Secure：
+ * - COOKIE_SECURE=true / false 显式覆盖（反向代理终止 TLS 或本地联调时使用）；
+ * - 未设置时按请求协议自动判断，生产 HTTPS 下始终为 true。
+ */
+function cookieSecure(c: AppContext): boolean {
+  const override = c.env.COOKIE_SECURE?.trim().toLowerCase();
+  if (override === 'true') return true;
+  if (override === 'false') return false;
+  return isSecureRequest(c);
 }
 
 // ── Cookie 读写 ─────────────────────────────────────────────────
@@ -83,7 +96,7 @@ export function setSessionCookie(c: AppContext, token: string): void {
     'Set-Cookie',
     buildSetCookie(SESSION_COOKIE, token, {
       maxAge: SESSION_TTL_SECONDS,
-      secure: isSecureRequest(c),
+      secure: cookieSecure(c),
     }),
     { append: true }
   );
@@ -93,7 +106,7 @@ export function setSessionCookie(c: AppContext, token: string): void {
 export function clearSessionCookie(c: AppContext): void {
   c.header(
     'Set-Cookie',
-    buildSetCookie(SESSION_COOKIE, '', { maxAge: 0, secure: isSecureRequest(c) }),
+    buildSetCookie(SESSION_COOKIE, '', { maxAge: 0, secure: cookieSecure(c) }),
     { append: true }
   );
 }
@@ -104,7 +117,7 @@ export function setOAuthStateCookie(c: AppContext, state: string): void {
     'Set-Cookie',
     buildSetCookie(OAUTH_STATE_COOKIE, state, {
       maxAge: OAUTH_STATE_TTL_SECONDS,
-      secure: isSecureRequest(c),
+      secure: cookieSecure(c),
     }),
     { append: true }
   );
@@ -114,15 +127,41 @@ export function setOAuthStateCookie(c: AppContext, state: string): void {
 export function clearOAuthStateCookie(c: AppContext): void {
   c.header(
     'Set-Cookie',
-    buildSetCookie(OAUTH_STATE_COOKIE, '', { maxAge: 0, secure: isSecureRequest(c) }),
+    buildSetCookie(OAUTH_STATE_COOKIE, '', { maxAge: 0, secure: cookieSecure(c) }),
     { append: true }
   );
 }
 
 // ── 会话 ────────────────────────────────────────────────────────
 
+/** 清理全部过期会话，返回删除条数（供每日 Cron 调用） */
+export async function cleanupExpiredSessions(
+  db: D1Database,
+  now: Date = new Date()
+): Promise<number> {
+  const result = await run(db, 'DELETE FROM sessions WHERE expires_at <= ?', [
+    now.toISOString(),
+  ]);
+  return result.meta.changes ?? 0;
+}
+
+/** 清理指定用户的过期会话（登录前调用，避免单用户历史会话堆积） */
+export async function cleanupExpiredSessionsForUser(
+  db: D1Database,
+  userId: string,
+  now: Date = new Date()
+): Promise<number> {
+  const result = await run(
+    db,
+    'DELETE FROM sessions WHERE user_id = ? AND expires_at <= ?',
+    [userId, now.toISOString()]
+  );
+  return result.meta.changes ?? 0;
+}
+
 /** 创建会话：随机 token 的 sha-256 存入 sessions，返回原始 token（只此一次可见） */
 export async function createSession(db: D1Database, userId: string): Promise<string> {
+  await cleanupExpiredSessionsForUser(db, userId);
   const token = generateToken();
   const tokenHash = await sha256Hex(token);
   const expiresAt = new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString();
@@ -145,7 +184,8 @@ export async function getSessionUser(c: AppContext): Promise<UserRow | null> {
     [tokenHash]
   );
   if (!session) return null;
-  if (new Date(session.expires_at).getTime() < Date.now()) {
+  const expiresAt = Date.parse(session.expires_at);
+  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
     await clearSession(c.env.DB, tokenHash);
     return null;
   }
@@ -164,6 +204,11 @@ export async function clearSession(db: D1Database, tokenOrHash: string): Promise
 export async function destroySessionByToken(db: D1Database, token: string): Promise<void> {
   const tokenHash = await sha256Hex(token);
   await clearSession(db, tokenHash);
+}
+
+/** 删除指定用户的全部会话（登出全端） */
+export async function clearUserSessions(db: D1Database, userId: string): Promise<void> {
+  await run(db, 'DELETE FROM sessions WHERE user_id = ?', [userId]);
 }
 
 // ── GitHub OAuth ────────────────────────────────────────────────
