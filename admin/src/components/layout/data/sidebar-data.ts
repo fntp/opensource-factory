@@ -1,6 +1,7 @@
 import {
   Activity,
   Bell,
+  FileText,
   Flame,
   FolderGit2,
   FolderTree,
@@ -43,6 +44,7 @@ export const sidebarData: SidebarData = {
         { title: '语义搜索', url: '/search', icon: Search },
         { title: '重复检测', url: '/duplicates', icon: GitMerge },
         { title: '技术栈图谱', url: '/tech-stack', icon: Network },
+        { title: '精选报告', url: '/reports', icon: FileText },
       ],
     },
     {

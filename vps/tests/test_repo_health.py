@@ -252,10 +252,11 @@ def test_health_api_list_and_detail(db) -> None:
 
 
 def test_health_api_requires_internal_token(monkeypatch) -> None:
-    from app.api import tasks as tasks_api
+    from app import security as security_module
 
+    # M5-05 起内部令牌校验统一在 app.security，测试需 patch 实际读取配置的模块。
     monkeypatch.setattr(
-        tasks_api,
+        security_module,
         "get_settings",
         lambda: SimpleNamespace(INTERNAL_TOKEN="secret-token"),
     )

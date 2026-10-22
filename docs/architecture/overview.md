@@ -460,6 +460,26 @@ GitHub 禁用强制 `stale` 且封顶 30 分，缺少 `pushed_at` 为 `unknown`�
 ≥50% 扣 20 分、≥20% 扣 10 分，只影响分数不影响状态；无 issue 加 5 分。VPS 每日 06:12
 （`REPO_HEALTH_HOUR/MINUTE`）自动刷新一批（默认 200 个），也可手动触发。
 
+### 3.16 精选报告生成流（M7-03）
+
+```
+Cloudflare Cron（周日 23:30 UTC / 每月 1 日 23:40 UTC）
+→ edge scheduled handler：枚举 D1 users，按上一个完整周期生成
+   ├─ my_repositories（user_id 隔离）+ repo_tags / tags + categories
+   ├─ recommendations（user_id 或全局；排除 dismissed / expired / saved）
+   └─ trending_snapshots（周期内 star_delta / rank）
+→ 纯函数 buildReport：统计口径 → 四个分节 → 中文摘要 → Markdown
+→ upsert curated_reports（user_id + kind + period_start 唯一）
+
+admin /reports → GET /api/reports（首次访问惰性补齐当前周期）
+→ GET /api/reports/:id（详情）· GET /api/reports/:id/markdown（下载）
+→ POST /api/reports/generate（立即重新生成当前周期）
+```
+
+- 周报按自然周（周一至周日，UTC），月报按自然月；定时任务生成上一个完整周期，页面首次访问生成当前周期；
+- 报告完全由 D1 数据确定性生成，不调用 LLM / VPS；同一用户同一周期重复生成走幂等 upsert；
+- `curated_reports` 保存 stats / sections JSON 与预渲染 Markdown，列表接口不返回大字段。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -507,6 +527,10 @@ GitHub 禁用强制 `stale` 且封顶 30 分，缺少 `pushed_at` 为 `unknown`�
 | `/api/duplicates/dismiss` | POST | 忽略一个重复簇（`clusterId` / `repoIds` / `reason`，按用户存 D1） |
 | `/api/duplicates/dismissed` | GET | 当前用户已忽略的重复簇 |
 | `/api/duplicates/dismiss/:clusterId` | DELETE | 取消忽略（恢复展示） |
+| `/api/reports` | GET | 精选报告列表（`kind=all\|weekly\|monthly`、`limit`；`ensure=0` 可关闭惰性生成） |
+| `/api/reports/:id` | GET | 报告详情（统计 + 分节 + Markdown；仅本人可见） |
+| `/api/reports/:id/markdown` | GET | 下载报告 Markdown（`text/markdown` 附件） |
+| `/api/reports/generate` | POST | 立即生成当前周期报告（`kind=weekly\|monthly`） |
 
 ### 4.2 edge ↔ vps（内部 API，`X-Internal-Token`）
 
@@ -602,6 +626,7 @@ GitHub 禁用强制 `stale` 且封顶 30 分，缺少 `pushed_at` 为 `unknown`�
 | `/api/internal/vectors/stats` | GET | 索引统计 |
 | `/api/internal/vectors/list` | GET | 分页列出 ID（孤儿对账；不支持时返回 501） |
 | `/api/internal/push-preferences` | GET | 读取全部推送偏好（VPS 推送任务使用；`?userId=` 可查单个） |
+| `/api/internal/reports/generate` | POST | 批量 / 指定用户生成精选报告（`kind` / `userId?` / `mode=current\|previous`；Cron 与运维共用） |
 
 ### 4.4 安全运维接口（M5-05）
 

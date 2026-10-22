@@ -19,6 +19,12 @@ database_id = "REPLACE_WITH_D1_DATABASE_ID"
 binding = "VECTORIZE"
 index_name = "opensource-factory-vectors"
 
+# ── 定时任务（M7-03 精选报告）──────────────────────────────────
+# Cron 为 UTC：周日 23:30 = 周一 07:30 Asia/Shanghai（周报）；
+# 每月 1 日 23:40 = 2 日 07:40 Asia/Shanghai（月报，汇总上一个完整月）。
+[triggers]
+crons = ["30 23 * * 0", "40 23 1 * *"]
+
 # ── 明文变量（非机密）────────────────────────────────────────────
 [vars]
 # 前端管理后台的地址，CORS 将精确回显该 origin（带 credentials）

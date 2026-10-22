@@ -467,6 +467,27 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 
 跳过 `OPTIONS` / `HEAD` 与 `/api/internal/*`；索引 `idx_worker_metrics_date (metric_date)` 供按日查询。
 
+### 3.19 `curated_reports` 精选报告（D1，迁移 `0014`）
+
+> M7-03：按用户 + 周期保存周报 / 月报快照；`stats` / `sections` 为 JSON，`markdown` 为预渲染文本。
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | 稳定 id：`rpt_<kind>_<periodStart>_<userHash>` |
+| user_id TEXT | 用户 id（所有查询按此隔离） |
+| kind TEXT | `weekly` / `monthly` |
+| period_start / period_end TEXT | `YYYY-MM-DD`（UTC，含边界） |
+| title TEXT | 报告标题 |
+| summary TEXT | 中文摘要 |
+| stats TEXT | 统计 JSON（收藏 / 新增 / Star / 分类 / 语言 / 推荐 / 热榜） |
+| sections TEXT | 四个分节 JSON（新增收藏 / 收藏之星 / 推荐 / 热榜） |
+| markdown TEXT | 预渲染 Markdown（下载 / 归档） |
+| status TEXT | `ready` / `empty` |
+| generated_at TEXT | ISO 生成时间 |
+
+唯一索引 `(user_id, kind, period_start)` 保证同一用户同一周期只有一份报告；重复生成走
+`ON CONFLICT ... DO UPDATE`，`id` 不变。列表索引 `(user_id, generated_at DESC)` 供报告归档倒序查询。
+
 ## 4. 索引策略
 
 | 表 | 索引 | 用途 |
@@ -494,6 +515,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | monitoring_alerts | `(dedupe_key)`、`(status)` | 告警去重 / 未关闭列表 |
 | worker_metrics | `(metric_date)`、主键 `(metric_date, route, method, status_class)` | Workers 指标按日聚合与 UPSERT |
 | duplicate_dismissals | `(user_id, cluster_key)` UNIQUE、`(user_id, created_at DESC)` | 重复检测忽略幂等 / 列表 |
+| curated_reports | `(user_id, kind, period_start)` UNIQUE、`(user_id, generated_at DESC)` | 报告幂等 upsert / 归档列表 |
 
 ## 5. 向量数据（M3）
 

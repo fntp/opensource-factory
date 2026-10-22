@@ -531,6 +531,83 @@ export interface GithubTokenResponse {
   error_description?: string;
 }
 
+// ── 精选报告（M7-03）───────────────────────────────────────────
+
+export type ReportKind = 'weekly' | 'monthly';
+export type ReportStatus = 'ready' | 'empty';
+export type ReportItemSource = 'collection' | 'recommendation' | 'trending';
+
+/** 报告统计口径（数字均为报告生成时快照） */
+export interface ReportStats {
+  totalRepos: number;
+  newRepos: number;
+  totalStars: number;
+  newStars: number;
+  categoryCount: number;
+  languageCount: number;
+  recommendationCount: number;
+  trendingCount: number;
+  topLanguage: string | null;
+  topCategory: string | null;
+}
+
+/** 报告中的一条精选项目 */
+export interface ReportItem {
+  id: string;
+  name: string;
+  url: string;
+  description: string | null;
+  language: string | null;
+  stars: number;
+  starsDelta: number;
+  reason: string | null;
+  source: ReportItemSource;
+  category: string | null;
+  tags: string[];
+}
+
+export interface ReportSection {
+  key: 'new' | 'top' | 'recommendations' | 'trending';
+  title: string;
+  description: string;
+  items: ReportItem[];
+}
+
+/** curated_reports 数据库行 */
+export interface CuratedReportRow {
+  id: string;
+  user_id: string;
+  kind: string;
+  period_start: string;
+  period_end: string;
+  title: string;
+  summary: string;
+  stats: string;
+  sections: string;
+  markdown: string;
+  status: string;
+  generated_at: string;
+}
+
+/** GET /api/reports 列表项 */
+export interface ReportSummary {
+  id: string;
+  kind: ReportKind;
+  title: string;
+  periodStart: string;
+  periodEnd: string;
+  status: ReportStatus;
+  summary: string;
+  stats: ReportStats;
+  generatedAt: string;
+}
+
+/** GET /api/reports/:id */
+export interface CuratedReport extends ReportSummary {
+  sections: ReportSection[];
+  markdown: string;
+}
+
 /** Hono 上下文变量（挂载当前用户） */
 export interface Variables {
   user: UserRow | null;

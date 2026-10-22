@@ -263,3 +263,24 @@ CREATE UNIQUE INDEX idx_duplicate_dismissals_unique
     ON duplicate_dismissals (user_id, cluster_key);
 CREATE INDEX idx_duplicate_dismissals_user_time
     ON duplicate_dismissals (user_id, created_at DESC);
+
+-- ── 精选报告（M7-03，迁移 0014）────────────────────────────────
+CREATE TABLE IF NOT EXISTS curated_reports (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('weekly', 'monthly')),
+    period_start TEXT NOT NULL,                 -- YYYY-MM-DD（UTC，含）
+    period_end TEXT NOT NULL,                   -- YYYY-MM-DD（UTC，含）
+    title TEXT NOT NULL,
+    summary TEXT NOT NULL DEFAULT '',
+    stats TEXT NOT NULL DEFAULT '{}',           -- ReportStats JSON
+    sections TEXT NOT NULL DEFAULT '[]',        -- ReportSection[] JSON
+    markdown TEXT NOT NULL DEFAULT '',          -- 预渲染 Markdown
+    status TEXT NOT NULL DEFAULT 'ready' CHECK (status IN ('ready', 'empty')),
+    generated_at TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_curated_reports_user_period
+    ON curated_reports (user_id, kind, period_start);
+CREATE INDEX IF NOT EXISTS idx_curated_reports_user_generated
+    ON curated_reports (user_id, generated_at DESC);
