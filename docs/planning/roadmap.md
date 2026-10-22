@@ -81,7 +81,7 @@
 
 ## 8. M5 · 上线硬化
 
-- [ ] 自定义域名 + HTTPS、Cloudflare Pages / Workers 正式部署
+- [ ] 自定义域名 + HTTPS、Cloudflare Pages / Workers 正式部署（工具链已就绪，真实上线待 Q3 凭据，2026-10-22）
 - [ ] **本机一体化部署模式评估与落地**（离线自托管，满足「部署在本机」增强口径；Q9）
 - [ ] 监控告警（Workers Analytics + VPS 日志 + 资源红线）
 - [ ] 备份与恢复演练（D1 导出、VPS 数据快照）

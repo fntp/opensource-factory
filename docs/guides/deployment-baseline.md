@@ -5,6 +5,9 @@
 本文档定义 OpenFactory 在本机（VPS）运行的最小基线：**运行目录、Redis、进程管理、环境模板**。
 部署资产全部位于仓库 [`deploy/`](../../deploy/README.md)，文档与脚本以「可重复执行、可自检」为准。
 
+> 三端正式上线（Cloudflare Pages / Workers + 本机节点 + 域名 HTTPS）见
+> [production-deployment.md](./production-deployment.md)；本文档只覆盖本机运行基线。
+
 ## 1. 目标与边界
 
 - **目标**：任意一台干净的 Ubuntu 机器，按本文档执行后得到一致的运行环境；

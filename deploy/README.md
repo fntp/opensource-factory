@@ -1,9 +1,11 @@
 # 部署基线（`deploy/`）
 
-> 对应需求：REQ-202610-0893（backlog M1-01 / IT-0003）｜ 维护人：fntp
+> 对应需求：REQ-202610-0893（backlog M1-01 / IT-0003）、REQ-202610-0939（backlog M5-01）｜ 维护人：fntp
 
 本目录把「本机运行」固化为可复现的基线：运行目录、Redis、systemd 进程管理与环境模板。
-完整说明见 [docs/guides/deployment-baseline.md](../docs/guides/deployment-baseline.md)。
+完整说明见 [docs/guides/deployment-baseline.md](../docs/guides/deployment-baseline.md)；
+三端正式部署（Pages / Workers / 本机节点 / 域名 HTTPS）见
+[docs/guides/production-deployment.md](../docs/guides/production-deployment.md)。
 
 ## 1. 运行目录
 
@@ -72,7 +74,29 @@ python3 -m app.runtime layout --home /opt/openfactory   # 在 vps/ 下执行
 journalctl -u openfactory-api -f         # 查看进程日志
 ```
 
-## 6. 安全红线
+## 6. 正式部署（M5-01）
+
+| 脚本 | 说明 |
+| --- | --- |
+| `preflight.sh` | 部署前检查工具链 / 配置键 / 占位符 / HTTPS / 内部令牌 |
+| `render-config.sh` | 渲染 `edge/wrangler.production.toml` 与 Caddyfile（600） |
+| `deploy-edge.sh` | D1 远端迁移 + Worker 机密 + `wrangler deploy` + 冒烟 |
+| `deploy-admin.sh` | 生产构建（演示模式关闭）+ Cloudflare Pages 发布 |
+| `deploy-vps.sh` | 运行目录 / systemd 单元 / 依赖 / 重启 / 健康检查 |
+| `deploy-all.sh` | 三端顺序编排（edge → admin → vps → 冒烟） |
+| `smoke-test.sh` | 三端 HTTP 冒烟（支持 `--json` / `--dry-run`） |
+| `setup-https.sh` | 渲染并安装 Caddy HTTPS 反代 |
+
+部署控制配置模板：`deploy/env/deploy.env.example`（复制到 `/opt/openfactory/deploy.env`，600）。
+首次使用前务必阅读 [正式部署手册](../docs/guides/production-deployment.md) 的 Q3 资源清单。
+
+```bash
+deploy/scripts/preflight.sh --env-file /opt/openfactory/deploy.env --target all
+deploy/scripts/deploy-all.sh --env-file /opt/openfactory/deploy.env
+deploy/scripts/smoke-test.sh --env-file /opt/openfactory/deploy.env --json
+```
+
+## 7. 安全红线
 
 - `.env`、`redis.conf` 权限 600，运行目录 700；真实密钥不入库、不回显；
 - Redis 仅监听回环地址，禁止暴露公网；
