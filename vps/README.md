@@ -85,7 +85,12 @@ pytest -q
 | `EMBEDDING_MODEL` | `BAAI/bge-m3` | 向量模型名（sentence-transformers / FlagEmbedding） |
 | `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
 | `CELERY_TASK_ALWAYS_EAGER` | `0` | 置 `1` 时任务同步执行（本地调试 / 测试用） |
-| `GITHUB_TOKEN` | 空 | GitHub PAT（仅需 read 权限）；为空时同步任务跳过 |
+| `GITHUB_TOKEN` | 空 | GitHub PAT（仅需 read 权限；组织私有仓库需 `read:org`）；为空时同步任务跳过 |
+| `GITHUB_SYNC_INCLUDE_OWN` | `true` | 是否同步本人 owner 的仓库 |
+| `GITHUB_SYNC_INCLUDE_ORGS` | `true` | 是否同步组织仓库（`affiliation=organization_member`） |
+| `GITHUB_SYNC_INCLUDE_FORKS` | `false` | 是否包含 fork 仓库 |
+| `GITHUB_SYNC_INCLUDE_ARCHIVED` | `false` | 是否包含已归档仓库 |
+| `GITHUB_SYNC_ORG_ALLOWLIST` | 空 | 组织白名单（逗号分隔，大小写不敏感）；空 = 全部组织 |
 
 完整清单见 `.env.example`。所有真实密钥只存在于本地 `.env`（git 忽略）或平台密钥托管，**不得提交**。
 
@@ -95,11 +100,16 @@ pytest -q
 
 | 方法 | 路径 | 说明 | 返回 |
 | --- | --- | --- | --- |
-| POST | `/api/tasks/sync` | 入队 GitHub 仓库同步（自己的 + Starred） | `202 {"taskId": "..."}` |
+| POST | `/api/tasks/sync` | 入队 GitHub 仓库同步（自有 + 组织 + Starred；支持过滤策略 query 覆盖） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/crawl-trending` | 入队热榜抓取（`platform=github\|gitee\|all`，可选 `language`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/generate-recommendations` | 入队推荐生成（可选 `user_id`、`top_k`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/daily-push` | 入队每日推送准备（将 `new` 推荐标记为 `pushed`） | `202 {"taskId": "..."}` |
 | GET | `/api/tasks/{task_id}` | 查询任务状态（`pending/started/success/failure`） | `200 {"taskId","status","result"}` |
+
+> **同步过滤策略（M1-06）**：默认同步自有 + 组织仓库，排除 fork 与已归档仓库；可通过
+> `GITHUB_SYNC_*` 环境变量配置，也可在 `/api/tasks/sync`、`/api/repos/sync` 上用
+> `include_own` / `include_orgs` / `include_forks` / `include_archived` 单次覆盖。
+> Starred 属于用户主动收藏，不受该策略过滤。
 
 约定：
 

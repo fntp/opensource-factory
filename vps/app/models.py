@@ -35,6 +35,11 @@ class MyRepository(Base):
     readme_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # VPS 大模型生成的项目摘要
     category_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)  # 关联分类 ID
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    # 与 D1 `my_repositories` 扩展列对齐（M1-06）
+    owner: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    forks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    updated_at: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)  # GitHub updated_at（ISO 8601）
+    synced_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)  # 最近一次同步时间
 
 
 class TrendingRepository(Base):

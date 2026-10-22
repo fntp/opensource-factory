@@ -68,6 +68,17 @@
   - C. 其他：由维护者指定。
 - **默认处理**：A 先行（本机已承载全部私有数据与推理），M5 阶段实施 B 的评估与落地；若要求纯本机运行，请确认选项 B 并调整 M5 排期。
 
+## Q10. 自有 / 组织仓库同步范围与默认过滤口径（REQ-202610-0898 新增）
+
+- **背景**：M1-06 需要明确「自有仓库 + 组织仓库」的拉取范围，以及 fork / 归档仓库的默认处理；
+- **选项**：
+  - A. 同步本人 owner 仓库 + 作为成员可见的组织仓库，默认排除 fork 与归档；组织可用白名单收窄（**当前默认**）；
+  - B. 仅同步白名单内的组织，未配置白名单时不同步组织仓库；
+  - C. 全量同步（含 fork / 归档），由使用方自行清理。
+- **默认处理**：A。`affiliation=owner,organization_member`，不含 collaborator 仓库；
+  默认 `GITHUB_SYNC_INCLUDE_FORKS=false`、`GITHUB_SYNC_INCLUDE_ARCHIVED=false`；
+  如需调整，改环境变量或在同步接口上传 `include_forks` / `include_archived` 等 query 参数，无需改代码。
+
 ---
 
 > 处理约定：人工确认任一问题后，更新本文件状态并在 `docs/planning/task-planning.md` 记录。

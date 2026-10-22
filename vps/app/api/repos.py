@@ -36,6 +36,18 @@ def list_repos(
     response_model=TaskEnqueued,
     summary="入队：GitHub 仓库同步（/api/tasks/sync 的便捷别名）",
 )
-async def enqueue_repos_sync(include_starred: bool = Query(default=True)) -> TaskEnqueued:
-    task = sync_repositories.delay(include_starred=include_starred)
+async def enqueue_repos_sync(
+    include_starred: bool = Query(default=True),
+    include_own: bool | None = Query(default=None, description="覆盖配置：是否同步自有仓库"),
+    include_orgs: bool | None = Query(default=None, description="覆盖配置：是否同步组织仓库"),
+    include_forks: bool | None = Query(default=None, description="覆盖配置：是否包含 fork"),
+    include_archived: bool | None = Query(default=None, description="覆盖配置：是否包含已归档"),
+) -> TaskEnqueued:
+    task = sync_repositories.delay(
+        include_starred=include_starred,
+        include_own=include_own,
+        include_orgs=include_orgs,
+        include_forks=include_forks,
+        include_archived=include_archived,
+    )
     return TaskEnqueued(taskId=task.id)
