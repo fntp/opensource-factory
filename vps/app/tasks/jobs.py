@@ -33,8 +33,17 @@ def _run_async(coro: Coroutine[Any, Any, Any]) -> Any:
 
 
 @celery_app.task(name="app.tasks.jobs.sync_repositories")
-def sync_repositories(include_starred: bool = True) -> dict[str, Any]:
-    """同步 GitHub 仓库（自己的 + 可选 Starred）到本地镜像表。"""
+def sync_repositories(
+    include_starred: bool = True,
+    with_summary: bool = True,
+    summary_limit: Optional[int] = None,
+    summary_batch_size: Optional[int] = None,
+) -> dict[str, Any]:
+    """同步 GitHub 仓库（自己的 + 可选 Starred）到本地镜像表。
+
+    `with_summary=True` 时，upsert 完成后把本次变化的仓库交给独立的摘要批量队列，
+    同步任务本身不被 LLM 阻塞。
+    """
     settings = get_settings()
     token = (settings.GITHUB_TOKEN or "").strip()
     if not token:
@@ -50,6 +59,7 @@ def sync_repositories(include_starred: bool = True) -> dict[str, Any]:
 
     created = 0
     updated = 0
+    changed_ids: list[str] = []
     db = SessionLocal()
     try:
         for item in repos:
@@ -70,6 +80,7 @@ def sync_repositories(include_starred: bool = True) -> dict[str, Any]:
                     )
                 )
                 created += 1
+                changed_ids.append(repo_id)
             else:
                 row.name = item.get("name") or row.name
                 row.description = item.get("description") or row.description
@@ -77,17 +88,100 @@ def sync_repositories(include_starred: bool = True) -> dict[str, Any]:
                 row.stars = int(item.get("stars") or 0)
                 row.language = item.get("language") or row.language
                 updated += 1
+                changed_ids.append(repo_id)
         db.commit()
     finally:
         db.close()
 
-    logger.info("GitHub 同步完成: 共 %d 个仓库（新增 %d / 更新 %d）", len(repos), created, updated)
-    return {"status": "ok", "total": len(repos), "created": created, "updated": updated}
+    summary_task_id: Optional[str] = None
+    if with_summary and changed_ids:
+        limit = int(summary_limit if summary_limit is not None else settings.SUMMARY_MAX_PER_RUN)
+        batch = int(
+            summary_batch_size if summary_batch_size is not None else settings.SUMMARY_BATCH_SIZE
+        )
+        try:
+            summary_task = summarize_readmes.delay(
+                repo_ids=changed_ids[: max(1, limit)],
+                limit=limit,
+                batch_size=batch,
+            )
+            summary_task_id = getattr(summary_task, "id", None)
+        except Exception:  # noqa: BLE001 - 入队失败不影响同步结果，可手动补跑
+            logger.exception("摘要任务入队失败")
+
+    logger.info(
+        "GitHub 同步完成: 共 %d 个仓库（新增 %d / 更新 %d），摘要任务 %s",
+        len(repos),
+        created,
+        updated,
+        summary_task_id or "未入队",
+    )
+    return {
+        "status": "ok",
+        "total": len(repos),
+        "created": created,
+        "updated": updated,
+        "summaryTaskId": summary_task_id,
+    }
+
+
+@celery_app.task(bind=True, name="app.tasks.jobs.summarize_readmes")
+def summarize_readmes(
+    self,
+    repo_ids: Optional[list[str]] = None,
+    limit: Optional[int] = None,
+    batch_size: Optional[int] = None,
+    force: bool = False,
+    max_chars: Optional[int] = None,
+    source: str = "my",
+) -> dict[str, Any]:
+    """批量生成 README 中文摘要（Ollama → DeepSeek → 截断降级）。
+
+    `source` 支持 `my` / `trending` / `all`；作为独立 Celery 任务排队执行，
+    避免阻塞同步任务；`PROGRESS` 状态供边缘侧轮询。
+    """
+    from app.services.summary_pipeline import summarize_repositories
+
+    def report(meta: dict[str, Any]) -> None:
+        try:
+            self.update_state(state="PROGRESS", meta=meta)
+        except Exception:  # noqa: BLE001 - 进度上报失败不影响摘要生成
+            logger.debug("摘要任务进度上报失败", exc_info=True)
+
+    stats = summarize_repositories(
+        repo_ids=repo_ids,
+        limit=limit,
+        batch_size=batch_size,
+        force=force,
+        max_chars=max_chars,
+        source=source,
+        batch_id=getattr(self.request, "id", None) or None,
+        progress=report,
+    )
+    logger.info(
+        "README 摘要批量完成（source=%s）: 共 %d 条（成功 %d / 跳过 %d / 失败 %d，抽检 %d）",
+        stats.get("source", source),
+        stats.get("total", 0),
+        stats.get("summarized", 0),
+        stats.get("skipped", 0),
+        stats.get("failed", 0),
+        stats.get("sampled", 0),
+    )
+    return stats
 
 
 @celery_app.task(name="app.tasks.jobs.crawl_trending")
-def crawl_trending(platform: str = "github", language: Optional[str] = None) -> dict[str, Any]:
-    """抓取热榜（GitHub Trending，可选 Gitee）并 upsert 到 trending 表。"""
+def crawl_trending(
+    platform: str = "github",
+    language: Optional[str] = None,
+    with_summary: bool = True,
+    summary_limit: Optional[int] = None,
+) -> dict[str, Any]:
+    """抓取热榜（GitHub Trending，可选 Gitee）并 upsert 到 trending 表。
+
+    `with_summary=True` 时，抓取完成后把本次变化的热榜仓库交给摘要队列，
+    由 M2-04 的批量管线生成中文摘要并回写 D1。
+    """
     from app.services.readme import extract_tech_stack
     from app.services.trending_crawler import crawl_gitee_explore, crawl_github_trending
 
@@ -103,6 +197,7 @@ def crawl_trending(platform: str = "github", language: Optional[str] = None) -> 
 
     created = 0
     updated = 0
+    changed_ids: list[str] = []
     db = SessionLocal()
     try:
         for item in items:
@@ -136,12 +231,39 @@ def crawl_trending(platform: str = "github", language: Optional[str] = None) -> 
                 row.tech_stack = tech_stack or row.tech_stack
                 row.crawled_at = date.today()
                 updated += 1
+            changed_ids.append(repo_id)
         db.commit()
     finally:
         db.close()
 
-    logger.info("热榜抓取完成: 共 %d 条（新增 %d / 更新 %d）", len(items), created, updated)
-    return {"status": "ok", "total": len(items), "created": created, "updated": updated}
+    summary_task_id: Optional[str] = None
+    if with_summary and changed_ids:
+        settings = get_settings()
+        limit = int(summary_limit if summary_limit is not None else settings.SUMMARY_MAX_PER_RUN)
+        try:
+            summary_task = summarize_readmes.delay(
+                repo_ids=changed_ids[: max(1, limit)],
+                limit=limit,
+                source="trending",
+            )
+            summary_task_id = getattr(summary_task, "id", None)
+        except Exception:  # noqa: BLE001 - 入队失败不影响抓取结果，可手动补跑
+            logger.exception("热榜摘要任务入队失败")
+
+    logger.info(
+        "热榜抓取完成: 共 %d 条（新增 %d / 更新 %d），摘要任务 %s",
+        len(items),
+        created,
+        updated,
+        summary_task_id or "未入队",
+    )
+    return {
+        "status": "ok",
+        "total": len(items),
+        "created": created,
+        "updated": updated,
+        "summaryTaskId": summary_task_id,
+    }
 
 
 @celery_app.task(name="app.tasks.jobs.generate_recommendations")

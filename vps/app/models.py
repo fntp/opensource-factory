@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Date, DateTime, Float, Integer, String, Text
+from sqlalchemy import Date, DateTime, Float, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -49,6 +49,7 @@ class TrendingRepository(Base):
     stars_today: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=0)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     tech_stack: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # 自动提取的技术栈描述
+    readme_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # 热榜项目中文摘要（M2-04）
     crawled_at: Mapped[date] = mapped_column(Date, nullable=False, default=date.today)
 
 
@@ -83,4 +84,37 @@ class Recommendation(Base):
     score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="new")  # new | pushed | ...
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+
+
+class SummaryQualitySample(Base):
+    """摘要质量抽检样本（REQ-202610-0912 / M2-04）。
+
+    每次批量摘要任务按比例留存样本，并强制留存低质量样本；样本附带自动评分，
+    等待人工复核（passed / failed）。`(batch_id, repo_source, repo_id)` 唯一，
+    重跑只更新不新增；同一仓库同时出现在我的仓库与热榜时也能各留一条。
+    """
+
+    __tablename__ = "summary_quality_samples"
+    __table_args__ = (
+        UniqueConstraint(
+            "batch_id", "repo_source", "repo_id", name="uq_summary_quality_batch_source_repo"
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    batch_id: Mapped[str] = mapped_column(String(128), nullable=False, default="", index=True)
+    repo_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    repo_source: Mapped[str] = mapped_column(String(32), nullable=False, default="my")  # my | trending
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    source: Mapped[str] = mapped_column(String(32), nullable=False, default="")  # ollama | deepseek | truncated
+    model: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    max_chars: Mapped[int] = mapped_column(Integer, nullable=False, default=800)
+    score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    verdict: Mapped[str] = mapped_column(String(16), nullable=False, default="fail")  # pass | fail
+    checks: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON 数组
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")  # pending | passed | failed
+    reviewer: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    review_note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)

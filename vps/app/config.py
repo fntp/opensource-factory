@@ -28,17 +28,35 @@ class Settings(BaseSettings):
     # LLM：本地 Ollama（首选）
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "qwen2.5:7b"
+    # 批量摘要结束后自动卸载模型的时间（2m 内无请求即释放 2G 推理预算）
+    OLLAMA_KEEP_ALIVE: str = "2m"
 
     # LLM：DeepSeek 云端（可选降级）
     DEEPSEEK_API_KEY: str = ""
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
     DEEPSEEK_MODEL: str = "deepseek-chat"
 
+    # README 摘要批量队列（2G 预算内串行处理）
+    SUMMARY_BATCH_SIZE: int = 10
+    SUMMARY_MAX_PER_RUN: int = 200
+    SUMMARY_DELAY_MS: int = 500
+    SUMMARY_MAX_CHARS: int = 800
+
+    # 摘要质量抽检（M2-04）：按比例留存样本 + 低质量强制留存
+    SUMMARY_SAMPLE_RATE: float = 0.1
+    SUMMARY_SAMPLE_MAX_PER_RUN: int = 50
+    SUMMARY_SAMPLE_ALWAYS_BELOW: float = 60.0
+    SUMMARY_QUALITY_PASS_SCORE: float = 70.0
+    SUMMARY_QUALITY_MIN_CHARS: int = 40
+
     # 向量模型
     EMBEDDING_MODEL: str = "BAAI/bge-m3"
 
     # 内部接口鉴权（设置后 /api/tasks/* 校验 X-Internal-Token）
     INTERNAL_TOKEN: str = ""
+
+    # edge Worker 地址（配置后摘要任务批量回写 D1；留空仅写本地镜像）
+    EDGE_BASE_URL: str = ""
 
     # Celery
     CELERY_TASK_ALWAYS_EAGER: bool = False

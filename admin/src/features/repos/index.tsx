@@ -40,6 +40,7 @@ export function Repos() {
       (r) =>
         r.fullName.toLowerCase().includes(q) ||
         r.description.toLowerCase().includes(q) ||
+        (r.summary ?? '').toLowerCase().includes(q) ||
         r.language.toLowerCase().includes(q) ||
         r.category.toLowerCase().includes(q) ||
         r.tags.some((t) => t.toLowerCase().includes(q))
@@ -109,6 +110,11 @@ export function Repos() {
                       <div className='max-w-100 truncate text-sm text-muted-foreground'>
                         {repo.description}
                       </div>
+                      {repo.summary && (
+                        <div className='max-w-100 truncate text-xs text-muted-foreground/70'>
+                          摘要：{repo.summary}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge variant='secondary'>{repo.category}</Badge>

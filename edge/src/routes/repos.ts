@@ -1,10 +1,11 @@
 /**
  * 我的仓库路由
- * GET /api/repos?q=&categoryId=  当前会话用户的仓库列表（RepoItem[]）
+ * GET  /api/repos?q=&categoryId=  当前会话用户的仓库列表（RepoItem[]）
+ * POST /api/repos/summaries       VPS 摘要批量回写（X-Internal-Token）
  */
 import { Hono } from 'hono';
 import type { Env, RepoItem, RepoRow, Variables } from '../types';
-import { all } from '../db';
+import { all, run } from '../db';
 
 const repos = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -19,7 +20,8 @@ export function toRepoItem(row: RepoRow): RepoItem {
   return {
     id: row.id,
     fullName,
-    description: row.description ?? row.readme_summary ?? null,
+    description: row.description ?? null,
+    summary: row.readme_summary ?? null,
     language: row.language ?? null,
     stars: row.stars ?? 0,
     forks: row.forks ?? 0,
@@ -29,6 +31,60 @@ export function toRepoItem(row: RepoRow): RepoItem {
     url: row.html_url,
   };
 }
+
+interface SummaryItem {
+  repoId?: unknown;
+  summary?: unknown;
+}
+
+/**
+ * POST /api/repos/summaries
+ * VPS 摘要任务批量回写：逐条更新 readme_summary。
+ * 仅限内部调用（配置 INTERNAL_TOKEN 时校验 X-Internal-Token）。
+ */
+repos.post('/summaries', async (c) => {
+  const expected = (c.env.INTERNAL_TOKEN ?? '').trim();
+  if (expected) {
+    const provided = c.req.header('X-Internal-Token') ?? '';
+    if (provided !== expected) {
+      return c.json({ error: 'unauthorized' }, 401);
+    }
+  }
+
+  let body: { items?: SummaryItem[] } | null = null;
+  try {
+    body = await c.req.json<{ items?: SummaryItem[] }>();
+  } catch {
+    return c.json({ error: 'invalid_json' }, 400);
+  }
+  if (!body || !Array.isArray(body.items)) {
+    return c.json({ error: 'invalid_body', message: 'items 必须是数组' }, 400);
+  }
+
+  const items = body.items.slice(0, 500);
+  let updated = 0;
+  let skipped = 0;
+  for (const item of items) {
+    const repoId = typeof item.repoId === 'string' ? item.repoId.trim() : '';
+    const summary = typeof item.summary === 'string' ? item.summary.trim() : '';
+    if (!repoId || !summary) {
+      skipped += 1;
+      continue;
+    }
+    const result = await run(
+      c.env.DB,
+      'UPDATE my_repositories SET readme_summary = ?, synced_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [summary.slice(0, 4000), repoId]
+    );
+    if ((result.meta.changes ?? 0) > 0) {
+      updated += 1;
+    } else {
+      skipped += 1;
+    }
+  }
+
+  return c.json({ total: items.length, updated, skipped });
+});
 
 repos.get('/', async (c) => {
   const user = c.get('user');
@@ -41,9 +97,9 @@ repos.get('/', async (c) => {
   const params: Array<string | number | null> = [user.id];
 
   if (q) {
-    where.push('(r.name LIKE ? OR r.id LIKE ? OR r.description LIKE ?)');
+    where.push('(r.name LIKE ? OR r.id LIKE ? OR r.description LIKE ? OR r.readme_summary LIKE ?)');
     const like = `%${q}%`;
-    params.push(like, like, like);
+    params.push(like, like, like, like);
   }
   if (categoryId) {
     where.push('r.category_id = ?');
