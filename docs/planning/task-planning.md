@@ -102,5 +102,5 @@
 | 2026-10-22 | 交付 | IT-0025 / M4-01 完成（REQ-202610-0930）：每日评估（质量分 = 仓库 × 0.7 + 理由 × 0.3，匹配度 / 质量分双门槛）+ Celery beat 08:45；计划见 `plan-req-202610-0930-daily-evaluation.md` |
 | 2026-10-22 | 交付 | IT-0026 / M4-02 完成（REQ-202610-0931）：站内通知中心（D1 惰性物化、列表 / 未读数 / 已读 / 忽略、admin 徽标轮询） |
 | 2026-10-22 | 交付 | IT-0027 / M4-03 完成（REQ-202610-0932）：Bark 推送通道（`pushed` 推荐 09:05 投递、幂等与重试、测试 / 状态 / 手动触发、dry-run）+ 17 用例；计划见 `plan-req-202610-0932-bark-channel.md` |
-| 2026-10-22 | 交付 | IT-0028 / M4-04 完成（REQ-202610-0933）：Telegram 每日摘要（HTML 转义 / 3800 字符分片 / 429 与 5xx 退避 / `telegram_deliveries` 幂等） |
+| 2026-10-22 | 交付 | IT-0028 / M4-04 完成（REQ-202610-0933）：Telegram 每日摘要（HTML 转义 / 3800 字符分片 / 429 与 5xx 退避 / `telegram_deliveries` 幂等）；计划见 `plan-req-202610-0933-telegram-channel.md` |
 | 2026-10-22 | 交付 | IT-0029 / M4-05 完成（REQ-202610-0934）：Email 每日摘要（STARTTLS/SSL/AUTH、瞬时错误重试、`email_deliveries` 同日幂等） |

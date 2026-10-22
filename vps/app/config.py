@@ -151,7 +151,25 @@ class Settings(BaseSettings):
     # 试运行：只生成消息不发送、不写投递标记
     BARK_DRY_RUN: bool = False
 
-    # 内部接口鉴权（设置后 /api/tasks/*、/api/vector-index/*、/api/search/* 校验 X-Internal-Token）
+    # Telegram 推送通道（M4-04）
+    # 总开关：关闭时任务直接跳过，不发任何请求
+    TELEGRAM_ENABLED: bool = False
+    # BotFather 颁发的 Bot Token（机密，只存本机 .env）
+    TELEGRAM_BOT_TOKEN: str = ""
+    # 接收消息的私聊 / 群组 id（群组为负数）
+    TELEGRAM_CHAT_ID: str = ""
+    TELEGRAM_API_BASE: str = "https://api.telegram.org"
+    TELEGRAM_TIMEOUT_SECONDS: float = 10.0
+    # 网络异常 / 429 / 5xx 的最大重试次数（不含首次请求）
+    TELEGRAM_MAX_RETRIES: int = 3
+    # 指数退避基数（秒）；429 优先使用 Telegram 返回的 retry_after
+    TELEGRAM_RETRY_BASE_SECONDS: float = 0.5
+    # 单条摘要最多包含的推荐数
+    TELEGRAM_DAILY_LIMIT: int = 10
+    # 摘要只取最近 N 小时内进入 pushed 的推荐
+    TELEGRAM_DIGEST_WINDOW_HOURS: int = 24
+
+    # 内部接口鉴权（设置后 /api/tasks/*、/api/push/*、/api/vector-index/*、/api/search/* 校验 X-Internal-Token）
     INTERNAL_TOKEN: str = ""
 
     # Celery

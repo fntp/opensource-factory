@@ -110,6 +110,18 @@
 - **默认处理**：A；全部参数已配置化（`.env` 的 `EVAL_*`），调参无需改代码，
   重跑 `POST /api/tasks/evaluate-recommendations` 即可按新阈值回补。
 
+## Q15. Telegram 通道的会话口径与多用户支持（REQ-202610-0933 新增）
+
+- **背景**：M4-04 按「单 Bot + 单个 `TELEGRAM_CHAT_ID`」实现每日摘要，摘要取最近 24 小时
+  `status=pushed` 的推荐（可按 `user_id` 过滤）；但 VPS 本地 `my_repositories` 暂无 `user_id`，
+  多用户场景下画像与推送对象都只能先按单用户处理；
+- **选项**：
+  - A. 单会话（个人自托管）：一个 Bot 发给一个 chat（私聊或群组），群组需把 Bot 拉入群并允许发言（**当前默认**）；
+  - B. 多用户：每个用户绑定自己的 chat id，按用户分别生成摘要与幂等键（需先补用户级画像，建议随 M4-06 推进）；
+  - C. 多会话广播：同一份摘要发给多个 chat id（配置改为逗号分隔列表）。
+- **默认处理**：A；幂等键已按 `telegram:digest:<date>:<user|all>:<chat>` 预留用户维度，
+  升级到 B 只需补用户-会话绑定表与调度参数，无需改发送与分片逻辑。
+
 ---
 
 > 处理约定：人工确认任一问题后，更新本文件状态并在 `docs/planning/task-planning.md` 记录。

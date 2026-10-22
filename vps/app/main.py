@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import (
     degradation,
+    notifications,
     push,
     recommend,
     repos,
@@ -86,6 +87,7 @@ app.include_router(repos.router)
 app.include_router(trending.router)
 app.include_router(summaries.router)
 app.include_router(recommend.router)
+app.include_router(notifications.router)
 app.include_router(vectors.router)
 app.include_router(vector_index.router)
 app.include_router(search.router)
