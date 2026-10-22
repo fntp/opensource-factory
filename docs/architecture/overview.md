@@ -58,7 +58,9 @@ GitHub → /api/auth/github/callback?code → edge 换取 token → 拉取用户
 
 ```
 admin「同步仓库」→ POST /api/sync（edge）→ POST {VPS}/api/tasks/sync（X-Internal-Token）
-→ Celery 拉取 GitHub Starred/自有仓库 → upsert → 摘要（Ollama）→ 写回 D1 → 前端可见
+→ Celery 拉取 GitHub Starred（全量分页 + 限流等待 + 重试）/ 自有仓库
+→ 逐页上报进度（GET /api/tasks/{taskId} 的 progress）→ upsert 本地镜像
+→ 摘要（Ollama）→ 写回 D1 → 前端可见
 ```
 
 ### 3.3 热榜流
@@ -96,11 +98,12 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 
 | 端点 | 方法 | 说明 |
 | --- | --- | --- |
-| `/api/tasks/sync` | POST | 入队仓库同步 |
+| `/api/tasks/sync` | POST | 入队仓库同步（自有 + Starred 全量） |
+| `/api/tasks/sync-starred` | POST | 入队 Starred 全量同步（分页 / 限流 / 重试 / 进度） |
 | `/api/tasks/crawl-trending` | POST | 入队热榜抓取 |
 | `/api/tasks/generate-recommendations` | POST | 入队推荐生成 |
 | `/api/tasks/daily-push` | POST | 入队每日推送 |
-| `/api/tasks/{taskId}` | GET | 任务状态 |
+| `/api/tasks/{taskId}` | GET | 任务状态（`PROGRESS` 时含 `progress`） |
 | `/healthz` | GET | 健康检查 |
 
 ## 5. 安全边界

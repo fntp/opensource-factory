@@ -13,7 +13,13 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from app.config import get_settings
 from app.schemas import TaskEnqueued, TaskStatus
 from app.tasks.celery_app import celery_app
-from app.tasks.jobs import crawl_trending, daily_push, generate_recommendations, sync_repositories
+from app.tasks.jobs import (
+    crawl_trending,
+    daily_push,
+    generate_recommendations,
+    sync_repositories,
+    sync_starred_repositories,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +46,21 @@ def require_internal_token(
 )
 async def enqueue_sync(include_starred: bool = Query(default=True)) -> TaskEnqueued:
     task = sync_repositories.delay(include_starred=include_starred)
+    return TaskEnqueued(taskId=task.id)
+
+
+@router.post(
+    "/sync-starred",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=TaskEnqueued,
+    dependencies=[Depends(require_internal_token)],
+    summary="入队：Starred 全量同步（分页 / 限流 / 重试 / 进度）",
+)
+async def enqueue_sync_starred(
+    per_page: int = Query(default=100, ge=1, le=100),
+    max_pages: int | None = Query(default=None, ge=1, le=10000),
+) -> TaskEnqueued:
+    task = sync_starred_repositories.delay(per_page=per_page, max_pages=max_pages)
     return TaskEnqueued(taskId=task.id)
 
 
@@ -97,6 +118,8 @@ async def get_task_status(task_id: str) -> TaskStatus:
         result = celery_app.AsyncResult(task_id)
         state = str(result.state).lower()
         payload = TaskStatus(taskId=task_id, status=state)
+        if state == "progress" and isinstance(result.info, dict):
+            payload.progress = result.info
         if result.successful():
             payload.result = result.result
         elif result.failed():

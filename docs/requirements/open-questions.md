@@ -68,6 +68,13 @@
   - C. 其他：由维护者指定。
 - **默认处理**：A 先行（本机已承载全部私有数据与推理），M5 阶段实施 B 的评估与落地；若要求纯本机运行，请确认选项 B 并调整 M5 排期。
 
+## Q10. admin 基线构建失败（`sidebar-data.ts` 被 .gitignore 误伤，REQ-202610-0897 发现）
+
+- **现象**：`cd admin && npm run build` 在基线提交即失败：`src/components/layout/app-sidebar.tsx` 与 `src/components/command-menu.tsx` 引用的 `layout/data/sidebar-data.ts` 未入库；
+- **原因**：根 `.gitignore` 的 `**/data/` 规则同时匹配了源码目录 `admin/src/components/layout/data/`；
+- **选项**：A. 修正 ignore 规则（`!admin/src/components/layout/data/`）并补齐该源文件（推荐，需单独迭代）；B. 改为从路由自动生成导航数据；C. 暂不处理；
+- **默认处理**：本需求（M1-05）只改 vps，未在需求分支夹带 admin 修复；已记录待单独排期，避免与 Starred 同步混在一起。
+
 ---
 
 > 处理约定：人工确认任一问题后，更新本文件状态并在 `docs/planning/task-planning.md` 记录。

@@ -32,57 +32,118 @@ def _run_async(coro: Coroutine[Any, Any, Any]) -> Any:
         return pool.submit(asyncio.run, coro).result()
 
 
-@celery_app.task(name="app.tasks.jobs.sync_repositories")
-def sync_repositories(include_starred: bool = True) -> dict[str, Any]:
-    """同步 GitHub 仓库（自己的 + 可选 Starred）到本地镜像表。"""
+def _report_progress(task: Any, progress: Any) -> None:
+    """把同步进度写入 Celery 任务 meta；上报失败只记日志，不影响同步。"""
+    try:
+        task.update_state(state="PROGRESS", meta=progress.to_dict())
+    except Exception as exc:  # noqa: BLE001 - 结果后端不可用时进度降级为日志
+        logger.debug("Celery 进度上报失败: %s", exc)
+    if getattr(progress, "done", False):
+        logger.info("同步进度: %s 完成，共 %d 条", progress.phase, progress.fetched)
+    else:
+        logger.info(
+            "同步进度: %s 第 %d/%s 页，已抓取 %d 条",
+            progress.phase,
+            progress.page,
+            progress.pages_total or "?",
+            progress.fetched,
+        )
+
+
+@celery_app.task(bind=True, name="app.tasks.jobs.sync_repositories")
+def sync_repositories(
+    self,
+    include_starred: bool = True,
+    per_page: int = 100,
+    max_pages: int = 10,
+) -> dict[str, Any]:
+    """同步 GitHub 仓库（自己的 + 可选 Starred）到本地镜像表。
+
+    Starred 走全量分页（不限页数）；自有仓库默认最多 `max_pages` 页（M1-06 再扩展）。
+    """
     settings = get_settings()
     token = (settings.GITHUB_TOKEN or "").strip()
     if not token:
         return {"status": "skipped", "reason": "GITHUB_TOKEN 未配置，跳过 GitHub 同步"}
 
     from app.services.github_service import list_user_repos
+    from app.services.sync import upsert_repositories
+
+    def on_progress(progress: Any) -> None:
+        _report_progress(self, progress)
+
+    async def _run() -> dict[str, int]:
+        db = SessionLocal()
+        try:
+            repos = await list_user_repos(
+                token,
+                include_starred=include_starred,
+                per_page=per_page,
+                max_pages=max_pages,
+                on_progress=on_progress,
+            )
+            return upsert_repositories(db, repos)
+        finally:
+            db.close()
 
     try:
-        repos = _run_async(list_user_repos(token, include_starred=include_starred))
+        counts = _run_async(_run())
     except Exception as exc:  # noqa: BLE001 - 同步失败降级返回，等待下次重试
         logger.exception("GitHub 同步失败")
         return {"status": "error", "error": str(exc)[:300]}
 
-    created = 0
-    updated = 0
-    db = SessionLocal()
-    try:
-        for item in repos:
-            repo_id = item.get("id") or ""
-            if not repo_id:
-                continue
-            row = db.get(MyRepository, repo_id)
-            if row is None:
-                db.add(
-                    MyRepository(
-                        id=repo_id,
-                        platform=item.get("platform") or "github",
-                        name=item.get("name") or repo_id.split("/")[-1],
-                        description=item.get("description") or "",
-                        html_url=item.get("html_url") or f"https://github.com/{repo_id}",
-                        stars=int(item.get("stars") or 0),
-                        language=item.get("language") or None,
-                    )
-                )
-                created += 1
-            else:
-                row.name = item.get("name") or row.name
-                row.description = item.get("description") or row.description
-                row.html_url = item.get("html_url") or row.html_url
-                row.stars = int(item.get("stars") or 0)
-                row.language = item.get("language") or row.language
-                updated += 1
-        db.commit()
-    finally:
-        db.close()
+    logger.info(
+        "GitHub 同步完成: 共 %d 个仓库（新增 %d / 更新 %d / 未变化 %d）",
+        counts["total"],
+        counts["created"],
+        counts["updated"],
+        counts["unchanged"],
+    )
+    return {"status": "ok", **counts}
 
-    logger.info("GitHub 同步完成: 共 %d 个仓库（新增 %d / 更新 %d）", len(repos), created, updated)
-    return {"status": "ok", "total": len(repos), "created": created, "updated": updated}
+
+@celery_app.task(bind=True, name="app.tasks.jobs.sync_starred_repositories")
+def sync_starred_repositories(
+    self,
+    per_page: int = 100,
+    max_pages: int | None = None,
+) -> dict[str, Any]:
+    """全量同步 Starred 仓库（分页 / 限流 / 重试 / 进度）。
+
+    - `max_pages=None`：不设页数上限，拉取全部 Starred；
+    - 每页通过 `update_state(state="PROGRESS")` 上报进度，`GET /api/tasks/{id}` 可查。
+    """
+    settings = get_settings()
+    token = (settings.GITHUB_TOKEN or "").strip()
+    if not token:
+        return {"status": "skipped", "reason": "GITHUB_TOKEN 未配置，跳过 Starred 同步"}
+
+    from app.services.sync import sync_starred_to_db
+
+    def on_progress(progress: Any) -> None:
+        _report_progress(self, progress)
+
+    async def _run() -> dict[str, Any]:
+        db = SessionLocal()
+        try:
+            return await sync_starred_to_db(
+                db,
+                token,
+                per_page=per_page,
+                max_pages=max_pages,
+                on_progress=on_progress,
+            )
+        finally:
+            db.close()
+
+    try:
+        result = _run_async(_run())
+    except Exception as exc:  # noqa: BLE001 - 任务失败降级返回，边缘侧可安全重试
+        logger.exception("Starred 同步失败")
+        return {"status": "error", "error": str(exc)[:300]}
+
+    logger.info("Starred 同步任务结束: %s", result.get("status"))
+    return result
 
 
 @celery_app.task(name="app.tasks.jobs.crawl_trending")
