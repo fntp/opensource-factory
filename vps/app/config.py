@@ -8,6 +8,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # vps/ 根目录（本文件位于 vps/app/config.py）
@@ -40,11 +41,29 @@ class Settings(BaseSettings):
     # 内部接口鉴权（设置后 /api/tasks/* 校验 X-Internal-Token）
     INTERNAL_TOKEN: str = ""
 
+    # 边缘 API 地址（配置后热榜快照会批量回写 D1；留空只写本地镜像）
+    EDGE_BASE_URL: str = ""
+
     # Celery
     CELERY_TASK_ALWAYS_EAGER: bool = False
 
     # GitHub
     GITHUB_TOKEN: str = ""
+
+    # 热榜抓取：每日定时 + 多语言页（逗号分隔的 GitHub Trending language slug）
+    TRENDING_LANGUAGES: str = (
+        "python,javascript,typescript,go,rust,java,cpp,c,php,ruby,swift,kotlin"
+    )
+    TRENDING_CRAWL_HOUR: int = Field(default=3, ge=0, le=23)
+    TRENDING_CRAWL_MINUTE: int = Field(default=27, ge=0, le=59)
+
+    # 热榜数据保留（M2-08）：保留窗口 / 归档 / 清理
+    TRENDING_RETENTION_DAYS: int = Field(default=90, ge=0, le=3650)
+    TRENDING_ARCHIVE_ENABLED: bool = True
+    TRENDING_ARCHIVE_DIR: str = "./data/archives"
+    TRENDING_ARCHIVE_KEEP_DAYS: int = Field(default=365, ge=0, le=3650)
+    TRENDING_RETENTION_HOUR: int = Field(default=4, ge=0, le=23)
+    TRENDING_RETENTION_MINUTE: int = Field(default=17, ge=0, le=59)
 
     # CORS（开发默认允许全部来源）
     CORS_ORIGINS: str = "*"

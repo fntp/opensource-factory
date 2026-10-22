@@ -15,7 +15,8 @@ my_repositories >──< repo_tags >──< tags
   ▼
 categories（parent_id 自关联，无限级）
 
-trending_repositories        （独立，公共数据）
+trending_repositories        （最新状态，公共数据）
+trending_snapshots           （按日快照 + 趋势字段）
 recommendations              （user_id 可空 = 全局推荐）
 ```
 
@@ -51,7 +52,37 @@ recommendations              （user_id 可空 = 全局推荐）
 | tech_stack | TEXT | 自动提取的技术栈 |
 | crawled_at | DATE | 抓取日期 |
 
-> 扩展列：`owner`、`language`、`stars`（总 Star）。
+> 扩展列：`owner`、`language`、`stars`（总 Star）；VPS 本地镜像在 `init_db()` 中对既有 SQLite 库幂等补列。
+
+### 2.2.1 `trending_snapshots` 热榜按日快照（REQ-202610-0913 / M2-05）
+
+> 同一仓库同一天只有一行，主键 `(snapshot_date, repo_id)` 保证重复抓取幂等；`trending_repositories` 继续作为「最新状态」表供旧接口兼容。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| snapshot_date | DATE PK | 快照日期（Asia/Shanghai 的任务日） |
+| repo_id | TEXT PK | `owner/repo` |
+| platform / owner / name / html_url / description / language / tech_stack | — | 项目元信息快照 |
+| stars / stars_today | INTEGER | 总 Star / 今日新增 Star |
+| rank | INTEGER | 全平台综合排名（按 stars_today、stars 降序，1 起） |
+| language_rank | INTEGER | 同语言内排名 |
+| star_delta | INTEGER | 对比上一有效快照的总 Star 增量 |
+| rank_delta | INTEGER | 对比上一有效快照的排名变化（正数=上升） |
+| appearances | INTEGER | 连续上榜天数（断档后重置为 1） |
+| is_new | INTEGER | 1 = 首次上榜（回看 7 天内无基线） |
+| trend | TEXT | `new` / `up` / `down` / `steady` |
+| trending_pages | TEXT | 来源语言页 JSON 数组，用于追溯去重来源 |
+| created_at / updated_at | DATETIME | 入库 / 更新时间 |
+
+趋势口径：基线取该仓库在快照日之前最近一条快照（最多回看 7 天）；`rank_delta >= 3` 记为 `up`，`<= -3` 记为 `down`，其余 `steady`。
+
+**保留策略（M2-08）**：默认保留 90 天（`TRENDING_RETENTION_DAYS`），每日 04:17（可配）由 Celery 任务 `cleanup_trending_data` 处理：
+
+1. 把 `snapshot_date < today - retention_days` 的快照写成 `data/archives/trending-snapshots-<起>_<止>.jsonl.gz`（gzip JSONL，首行为格式头）；
+2. 归档成功后在同一事务删除本地过期行，并调用 edge 内部接口删除 D1 同日期范围；
+3. 归档失败时**不删除**任何行；归档文件按 `TRENDING_ARCHIVE_KEEP_DAYS`（默认 365 天）滚动清理。
+
+> `trending_repositories` 只保留最新状态，不参与按日清理；详细操作见 `docs/guides/trending-retention.md`。
 
 ### 2.3 `categories` 分类
 

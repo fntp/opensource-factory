@@ -38,7 +38,59 @@ class TrendingRepoOut(ORMModel):
     stars_today: Optional[int] = 0
     description: Optional[str] = None
     tech_stack: Optional[str] = None
+    owner: Optional[str] = None
+    language: Optional[str] = None
+    stars: int = 0
     crawled_at: Optional[date] = None
+
+
+class TrendingSnapshotOut(ORMModel):
+    """热榜按日快照输出（含趋势字段）。"""
+
+    snapshot_date: date
+    repo_id: str
+    platform: str
+    owner: Optional[str] = None
+    name: str
+    html_url: str
+    description: Optional[str] = None
+    language: Optional[str] = None
+    tech_stack: Optional[str] = None
+    stars: int = 0
+    stars_today: int = 0
+    rank: int = 0
+    language_rank: int = 0
+    star_delta: int = 0
+    rank_delta: int = 0
+    appearances: int = 1
+    is_new: int = 0
+    trend: str = "steady"
+    trending_pages: Optional[str] = None
+
+
+class TrendingSnapshotDateOut(BaseModel):
+    """可用快照日期。"""
+
+    date: date
+    count: int
+
+
+class TrendingRetentionStatus(BaseModel):
+    """热榜数据保留策略状态（M2-08，字段与运维接口保持一致）。"""
+
+    enabled: bool
+    retentionDays: int
+    cutoff: Optional[date] = None
+    archiveEnabled: bool
+    archiveDir: str
+    archiveKeepDays: int
+    totalSnapshots: int
+    expiredSnapshots: int
+    oldestDate: Optional[date] = None
+    latestDate: Optional[date] = None
+    databaseBytes: int
+    archiveFiles: int
+    archiveBytes: int
 
 
 class RecommendQuery(BaseModel):

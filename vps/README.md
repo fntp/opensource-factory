@@ -27,18 +27,20 @@ vps/
 │   ├── services/             # 业务逻辑（单一职责，可独立单测）
 │   │   ├── github_service.py     # GitHub REST v3 异步客户端（分页、README base64 解码）
 │   │   ├── trending_crawler.py   # GitHub Trending 解析/抓取 + Gitee 探索页（尽力而为）
+│   │   ├── trending_snapshot.py  # 按日快照去重 / 排名 / 趋势字段 + D1 批量回写
+│   │   ├── trending_retention.py # 热榜保留窗口 / gzip JSONL 归档 / 本地与 D1 清理
 │   │   ├── readme.py             # README 清洗 + 技术栈启发式提取
 │   │   ├── embedding.py          # BGE-M3（懒加载）与确定性 hash 降级向量
 │   │   ├── summarizer.py         # Ollama → DeepSeek → 截断降级 的摘要生成
 │   │   └── recommender.py        # 余弦排序 + 中文推荐理由模板
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
-│   │   ├── trending.py           # GET /api/trending、POST /api/trending/crawl
+│   │   ├── trending.py           # GET /api/trending、/snapshots、/dates、/history、/retention、POST /crawl、/retention/cleanup
 │   │   ├── recommend.py          # POST /api/recommend/query、POST /api/recommend/generate
 │   │   └── tasks.py              # /api/tasks/*（与边缘 Worker 的集成契约，X-Internal-Token 鉴权）
 │   └── tasks/                # Celery 任务（薄封装，调用 services + 落库）
 │       ├── celery_app.py         # Celery 应用与 beat 定时计划
-│       └── jobs.py               # sync / crawl / generate / daily_push 四个任务
+│       └── jobs.py               # sync / crawl / generate / daily_push / cleanup_trending_data 任务
 └── tests/                    # pytest（不访问网络）
 ```
 
@@ -84,30 +86,60 @@ pytest -q
 | `DEEPSEEK_API_KEY` | 空 | 可选；配置后作为 LLM 云端降级（OpenAI 兼容） |
 | `EMBEDDING_MODEL` | `BAAI/bge-m3` | 向量模型名（sentence-transformers / FlagEmbedding） |
 | `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
+| `EDGE_BASE_URL` | 空 | 边缘 API 地址；配置后热榜快照批量回写 D1，留空只写本地镜像 |
 | `CELERY_TASK_ALWAYS_EAGER` | `0` | 置 `1` 时任务同步执行（本地调试 / 测试用） |
 | `GITHUB_TOKEN` | 空 | GitHub PAT（仅需 read 权限）；为空时同步任务跳过 |
+| `TRENDING_LANGUAGES` | `python,javascript,typescript,go,rust,java,cpp,c,php,ruby,swift,kotlin` | 每日抓取的 Trending 语言页（逗号分隔；留空只抓全局页） |
+| `TRENDING_CRAWL_HOUR` | `3` | 每日抓取小时（Asia/Shanghai，0–23） |
+| `TRENDING_CRAWL_MINUTE` | `27` | 每日抓取分钟（0–59） |
+| `TRENDING_RETENTION_DAYS` | `90` | 快照保留天数（含当天）；`0` = 暂停自动清理 |
+| `TRENDING_ARCHIVE_ENABLED` | `true` | 清理前归档为 gzip JSONL；关闭后直接删除（不推荐） |
+| `TRENDING_ARCHIVE_DIR` | `./data/archives` | 归档目录（相对路径按 `vps/` 解析） |
+| `TRENDING_ARCHIVE_KEEP_DAYS` | `365` | 归档文件保留天数；`0` = 永久保留 |
+| `TRENDING_RETENTION_HOUR` / `TRENDING_RETENTION_MINUTE` | `4` / `17` | 每日清理时刻（Asia/Shanghai） |
 
 完整清单见 `.env.example`。所有真实密钥只存在于本地 `.env`（git 忽略）或平台密钥托管，**不得提交**。
 
 ## 与 Cloudflare 边缘的接口约定
 
-边缘 Worker 通过内部 API 调度本节点，全部任务接口位于 `/api/tasks/*`：
+边缘 Worker 通过内部 API 调度本节点，任务接口位于 `/api/tasks/*`；热榜保留策略接口位于 `/api/trending/retention*`：
 
 | 方法 | 路径 | 说明 | 返回 |
 | --- | --- | --- | --- |
 | POST | `/api/tasks/sync` | 入队 GitHub 仓库同步（自己的 + Starred） | `202 {"taskId": "..."}` |
-| POST | `/api/tasks/crawl-trending` | 入队热榜抓取（`platform=github\|gitee\|all`，可选 `language`） | `202 {"taskId": "..."}` |
+| POST | `/api/tasks/crawl-trending` | 入队热榜抓取（`platform=github\|gitee\|all`；可选 `language` 单页、`languages` 多页 CSV、`since=daily\|weekly\|monthly`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/generate-recommendations` | 入队推荐生成（可选 `user_id`、`top_k`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/daily-push` | 入队每日推送准备（将 `new` 推荐标记为 `pushed`） | `202 {"taskId": "..."}` |
 | GET | `/api/tasks/{task_id}` | 查询任务状态（`pending/started/success/failure`） | `200 {"taskId","status","result"}` |
+| GET | `/api/trending/retention` | 热榜保留策略状态（窗口 / 过期数 / SQLite 与归档占用） | `200 {...}` |
+| POST | `/api/trending/retention/cleanup` | 入队热榜归档与清理（`dryRun` / `retentionDays` / `archive`） | `202 {"taskId": "..."}` |
 
 约定：
 
 - **鉴权**：当服务端设置 `INTERNAL_TOKEN` 时，请求必须携带请求头 `X-Internal-Token: <token>`，否则返回 `401`；
 - **异步语义**：任务接口一律 `202` + `{"taskId": ...}`（camelCase），由边缘侧轮询 `GET /api/tasks/{task_id}` 获取结果；
-- **直接查询接口**（供边缘回源或调试）：`GET /api/repos`、`GET /api/trending`、`POST /api/recommend/query`；
-- **数据契约**：本地表结构与 D1 Schema 保持一致（`my_repositories` / `trending_repositories` / `categories` 字段名与语义镜像），边缘侧按 `id`（`owner/repo`）对齐；
+- **直接查询接口**（供边缘回源或调试）：`GET /api/repos`、`GET /api/trending`、`GET /api/trending/snapshots`、`GET /api/trending/dates`、`GET /api/trending/history`、`POST /api/recommend/query`；
+- **数据契约**：本地表结构与 D1 Schema 保持一致（`my_repositories` / `trending_repositories` / `trending_snapshots` / `categories` 字段名与语义镜像），边缘侧按 `id`（`owner/repo`）对齐；
 - **降级语义**：外部依赖不可用时任务返回 `{"status": "skipped"|"error", ...}` 而不是失败抛错，边缘侧可安全重试。
+
+## 热榜每日抓取
+
+- Celery beat `crawl-trending-daily` 每天 `03:27`（Asia/Shanghai，可用 `TRENDING_CRAWL_HOUR` / `TRENDING_CRAWL_MINUTE` 覆盖）触发 `crawl_trending`；
+- 抓取全局页 + `TRENDING_LANGUAGES` 列出的语言页，页间串行并默认间隔 1 秒，避免触发 GitHub 限流；
+- 同一仓库跨页去重，`stars` / `stars_today` 取最大值，`owner` / `language` / `stars` 一并落库；
+- 单页失败不中断整轮，任务结果包含 `pages[]` 与 `failedPages[]`（`status=partial` / `error`），作为 M2-02 告警的基础信号；
+- 每次抓取同时写 `trending_snapshots`（主键 `snapshot_date + repo_id`）：同一日重复执行幂等，趋势字段对比上一有效快照（最多回看 7 天）计算 `star_delta` / `rank_delta` / `appearances` / `is_new` / `trend`；
+- 配置 `EDGE_BASE_URL` + `INTERNAL_TOKEN` 时，快照按批（默认 200 条）回写 `POST /api/internal/trending/snapshots`；回写失败只记日志，不影响本地入库；
+- 手动触发示例：`curl -X POST 'http://127.0.0.1:8000/api/tasks/crawl-trending?platform=github&languages=python,rust' -H "X-Internal-Token: <token>"`。
+
+## 热榜数据保留（M2-08）
+
+- Celery beat `cleanup-trending-daily` 每天 `04:17`（Asia/Shanghai，可用 `TRENDING_RETENTION_HOUR` / `TRENDING_RETENTION_MINUTE` 覆盖）触发 `cleanup_trending_data`；
+- 保留窗口默认 90 天（`TRENDING_RETENTION_DAYS`，`0` 暂停）：删除 `snapshot_date < today - N` 的快照；
+- **先归档后删除**：过期快照写成 `TRENDING_ARCHIVE_DIR` 下的 `trending-snapshots-<起>_<止>.jsonl.gz`（gzip JSONL，首行为格式头）；归档失败时不删除任何行；
+- 本地删除成功后调用 edge `POST /api/internal/trending/retention/cleanup` 删除 D1 同日期范围；未配置 `EDGE_BASE_URL` / `INTERNAL_TOKEN` 时跳过，失败标记 `status=partial`；
+- 归档文件按 `TRENDING_ARCHIVE_KEEP_DAYS`（默认 365 天）滚动清理；状态与手动触发见 `GET/POST /api/trending/retention*`；
+- 完整操作手册：`docs/guides/trending-retention.md`。
 
 ## 常用检查
 
