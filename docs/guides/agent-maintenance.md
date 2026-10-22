@@ -34,7 +34,7 @@
 cd admin && npm run lint && npm run build && npm run test
 
 # edge
-cd edge && npm run typecheck
+cd edge && npm run typecheck && npm run test:consistency
 
 # vps
 cd vps && .venv/bin/pytest -q

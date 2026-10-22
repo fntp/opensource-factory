@@ -25,6 +25,7 @@ vps/
 │   ├── models.py             # 数据库模型（D1 表结构的本地镜像）
 │   ├── schemas.py            # Pydantic 出入参模型
 │   ├── services/             # 业务逻辑（单一职责，可独立单测）
+│   │   ├── consistency.py        # D1 ↔ 本机镜像对账（归一化 / 差异 / 报告）
 │   │   ├── github_service.py     # GitHub REST v3 异步客户端（分页、README base64 解码）
 │   │   ├── trending_crawler.py   # GitHub Trending 解析/抓取 + Gitee 探索页（尽力而为）
 │   │   ├── readme.py             # README 清洗 + 技术栈启发式提取
@@ -39,6 +40,8 @@ vps/
 │   └── tasks/                # Celery 任务（薄封装，调用 services + 落库）
 │       ├── celery_app.py         # Celery 应用与 beat 定时计划
 │       └── jobs.py               # sync / crawl / generate / daily_push 四个任务
+├── scripts/
+│   └── consistency_audit.py      # D1 ↔ 本机镜像对账 CLI（只读）
 └── tests/                    # pytest（不访问网络）
 ```
 
@@ -108,6 +111,29 @@ pytest -q
 - **直接查询接口**（供边缘回源或调试）：`GET /api/repos`、`GET /api/trending`、`POST /api/recommend/query`；
 - **数据契约**：本地表结构与 D1 Schema 保持一致（`my_repositories` / `trending_repositories` / `categories` 字段名与语义镜像），边缘侧按 `id`（`owner/repo`）对齐；
 - **降级语义**：外部依赖不可用时任务返回 `{"status": "skipped"|"error", ...}` 而不是失败抛错，边缘侧可安全重试。
+
+## 数据一致性巡检（D1 ↔ 本机镜像）
+
+`scripts/consistency_audit.py` 以只读方式比较 D1 与本机 SQLite：缺失记录、字段差异、重复主键，支持在线 / 离线三种数据源。
+
+```bash
+cd vps
+
+# 在线：edge 内部快照接口（需 edge 配置 INTERNAL_TOKEN，且本机可访问 Worker）
+export INTERNAL_TOKEN="$(grep '^INTERNAL_TOKEN=' /opt/openfactory/.env | cut -d= -f2-)"
+.venv/bin/python scripts/consistency_audit.py \
+  --edge-url https://<worker-domain> \
+  --report /opt/openfactory/logs/consistency-report.md
+
+# 离线：wrangler d1 export 还原出的 SQLite
+.venv/bin/python scripts/consistency_audit.py --d1-db /tmp/d1-export.db
+
+# 离线：JSON 快照（汇总 / 单表 / wrangler --json）
+.venv/bin/python scripts/consistency_audit.py --snapshot /tmp/d1-snapshot.json --tables my_repositories
+```
+
+退出码：`0` 一致，`1` 发现差异，`2` 输入 / 连接错误。完整说明、报告字段与定时任务示例见
+[docs/guides/data-consistency-audit.md](../docs/guides/data-consistency-audit.md)。
 
 ## 常用检查
 

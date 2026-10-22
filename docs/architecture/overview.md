@@ -103,6 +103,14 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 | `/api/tasks/{taskId}` | GET | 任务状态 |
 | `/healthz` | GET | 健康检查 |
 
+### 4.3 vps → edge（内部只读巡检，`X-Internal-Token`）
+
+| 端点 | 方法 | 说明 |
+| --- | --- | --- |
+| `/api/internal/consistency/snapshot?table=&limit=&offset=` | GET | D1 只读快照（五张白名单表、固定列、主键排序、分页），供本机镜像对账 |
+
+> 该接口默认关闭：未配置 `INTERNAL_TOKEN` 时返回 503；令牌错误返回 401；表名 / 分页参数非法返回 400。详见 [data-consistency-audit.md](../guides/data-consistency-audit.md)。
+
 ## 5. 安全边界
 
 - 浏览器侧仅持有 httpOnly 会话 Cookie（`of_session`），**不接触任何第三方 token**；

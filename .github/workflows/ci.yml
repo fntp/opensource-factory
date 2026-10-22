@@ -52,6 +52,8 @@ jobs:
         run: npm ci
       - name: Typecheck
         run: npm run typecheck
+      - name: Consistency route tests
+        run: npm run test:consistency
 
   vps:
     name: vps · pytest
