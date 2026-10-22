@@ -145,6 +145,7 @@ PRODUCTION_SCRIPTS = (
     "deploy-all.sh",
     "smoke-test.sh",
     "setup-https.sh",
+    "security-audit.sh",
 )
 
 

@@ -86,6 +86,7 @@ journalctl -u openfactory-api -f         # 查看进程日志
 | `deploy-all.sh` | 三端顺序编排（edge → admin → vps → 冒烟） |
 | `smoke-test.sh` | 三端 HTTP 冒烟（支持 `--json` / `--dry-run`） |
 | `setup-https.sh` | 渲染并安装 Caddy HTTPS 反代 |
+| `security-audit.sh` | 只读安全审计（密钥 / 依赖 / 配置 / 响应头 / 隐私），`--online` / `--strict` 可选 |
 
 部署控制配置模板：`deploy/env/deploy.env.example`（复制到 `/opt/openfactory/deploy.env`，600）。
 首次使用前务必阅读 [正式部署手册](../docs/guides/production-deployment.md) 的 Q3 资源清单。

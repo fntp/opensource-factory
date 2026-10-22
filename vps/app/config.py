@@ -168,8 +168,8 @@ class Settings(BaseSettings):
     TRENDING_RETENTION_HOUR: int = Field(default=4, ge=0, le=23)
     TRENDING_RETENTION_MINUTE: int = Field(default=17, ge=0, le=59)
 
-    # CORS（开发默认允许全部来源）
-    CORS_ORIGINS: str = "*"
+    # CORS（安全默认：仅本机管理后台 dev server；生产通过环境变量改为实际域名）
+    CORS_ORIGINS: str = "http://localhost:5173"
 
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),
