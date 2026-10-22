@@ -371,6 +371,20 @@ VPS 端点同时提供 `GET /healthz/ready`（数据库 + 运行目录就绪探�
 `/api/monitoring/{status,check,history,alerts,logs}`（全部要求 `X-Internal-Token`）；
 edge 侧 `/api/monitoring/overview` 需登录，`/api/internal/analytics` 供内部工具读取 Workers 聚合。
 
+### 3.21 知识库导出流（M6-08）
+
+```
+admin /export → GET /api/export/knowledge/summary（登录态）→ 统计卡
+→ 选择格式 / 是否含摘要 / 分组方式
+→ GET /api/export/knowledge?format=markdown|json|obsidian&includeSummary=1|0&groupBy=category|none
+→ edge 按 user_id 只读查询 my_repositories + categories + tags / repo_tags
+→ 纯函数构建：JSON（openfactory.knowledge.v1）/ Markdown（单文件）/ Obsidian（ZIP Vault）
+→ Content-Disposition 附件下载（Cache-Control: no-store）
+```
+
+只读聚合，不新增表、不写 D1；格式规范（JSON Schema、Markdown 结构、Obsidian 目录与
+frontmatter）见 `docs/guides/knowledge-export.md`，并作为 M9-04 全量归档的格式基线。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -409,6 +423,8 @@ edge 侧 `/api/monitoring/overview` 需登录，`/api/internal/analytics` 供内
 | `/api/monitoring/overview` | GET | 监控总览（登录态；合并 VPS 状态与 Workers 指标，`?days=1..30`） |
 | `/api/monitoring/check` | POST | 触发一次 VPS 监控检查（登录态代理） |
 | `/api/monitoring/alerts/:id/ack` | POST | 确认监控告警（登录态代理） |
+| `/api/export/knowledge/summary` | GET | 知识库导出统计（登录态；项目 / 摘要 / 分类 / 标签 / Star） |
+| `/api/export/knowledge` | GET | 生成知识库附件（`format` / `includeSummary` / `groupBy`，登录态） |
 
 ### 4.2 edge ↔ vps（内部 API，`X-Internal-Token`）
 

@@ -42,6 +42,9 @@ notifications                （站内通知，按用户隔离）
 | created_at | DATETIME | 收录时间 |
 
 > 本仓库扩展列（不改变上述语义）：`user_id`、`owner`、`forks`、`updated_at`、`synced_at`。
+>
+> 知识库导出（M6-08）只读聚合 `my_repositories` + `categories` + `tags` / `repo_tags`，
+> 不新增表、不写 D1；导出格式见 `docs/guides/knowledge-export.md`。
 
 ### 2.2 `trending_repositories` 热榜项目
 

@@ -3,7 +3,7 @@
  * 中间件：CORS（精确回显 ALLOWED_ORIGIN，允许 credentials）+ 请求日志
  * 路由：/api/auth、/api/repos、/api/trending、/api/recommendations、
  *       /api/notifications、/api/push-preferences、/api/categories、
- *       /api/dashboard、/api/sync、/api/internal/trending、/api/search
+ *       /api/dashboard、/api/sync、/api/internal/trending、/api/search、/api/export
  */
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -26,6 +26,7 @@ import dashboardRoutes from './routes/dashboard';
 import syncRoutes from './routes/sync';
 import internalTrendingRoutes from './routes/internal-trending';
 import searchRoutes from './routes/search';
+import exportRoutes from './routes/export';
 import internalVectorsRoutes from './routes/internal-vectors';
 import internalRecommendationsRoutes from './routes/internal-recommendations';
 import internalSecurityRoutes from './routes/internal-security';
@@ -57,6 +58,7 @@ app.use('*', async (c, next) => {
     credentials: true,
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
+    exposeHeaders: ['Content-Disposition'],
     maxAge: 86400,
   })(c, next);
 });
@@ -162,6 +164,7 @@ app.route('/api/dashboard', dashboardRoutes);
 app.route('/api/sync', syncRoutes);
 app.route('/api/internal/trending', internalTrendingRoutes);
 app.route('/api/search', searchRoutes);
+app.route('/api/export', exportRoutes);
 app.route('/api/internal/vectors', internalVectorsRoutes);
 app.route('/api/internal/recommendations', internalRecommendationsRoutes);
 app.route('/api/internal/security', internalSecurityRoutes);

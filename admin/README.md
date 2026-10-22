@@ -11,6 +11,7 @@
 | `/` | 仪表盘 | 收录统计、Star 趋势、今日热榜 |
 | `/repos` | 我的仓库 | 已收录资产列表、搜索、分类筛选 |
 | `/categories` | 分类与标签 | 无限级分类 + 标签云 |
+| `/export` | 知识库导出 | Markdown / JSON / Obsidian 三种格式，支持摘要开关与分类分组 |
 | `/trending` | 每日热榜 | GitHub Trending 抓取结果 |
 | `/recommend` | 智能推荐 | 语义匹配推荐（含匹配度与理由） |
 | `/notifications` | 通知中心 | 站内通知（全部/未读/已读筛选、标记已读、忽略，侧边栏未读徽标） |
