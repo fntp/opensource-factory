@@ -1,0 +1,14 @@
+# OpenFactory VPS 节点 —— 重量级可选依赖（真实向量模型，仅部署机安装）
+#
+# 说明：本节点在**未安装**这些依赖时会优雅降级——
+#   - 向量生成使用确定性 hash 兜底向量（256 维），测试与接口不受影响；
+#   - 摘要生成走截断降级文本。
+# 因此 requirements.txt（轻量依赖）即可跑通全部接口、任务与测试；
+# 仅在需要真实语义向量（BGE-M3）的部署环境安装本文件。
+#
+# 安装建议：pip install -r requirements-ml.txt
+# （torch 体积较大，CPU 环境可先安装 CPU 版：pip install torch --index-url https://download.pytorch.org/whl/cpu）
+
+torch>=2.2
+sentence-transformers>=3.0
+FlagEmbedding>=1.2
