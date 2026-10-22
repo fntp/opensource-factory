@@ -13,9 +13,21 @@ from typing import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import degradation, recommend, repos, search, summaries, tasks, trending, vector_index, vectors
+from app.api import (
+    degradation,
+    local,
+    recommend,
+    repos,
+    search,
+    summaries,
+    tasks,
+    trending,
+    vector_index,
+    vectors,
+)
 from app.config import get_settings
 from app.db import init_db
+from app.local_ui import mount_local_ui
 
 settings = get_settings()
 
@@ -79,8 +91,14 @@ app.include_router(vectors.router)
 app.include_router(vector_index.router)
 app.include_router(search.router)
 app.include_router(degradation.router)
+# 本机一体化只读 API：/local/api/*（LOCAL_MODE=false 时统一 404）
+app.include_router(local.router, prefix="/local")
 
 
 @app.get("/healthz", tags=["health"], summary="健康检查")
 async def healthz() -> dict[str, str]:
     return {"status": "ok", "service": "opensource-factory-vps", "version": settings.VERSION}
+
+
+# admin 静态托管（仅 LOCAL_MODE=true；必须最后注册，避免覆盖 API 路由）
+mount_local_ui(app)

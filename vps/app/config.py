@@ -128,6 +128,15 @@ class Settings(BaseSettings):
     # 内部接口鉴权（设置后 /api/tasks/*、/api/vector-index/*、/api/search/* 校验 X-Internal-Token）
     INTERNAL_TOKEN: str = ""
 
+    # 本机一体化模式（REQ-202610-0940 / M5-02）
+    # 开启后：/local/api/* 提供 edge 兼容只读接口，/ 托管 admin 构建产物
+    LOCAL_MODE: bool = False
+    LOCAL_USER_ID: str = "local"
+    LOCAL_USER_LOGIN: str = "local"
+    LOCAL_USER_NAME: str = "本机用户"
+    # admin 构建目录；留空时使用仓库内 admin/dist
+    LOCAL_ADMIN_DIR: str = ""
+
     # Celery
     CELERY_TASK_ALWAYS_EAGER: bool = False
 

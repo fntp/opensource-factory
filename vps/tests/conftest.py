@@ -16,5 +16,12 @@ os.environ["GITHUB_TOKEN"] = ""
 os.environ["INTERNAL_TOKEN"] = ""
 os.environ["OLLAMA_BASE_URL"] = ""
 os.environ["DEEPSEEK_API_KEY"] = ""
+
+# 本机一体化模式（M5-02）：测试默认开启，静态目录指向临时目录
+os.environ["LOCAL_MODE"] = "1"
+os.environ["LOCAL_USER_ID"] = "local-test"
+os.environ["LOCAL_USER_LOGIN"] = "local-test"
+os.environ["LOCAL_USER_NAME"] = "本机测试用户"
+os.environ["LOCAL_ADMIN_DIR"] = os.path.join(_TMP_DIR, "admin")
 os.environ["EMBEDDING_FORCE_FALLBACK"] = "1"
 os.environ["VECTORIZE_AUTO"] = "0"  # 测试中不自动入队，避免任务互相干扰
