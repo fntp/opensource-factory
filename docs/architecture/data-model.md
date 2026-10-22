@@ -104,6 +104,11 @@ duplicate_dismissals         （重复检测：按用户忽略的簇）
 
 趋势口径：基线取该仓库在快照日之前最近一条快照（最多回看 7 天）；`rank_delta >= 3` 记为 `up`，`<= -3` 记为 `down`，其余 `steady`。
 
+**M7-05 Star 趋势视图**直接复用本表做只读聚合（`GET /api/star-trends`），不新增表 / 迁移：
+按 `snapshot_date` 窗口读取，仓库级净增取首末 `stars` 差、单日快照用 `star_delta`；
+`scope=my` 以 `my_repositories` 白名单过滤并返回覆盖率，未上过热榜的收藏仓库没有历史快照，
+页面不补零、不伪造曲线。
+
 **保留策略（M2-08）**：默认保留 90 天（`TRENDING_RETENTION_DAYS`），每日 04:17（可配）由 Celery 任务 `cleanup_trending_data` 处理：
 
 1. 把 `snapshot_date < today - retention_days` 的快照写成 `data/archives/trending-snapshots-<起>_<止>.jsonl.gz`（gzip JSONL，首行为格式头）；

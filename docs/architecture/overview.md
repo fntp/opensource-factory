@@ -512,6 +512,25 @@ admin /export → GET /api/export/knowledge/summary（登录态）→ 统计卡
 只读聚合，不新增表、不写 D1；格式规范（JSON Schema、Markdown 结构、Obsidian 目录与
 frontmatter）见 `docs/guides/knowledge-export.md`，并作为 M9-04 全量归档的格式基线。
 
+### 3.19 Star 趋势与洞察流（M7-05）
+
+```
+admin /star-trends → GET /api/star-trends?days=30&scope=trending|my&language=（登录态）
+→ edge 读取 D1 trending_snapshots（按日期窗口；scope=my 时以 my_repositories 白名单过滤）
+→ 纯函数 buildStarTrends 聚合：
+   KPI（追踪仓库 / 最新总 Star / 区间净增 / 日均净增）
+   → 每日序列（star_delta 合计）
+   → Top Movers（首末快照差 / 增长率 / 上榜天数 / sparkline）
+   → 新上榜、语言贡献（正增量占比）
+   → 确定性洞察（增长冠军 / 语言升温 / 新面孔 / 头部集中 / 降温提醒）
+→ admin 渲染 KPI、SVG 面积图、洞察卡、Top Movers 表、语言贡献条与新上榜列表
+```
+
+口径：区间净增取窗口内首末快照 `stars` 差，单日快照用 `star_delta`；增长率分母为
+期初 Star（单日快照按 `stars - star_delta` 估算）；日序列只覆盖有快照的日期，不补零。
+`scope=my` 返回 `portfolioRepos` / `coverage`，明确只统计收藏仓库中上过热榜的项目。
+只读聚合，不新增表 / 迁移，也不依赖 VPS。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -550,6 +569,7 @@ frontmatter）见 `docs/guides/knowledge-export.md`，并作为 M9-04 全量归�
 | `/api/sync` | POST | 触发同步任务（202） |
 | `/api/search/semantic` | POST | 语义搜索（`query` / `topK` / `scope`；vectorize → local → keyword 三级降级） |
 | `/api/tech-stack` | GET | 技术栈图谱（登录态；语言 / 框架聚合 + 语言 × 框架关系图，Top 8 × 16） |
+| `/api/star-trends` | GET | Star 趋势与洞察（登录态；`days=1..365` / `scope=trending\|my` / `language`；快照只读聚合） |
 | `/api/monitoring/overview` | GET | 监控总览（登录态；合并 VPS 状态与 Workers 指标，`?days=1..30`） |
 | `/api/monitoring/check` | POST | 触发一次 VPS 监控检查（登录态代理） |
 | `/api/monitoring/alerts/:id/ack` | POST | 确认监控告警（登录态代理） |

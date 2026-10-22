@@ -15,6 +15,7 @@ import {
   Search,
   Settings,
   Sparkles,
+  TrendingUp,
   User,
 } from 'lucide-react'
 import type { SidebarData } from '../types'
@@ -47,6 +48,7 @@ export const sidebarData: SidebarData = {
         { title: '语义搜索', url: '/search', icon: Search },
         { title: '重复检测', url: '/duplicates', icon: GitMerge },
         { title: '技术栈图谱', url: '/tech-stack', icon: Network },
+        { title: 'Star 趋势', url: '/star-trends', icon: TrendingUp },
         { title: '依赖分析', url: '/dependencies', icon: Boxes },
         { title: '知识库导出', url: '/export', icon: Archive },
       ],
