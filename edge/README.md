@@ -31,6 +31,7 @@ edge/
 ├── wrangler.toml         # Worker 名称、D1 绑定、vars（机密不在此处）
 ├── migrations/
 │   ├── 0001_init.sql     # 初始 D1 schema（表 + 索引）
+│   ├── 0002_trending_snapshots.sql  # 热榜按日快照（M2-05）
 │   └── 0007_trending_summary.sql  # 热榜摘要列（M2-04）
 └── src/
     ├── index.ts          # Hono 入口：CORS、日志、/healthz、路由挂载、404/500
@@ -40,7 +41,8 @@ edge/
     └── routes/
         ├── auth.ts       # /api/auth/*（login / callback / me / logout）
         ├── repos.ts      # /api/repos
-        ├── trending.ts   # /api/trending
+        ├── trending.ts   # /api/trending（按日快照 / 日期 / 历史）
+        ├── internal-trending.ts # /api/internal/trending/snapshots（VPS 快照回写）
         ├── recommend.ts  # /api/recommendations
         ├── categories.ts # /api/categories
         ├── dashboard.ts  # /api/dashboard/stats
@@ -131,8 +133,11 @@ npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FR
 | --- | --- |
 | `GET /api/repos?q=&categoryId=` | `RepoItem[]`（会话用户自己的仓库；`q` 模糊匹配名称/描述/摘要，`categoryId` 过滤分类） |
 | `POST /api/repos/summaries` | 内部接口：VPS 批量回写 README 摘要，body `{items:[{repoId,summary}]}`，返回 `{total,updated,skipped}` |
-| `GET /api/trending?limit=20` | `TrendingRepo[]`（公开；按 `stars_today` 降序，limit 上限 100，含 `summary`） |
+| `GET /api/trending?date=&language=&limit=20` | `TrendingRepo[]`（公开；优先读按日快照，默认最近一天，可按日期 / 语言筛选；无快照时回退最新状态表，含 `summary`） |
+| `GET /api/trending/dates?limit=30` | `[{date, count}]`（可用快照日期，倒序） |
+| `GET /api/trending/history?repoId=&days=30` | `TrendingRepo[]`（单仓库 Star / 排名历史） |
 | `POST /api/trending/summaries` | 内部接口：VPS 批量回写热榜摘要，body `{items:[{repoId,summary}]}`，返回 `{total,updated,skipped}` |
+| `POST /api/internal/trending/snapshots` | 内部：VPS 批量 upsert 快照（`X-Internal-Token`，单批 ≤ 500） |
 | `GET /api/recommendations` | `Recommendation[]`（用户私有 + 全局，按 `score` 降序；需登录） |
 | `GET /api/categories` | `CategoriesPayload` |
 | `GET /api/dashboard/stats` | `DashboardStats` |
@@ -143,7 +148,8 @@ JSON 形状（前端契约，勿改字段名）：
 
 ```ts
 RepoItem        { id, fullName, description, summary, language, stars, forks, category, tags: string[], updatedAt, url }
-TrendingRepo    { id, owner, name, description, summary, language, stars, starsToday, url }
+TrendingRepo    { id, owner, name, description, summary, language, stars, starsToday, url,
+                  snapshotDate?, rank?, languageRank?, starDelta?, rankDelta?, appearances?, isNew?, trend? }
 Recommendation  { id, owner, name, description, language, stars, score, reason, basedOn: string[], url }
 CategoriesPayload { categories: [{id, name, count, description}], tags: [{name, count}] }
 DashboardStats  { totalRepos, trendingToday, pendingRecommendations, categoryCount }
@@ -154,6 +160,8 @@ DashboardStats  { totalRepos, trendingToday, pendingRecommendations, categoryCou
 `POST /api/sync` 转发到 `${VPS_NODE_URL}/api/tasks/sync`，请求头 `X-Internal-Token: <INTERNAL_TOKEN>`，body 为 `{requestedBy, requestedAt}`；VPS 侧应校验内部令牌并以 2xx 表示已入队。
 
 摘要回写方向相反：VPS 配置 `EDGE_BASE_URL` 后，批量任务调用 `POST {edge}/api/repos/summaries` 或 `POST {edge}/api/trending/summaries`，同样携带 `X-Internal-Token`；边缘侧逐条更新 `my_repositories.readme_summary` / `trending_repositories.readme_summary`，单批最多 500 条。热榜摘要列由 `0007_trending_summary.sql` 迁移添加。
+
+反向（VPS → edge）：热榜任务每日写快照后调用 `POST /api/internal/trending/snapshots`，body 为 `{snapshotDate, items:[{repoId, name, htmlUrl, ...趋势字段}]}`。未配置 `INTERNAL_TOKEN` 时该接口返回 503（默认关闭），令牌不匹配返回 401；单批最多 500 条，按 `(snapshot_date, repo_id)` upsert。
 
 ### 会话与安全
 

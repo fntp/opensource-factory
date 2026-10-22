@@ -15,7 +15,8 @@ my_repositories >──< repo_tags >──< tags
   ▼
 categories（parent_id 自关联，无限级）
 
-trending_repositories        （独立，公共数据）
+trending_repositories        （最新状态，公共数据）
+trending_snapshots           （按日快照 + 趋势字段）
 summary_quality_samples      （摘要抽检样本，按批次留存）
 recommendations              （user_id 可空 = 全局推荐）
 ```
@@ -53,7 +54,29 @@ recommendations              （user_id 可空 = 全局推荐）
 | crawled_at | DATE | 抓取日期 |
 | readme_summary | TEXT | VPS 生成的中文摘要（`source=trending` 批量任务写入，Ollama → DeepSeek → 截断降级） |
 
-> 扩展列：`owner`、`language`、`stars`（总 Star）、`readme_summary`（M2-04）。
+> 扩展列：`owner`、`language`、`stars`（总 Star）、`readme_summary`（M2-04）；VPS 本地镜像在 `init_db()` 中对既有 SQLite 库幂等补列。
+
+### 2.2.1 `trending_snapshots` 热榜按日快照（REQ-202610-0913 / M2-05）
+
+> 同一仓库同一天只有一行，主键 `(snapshot_date, repo_id)` 保证重复抓取幂等；`trending_repositories` 继续作为「最新状态」表供旧接口兼容。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| snapshot_date | DATE PK | 快照日期（Asia/Shanghai 的任务日） |
+| repo_id | TEXT PK | `owner/repo` |
+| platform / owner / name / html_url / description / language / tech_stack | — | 项目元信息快照 |
+| stars / stars_today | INTEGER | 总 Star / 今日新增 Star |
+| rank | INTEGER | 全平台综合排名（按 stars_today、stars 降序，1 起） |
+| language_rank | INTEGER | 同语言内排名 |
+| star_delta | INTEGER | 对比上一有效快照的总 Star 增量 |
+| rank_delta | INTEGER | 对比上一有效快照的排名变化（正数=上升） |
+| appearances | INTEGER | 连续上榜天数（断档后重置为 1） |
+| is_new | INTEGER | 1 = 首次上榜（回看 7 天内无基线） |
+| trend | TEXT | `new` / `up` / `down` / `steady` |
+| trending_pages | TEXT | 来源语言页 JSON 数组，用于追溯去重来源 |
+| created_at / updated_at | DATETIME | 入库 / 更新时间 |
+
+趋势口径：基线取该仓库在快照日之前最近一条快照（最多回看 7 天）；`rank_delta >= 3` 记为 `up`，`<= -3` 记为 `down`，其余 `steady`。
 
 ### 2.3 `categories` 分类
 

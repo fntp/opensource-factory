@@ -47,11 +47,20 @@ def _ensure_sqlite_columns() -> None:
     inspector = inspect(engine)
     if "trending_repositories" not in inspector.get_table_names():
         return
-    columns = {column["name"] for column in inspector.get_columns("trending_repositories")}
-    if "readme_summary" not in columns:
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE trending_repositories ADD COLUMN readme_summary TEXT"))
-        logger.info("SQLite 已补列: trending_repositories.readme_summary")
+    existing = {column["name"] for column in inspector.get_columns("trending_repositories")}
+    additions = {
+        "readme_summary": "TEXT",
+        "owner": "TEXT",
+        "language": "TEXT",
+        "stars": "INTEGER NOT NULL DEFAULT 0",
+    }
+    missing = {name: ddl for name, ddl in additions.items() if name not in existing}
+    if not missing:
+        return
+    with engine.begin() as connection:
+        for name, ddl in missing.items():
+            connection.execute(text(f"ALTER TABLE trending_repositories ADD COLUMN {name} {ddl}"))
+    logger.info("trending_repositories 已补齐列: %s", ", ".join(sorted(missing)))
 
 
 def init_db() -> None:
