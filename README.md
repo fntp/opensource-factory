@@ -85,7 +85,7 @@ celery -A app.tasks.celery_app worker -l info   # 任务队列
 | 分类 | 说明 |
 | --- | --- |
 | [规范 standards](./docs/standards/project-spec.md) | 项目 / 代码约束 / 需求 / 编码规范 |
-| [指引 guides](./docs/guides/agent-maintenance.md) | Agent 维护文档、开发周期 |
+| [指引 guides](./docs/guides/agent-maintenance.md) | Agent 维护文档、开发周期、部署 / 升级 / 回滚 / 故障处理 [运维手册](./docs/guides/operations-runbook.md) |
 | [规划 planning](./docs/planning/roadmap.md) | 任务规划、计划文档 |
 | [需求 requirements](./docs/requirements/spec.md) | 需求规格、功能梳理、待确认问题 |
 | [架构 architecture](./docs/architecture/overview.md) | 架构总览、数据模型 |
