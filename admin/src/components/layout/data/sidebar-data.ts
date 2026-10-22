@@ -13,6 +13,7 @@ import {
   Search,
   Settings,
   Sparkles,
+  Tags,
   User,
 } from 'lucide-react'
 import type { SidebarData } from '../types'
@@ -45,6 +46,7 @@ export const sidebarData: SidebarData = {
         { title: '重复检测', url: '/duplicates', icon: GitMerge },
         { title: '技术栈图谱', url: '/tech-stack', icon: Network },
         { title: '精选报告', url: '/reports', icon: FileText },
+        { title: '打标建议', url: '/tag-suggestions', icon: Tags },
       ],
     },
     {

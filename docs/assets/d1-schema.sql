@@ -284,3 +284,27 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_curated_reports_user_period
     ON curated_reports (user_id, kind, period_start);
 CREATE INDEX IF NOT EXISTS idx_curated_reports_user_generated
     ON curated_reports (user_id, generated_at DESC);
+
+
+-- ── 自动打标建议（M7-01，迁移 0013）────────────────────────────
+CREATE TABLE IF NOT EXISTS tag_suggestions (
+    id TEXT PRIMARY KEY,                 -- 用户 + 仓库 + 标签的稳定哈希
+    user_id TEXT NOT NULL,
+    repo_id TEXT NOT NULL,
+    tag_name TEXT NOT NULL,
+    normalized_name TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'domain',  -- language / framework / domain / quality
+    score REAL NOT NULL DEFAULT 0,
+    reason TEXT,
+    evidence TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',   -- pending / accepted / dismissed
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tag_suggestions_unique
+    ON tag_suggestions (user_id, repo_id, normalized_name);
+CREATE INDEX IF NOT EXISTS idx_tag_suggestions_list
+    ON tag_suggestions (user_id, status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tag_suggestions_repo
+    ON tag_suggestions (user_id, repo_id, status);

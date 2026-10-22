@@ -28,6 +28,7 @@ from app.api import (
     search,
     security,
     summaries,
+    tag_suggestions,
     tasks,
     trending,
     vector_index,
@@ -101,6 +102,7 @@ app.include_router(notifications.router)
 app.include_router(repos.router)
 app.include_router(trending.router)
 app.include_router(summaries.router)
+app.include_router(tag_suggestions.router)
 app.include_router(recommend.router)
 app.include_router(push_policy.router)
 app.include_router(vectors.router)
