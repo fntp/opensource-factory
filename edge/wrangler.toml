@@ -1,0 +1,44 @@
+# 开源项目工厂 / OpenFactory — 边缘 API Worker
+# Cloudflare Workers + Hono + D1 (SQLite)
+name = "opensource-factory-api"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+
+# ── D1 数据库绑定 ───────────────────────────────────────────────
+# 部署前将 REPLACE_WITH_D1_DATABASE_ID 替换为真实的 D1 database_id：
+#   npx wrangler d1 create opensource-factory
+[[d1_databases]]
+binding = "DB"
+database_name = "opensource-factory"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+# ── Vectorize 向量索引绑定（M3-03）─────────────────────────────
+# 部署前先在 Cloudflare 创建索引（维度需与 VECTORIZE_INDEX_DIM 一致，BGE-M3 = 1024）：
+#   npx wrangler vectorize create opensource-factory-vectors --dimensions=1024 --metric=cosine
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "opensource-factory-vectors"
+
+# ── 明文变量（非机密）────────────────────────────────────────────
+[vars]
+# 前端管理后台的地址，CORS 将精确回显该 origin（带 credentials）
+ALLOWED_ORIGIN = "http://localhost:5173"
+# GitHub OAuth App 的 Client ID（非机密；留空时 /api/auth/github/login 返回 501）
+GITHUB_CLIENT_ID = ""
+# 本地 VPS Python 节点地址（FastAPI + Celery），例如 "https://node.example.com"；留空时 /api/sync 仅接受请求
+VPS_NODE_URL = ""
+# 接口限流（M5-05）：默认开启；显式 "false" / "0" 关闭
+RATE_LIMIT_ENABLED = "true"
+RATE_LIMIT_READ_PER_MINUTE = "300"
+RATE_LIMIT_WRITE_PER_MINUTE = "60"
+RATE_LIMIT_AUTH_PER_MINUTE = "10"
+# 登录防护（M5-05）：15 分钟内失败 10 次锁定 15 分钟
+LOGIN_MAX_FAILURES = "10"
+LOGIN_FAILURE_WINDOW_SECONDS = "900"
+LOGIN_LOCKOUT_SECONDS = "900"
+
+# ── 机密（不要写进本文件！用 wrangler secret put 设置）──────────
+#   npx wrangler secret put GITHUB_CLIENT_SECRET   # GitHub OAuth App 的 Client Secret
+#   npx wrangler secret put SESSION_SECRET          # 会话/状态签名用随机字符串
+#   npx wrangler secret put INTERNAL_TOKEN          # 可选：边缘 → VPS 节点内部调用令牌（当前）
+#   npx wrangler secret put INTERNAL_TOKEN_PREVIOUS # 可选：轮换过渡期接受的上一枚令牌

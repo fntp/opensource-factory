@@ -1,0 +1,189 @@
+{
+  "meta": {
+    "branch": "feat/req-202610-0918-m2-acceptance",
+    "commit": "0d3e6bd",
+    "finishedAt": "2026-10-22T06:31:14.466Z",
+    "platform": "linux x64",
+    "nodeVersion": "v22.23.1"
+  },
+  "results": [
+    {
+      "id": "M2-A01",
+      "title": "默认返回最近一天快照（6 条，按排名升序）",
+      "status": "PASS",
+      "detail": "6 条 · 2026-10-22",
+      "durationMs": 64.0938299999998
+    },
+    {
+      "id": "M2-A02",
+      "title": "按日期筛选（昨日 3 条）",
+      "status": "PASS",
+      "detail": "3 条 · 2026-10-21",
+      "durationMs": 34.417905000000246
+    },
+    {
+      "id": "M2-A03",
+      "title": "按语言筛选大小写不敏感（python → 2 条）",
+      "status": "PASS",
+      "detail": "2 条 Python",
+      "durationMs": 34.24489999999969
+    },
+    {
+      "id": "M2-A04",
+      "title": "趋势标注 new / up / down / same 完整",
+      "status": "PASS",
+      "detail": "new/up/down/same 均命中",
+      "durationMs": 34.145925000000716
+    },
+    {
+      "id": "M2-A05",
+      "title": "limit 生效（limit=2）且非法日期 400",
+      "status": "PASS",
+      "detail": "limit=2 · 2026-02-31 → 400",
+      "durationMs": 62.25562399999944
+    },
+    {
+      "id": "M2-A06",
+      "title": "显式日期无数据返回空数组（不静默回退）",
+      "status": "PASS",
+      "detail": "[]",
+      "durationMs": 30.369518999999855
+    },
+    {
+      "id": "M2-B01",
+      "title": "快照日期列表倒序且带计数",
+      "status": "PASS",
+      "detail": "4 个日期 · 最新 6 条",
+      "durationMs": 35.094741000000795
+    },
+    {
+      "id": "M2-B02",
+      "title": "语言分布按日期统计",
+      "status": "PASS",
+      "detail": "Python 2 / TypeScript 2 / Go 1 / Rust 1",
+      "durationMs": 30.43412300000091
+    },
+    {
+      "id": "M2-B03",
+      "title": "单仓库历史返回三点曲线（升序）",
+      "status": "PASS",
+      "detail": "2026-09-22 → 2026-10-21 → 2026-10-22",
+      "durationMs": 34.05981200000133
+    },
+    {
+      "id": "M2-C01",
+      "title": "详情优先返回 README 中文摘要",
+      "status": "PASS",
+      "detail": "readme · 未收藏",
+      "durationMs": 39.90549199999987
+    },
+    {
+      "id": "M2-C02",
+      "title": "摘要回退 description / tech",
+      "status": "PASS",
+      "detail": "description → tech",
+      "durationMs": 59.27645500000108
+    },
+    {
+      "id": "M2-C03",
+      "title": "不存在的仓库详情 404",
+      "status": "PASS",
+      "detail": "404 not_found",
+      "durationMs": 33.2310550000002
+    },
+    {
+      "id": "M2-C04",
+      "title": "未登录收藏返回 401",
+      "status": "PASS",
+      "detail": "401 unauthorized",
+      "durationMs": 14.033134999999675
+    },
+    {
+      "id": "M2-C05",
+      "title": "一键收藏幂等写入 my_repositories",
+      "status": "PASS",
+      "detail": "created true → false，详情 isFavorited=true",
+      "durationMs": 105.29243399999905
+    },
+    {
+      "id": "M2-C06",
+      "title": "取消收藏后详情恢复未收藏",
+      "status": "PASS",
+      "detail": "removed=true → 未收藏",
+      "durationMs": 73.9258890000001
+    },
+    {
+      "id": "M2-D01",
+      "title": "摘要回写接口校验内部令牌",
+      "status": "PASS",
+      "detail": "401 → 200",
+      "durationMs": 27.72700200000145
+    },
+    {
+      "id": "M2-D02",
+      "title": "摘要批量回写后详情立即生效",
+      "status": "PASS",
+      "detail": "updated 1 / skipped 1",
+      "durationMs": 57.24655399999938
+    },
+    {
+      "id": "M2-E01",
+      "title": "内部快照接口校验令牌",
+      "status": "PASS",
+      "detail": "401 unauthorized",
+      "durationMs": 14.101418999998714
+    },
+    {
+      "id": "M2-E02",
+      "title": "内部快照 upsert 幂等且可更新排名",
+      "status": "PASS",
+      "detail": "upsert 1 → 更新 rank=1",
+      "durationMs": 72.06216999999924
+    },
+    {
+      "id": "M2-E03",
+      "title": "保留策略状态统计（总数 / 最早 / 最新）",
+      "status": "PASS",
+      "detail": "total=13 · 2026-06-24 → 2026-10-22",
+      "durationMs": 23.48304400000052
+    },
+    {
+      "id": "M2-E04",
+      "title": "保留清理 dryRun 只统计不删除",
+      "status": "PASS",
+      "detail": "命中 2 · 未删除",
+      "durationMs": 43.96396800000002
+    },
+    {
+      "id": "M2-E05",
+      "title": "保留清理实际删除过期快照",
+      "status": "PASS",
+      "detail": "删除 2 · 剩余 11",
+      "durationMs": 49.50277599999936
+    },
+    {
+      "id": "M2-F01",
+      "title": "无任何快照时回退 trending_repositories",
+      "status": "PASS",
+      "detail": "删除 11 条后回退 6 条",
+      "durationMs": 52.103267000000415
+    },
+    {
+      "id": "M2-P01",
+      "title": "性能抽样 P95 < 300ms",
+      "status": "PASS",
+      "detail": "P50 29.4ms / P95 38.3ms",
+      "durationMs": 38.349669000001086
+    }
+  ],
+  "perf": [
+    {
+      "path": "/api/trending?limit=100",
+      "samples": 100,
+      "p50": 29.444703000001027,
+      "p95": 38.349669000001086,
+      "max": 69.03568599999926,
+      "label": "热榜列表 limit=100"
+    }
+  ]
+}

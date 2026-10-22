@@ -1,0 +1,158 @@
+{
+  "meta": {
+    "branch": "feat/req-202610-0959-m6-acceptance",
+    "commit": "8760b26",
+    "finishedAt": "2026-10-22T11:56:38+0000",
+    "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3"
+  },
+  "results": [
+    {
+      "id": "M6-S01",
+      "title": "M6-04 技术栈图谱资产",
+      "status": "PASS",
+      "detail": "edge 聚合 + admin 页面 + 单测齐全",
+      "durationMs": 0.7
+    },
+    {
+      "id": "M6-S02",
+      "title": "M6-08 知识库导出资产",
+      "status": "PASS",
+      "detail": "edge 导出 + admin 页面 + 格式规范齐全",
+      "durationMs": 0.9
+    },
+    {
+      "id": "M6-S03",
+      "title": "M6 前端页面齐全",
+      "status": "PASS",
+      "detail": "重复检测 / License / 依赖分析 / 仓库健康度页面齐全",
+      "durationMs": 0.3
+    },
+    {
+      "id": "M6-09-GAP",
+      "title": "多轮问答式检索（平台 pending）",
+      "status": "GAP",
+      "detail": "feat/req-202610-0956-conversational-search 未合并，需该需求交付后补充验收",
+      "durationMs": 0.0
+    },
+    {
+      "id": "M6-10-GAP",
+      "title": "检索体验精修（平台 pending）",
+      "status": "GAP",
+      "detail": "feat/req-202610-0957-search-ux 未合并，需该需求交付后补充验收",
+      "durationMs": 0.0
+    },
+    {
+      "id": "M6-11-GAP",
+      "title": "主题聚类与自动标签（平台 pending）",
+      "status": "GAP",
+      "detail": "feat/req-202610-0958-theme-clustering 未合并，需该需求交付后补充验收",
+      "durationMs": 0.0
+    },
+    {
+      "id": "M6-A01",
+      "title": "M6-01 FTS5 虚表与触发器",
+      "status": "PASS",
+      "detail": "3 个触发器；FTS 文档 3",
+      "durationMs": 1.8
+    },
+    {
+      "id": "M6-A02",
+      "title": "M6-01 中文短词检索（LIKE 回退）",
+      "status": "PASS",
+      "detail": "mode=like count=2",
+      "durationMs": 64.0
+    },
+    {
+      "id": "M6-A03",
+      "title": "M6-01 英文长词 FTS + 索引状态",
+      "status": "PASS",
+      "detail": "count=2 docs=3",
+      "durationMs": 20.9
+    },
+    {
+      "id": "M6-A04",
+      "title": "M6-01 索引重建",
+      "status": "PASS",
+      "detail": "rebuilt=3",
+      "durationMs": 22.5
+    },
+    {
+      "id": "M6-B01",
+      "title": "M6-02 相似推荐近邻",
+      "status": "PASS",
+      "detail": "top1=acme/payment-kit-js score=0.988488",
+      "durationMs": 13.9
+    },
+    {
+      "id": "M6-B02",
+      "title": "M6-02 种子缺失语义",
+      "status": "PASS",
+      "detail": "404 / 409 语义正确",
+      "durationMs": 15.0
+    },
+    {
+      "id": "M6-C01",
+      "title": "M6-03 重复检测与合并建议",
+      "status": "PASS",
+      "detail": "clusters=1 confidence=0.8866",
+      "durationMs": 19.6
+    },
+    {
+      "id": "M6-D01",
+      "title": "M6-05 健康度列表与汇总",
+      "status": "PASS",
+      "detail": "total=4 statuses=['active', 'archived', 'stale']",
+      "durationMs": 10.8
+    },
+    {
+      "id": "M6-D02",
+      "title": "M6-05 单仓库健康度",
+      "status": "PASS",
+      "detail": "status=active score=100",
+      "durationMs": 6.0
+    },
+    {
+      "id": "M6-D03",
+      "title": "M6-05 健康度刷新入队",
+      "status": "PASS",
+      "detail": "taskId=ccfe2892-b085-43f4-9ea3-5febd15fc202",
+      "durationMs": 180.9
+    },
+    {
+      "id": "M6-E01",
+      "title": "M6-06 License 目录",
+      "status": "PASS",
+      "detail": "categories=6 licenses=16",
+      "durationMs": 4.2
+    },
+    {
+      "id": "M6-E02",
+      "title": "M6-06 License 汇总与风险",
+      "status": "PASS",
+      "detail": "total=4 high=1",
+      "durationMs": 9.7
+    },
+    {
+      "id": "M6-E03",
+      "title": "M6-06 单仓库 License 提示",
+      "status": "PASS",
+      "detail": "MIT / permissive / low",
+      "durationMs": 7.3
+    },
+    {
+      "id": "M6-F01",
+      "title": "M6-07 依赖分析聚合",
+      "status": "PASS",
+      "detail": "repos=2 rows=6",
+      "durationMs": 15.0
+    },
+    {
+      "id": "M6-F02",
+      "title": "M6-07 依赖扫描接口",
+      "status": "PASS",
+      "detail": "status=ok scanned=0",
+      "durationMs": 12.7
+    }
+  ]
+}

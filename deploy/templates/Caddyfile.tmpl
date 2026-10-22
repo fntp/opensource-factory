@@ -1,0 +1,31 @@
+# OpenFactory VPS 节点 HTTPS 反代模板（REQ-202610-0939 / M5-01）
+#
+# 由 deploy/scripts/render-config.sh 渲染为 $OPENFACTORY_HOME/etc/Caddyfile，
+# 再通过 deploy/scripts/setup-https.sh 安装到 Caddy 并 reload。
+# Caddy 自动向 Let's Encrypt 申请 / 续期证书（需域名解析到本机且 80/443 可达）。
+
+{
+	email @CADDY_EMAIL@
+}
+
+@VPS_DOMAIN@ {
+	encode zstd gzip
+
+	# 仅反代本机 FastAPI（uvicorn 只监听 127.0.0.1:8000）
+	reverse_proxy 127.0.0.1:8000
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	log {
+		output file /var/log/caddy/openfactory-access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+	}
+}
