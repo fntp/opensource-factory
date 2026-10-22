@@ -32,13 +32,15 @@ vps/
 │   │   ├── vector_pipeline.py    # 收藏库 / 热榜向量化：批量、增量、断点续跑
 │   │   ├── summarizer.py         # Ollama → DeepSeek → 截断降级 的摘要生成
 │   │   ├── recommender.py        # 余弦排序 + 中文推荐理由模板
-│   │   └── vector_sync.py        # Vectorize 批量 upsert / 重试 / 对账 / 孤儿清理
+│   │   ├── vector_sync.py        # Vectorize 批量 upsert / 重试 / 对账 / 孤儿清理
+│   │   └── semantic_search.py    # 查询向量化 + repo_vectors 余弦检索 + 结果水合
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
 │   │   ├── trending.py           # GET /api/trending、POST /api/trending/crawl
 │   │   ├── recommend.py          # POST /api/recommend/query、POST /api/recommend/generate
 │   │   ├── vector_sync.py        # /api/vector-index/*（同步入队、状态、运行记录）
 │   │   ├── vectors.py            # GET /api/vectors/stats、runs、单条向量
+│   │   ├── search.py             # /api/search/*（embed / query / semantic / status）
 │   │   └── tasks.py              # /api/tasks/*（与边缘 Worker 的集成契约，X-Internal-Token 鉴权）
 │   └── tasks/                # Celery 任务（薄封装，调用 services + 落库）
 │       ├── celery_app.py         # Celery 应用与 beat 定时计划
@@ -119,7 +121,11 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | `VECTORIZE_BATCH_SIZE` | `32` | 向量化每批编码 / 提交条数（1~256） |
 | `VECTORIZE_MAX_PER_RUN` | `1000` | 单次向量化默认上限 |
 | `VECTORIZE_AUTO` | `1` | 同步 / 热榜抓取完成后自动入队增量向量化 |
-| `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
+| `SEARCH_DEFAULT_TOP_K` | `10` | 语义搜索默认返回条数 |
+| `SEARCH_MAX_TOP_K` | `50` | 语义搜索单次最大返回条数 |
+| `SEARCH_MIN_SCORE` | `0.0` | 最低余弦相似度（0 表示不过滤） |
+| `SEARCH_MAX_VECTORS` | `50000` | 本地全量余弦扫描上限，超过后依赖 Vectorize |
+| `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/vector-index/*`、`/api/search/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
 | `CELERY_TASK_ALWAYS_EAGER` | `0` | 置 `1` 时任务同步执行（本地调试 / 测试用） |
 | `GITHUB_TOKEN` | 空 | GitHub PAT（仅需 read 权限）；为空时同步任务跳过 |
 
@@ -147,6 +153,10 @@ Celery beat 每 30 分钟（`7,37` 分）自动执行一次增量同步；对账
 | GET | `/api/vectors/runs?limit=20` | 最近向量化运行 | `200` |
 | GET | `/api/vectors/runs/{runId}` | 单次运行详情（含游标 / 计数 / 错误） | `200` |
 | GET | `/api/vectors/{source}/{repoId}` | 单条仓库向量（`source=my\|trending`） | `200` |
+| POST | `/api/search/embed` | 查询向量化（`{query}`） | `200 {vector,dim,model,backend}` |
+| POST | `/api/search/query` | 本地向量余弦检索（`{query,topK,scope,minScore}`） | `200 {items:[{source,repoId,score}],...}` |
+| POST | `/api/search/semantic` | 本地检索并水合完整项目信息 | `200 {items:[...]}` |
+| GET | `/api/search/status` | 向量覆盖率、模型分布与最近运行 | `200 {...}` |
 
 约定：
 
@@ -187,6 +197,32 @@ curl -sS 'http://127.0.0.1:8000/api/vectors/runs/<runId>'
 
 > M3-01 完成模型选型后，只需调整 `EMBEDDING_MODEL`（必要时设置 `EMBEDDING_FORCE_FALLBACK=0`）；
 > 模型 / 后端变化会在下一次运行时自动触发重算。Vectorize 索引同步由 M3-03 承接。
+
+## 语义搜索（M3-04）
+
+`semantic_search` 直接复用 `repo_vectors` 中的持久化向量，不再即时编码仓库文本：
+
+- **查询向量化**：`POST /api/search/embed` 返回 `{vector, dim, model, backend}`，供 edge 调用 Vectorize；
+- **本地检索**：`POST /api/search/query` 对 `repo_vectors` 做全量余弦排序（`scope=my|trending|all`），
+  维度不一致 / 非法向量自动跳过，`SEARCH_MAX_VECTORS` 限制扫描量；
+- **结果水合**：`POST /api/search/semantic` 按来源查 `my_repositories` / `trending_repositories`，
+  返回名称、描述、语言、Star、链接与中文相似度说明；
+- **降级**：edge 侧优先 Vectorize，失败或无命中回落到本地检索，VPS 不可达时再用 D1 关键词检索。
+
+```bash
+# 查询向量（edge 用于 Vectorize）
+curl -sS -X POST 'http://127.0.0.1:8000/api/search/embed' \
+  -H 'X-Internal-Token: <token>' -H 'Content-Type: application/json' \
+  -d '{"query":"支持多租户的 NestJS 管理后台模板"}'
+
+# 本地语义检索（直接返回完整项目信息）
+curl -sS -X POST 'http://127.0.0.1:8000/api/search/semantic' \
+  -H 'X-Internal-Token: <token>' -H 'Content-Type: application/json' \
+  -d '{"query":"轻量级 Python 任务调度工具","topK":5,"scope":"all"}'
+
+# 覆盖率 / 模型分布
+curl -sS 'http://127.0.0.1:8000/api/search/status'
+```
 
 ## 常用检查
 

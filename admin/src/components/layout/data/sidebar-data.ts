@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   Monitor,
   Palette,
+  Search,
   Settings,
   Sparkles,
   User,
@@ -33,6 +34,7 @@ export const sidebarData: SidebarData = {
         { title: '分类', url: '/categories', icon: FolderTree },
         { title: '热榜', url: '/trending', icon: Flame },
         { title: '推荐', url: '/recommend', icon: Sparkles },
+        { title: '语义搜索', url: '/search', icon: Search },
       ],
     },
     {
