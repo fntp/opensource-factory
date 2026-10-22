@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     """节点配置。字段名即环境变量名（大小写不敏感）。"""
 
     APP_NAME: str = "OpenFactory VPS Node"
-    VERSION: str = "0.1.0"
+    VERSION: str = "1.0.0"
     LOG_LEVEL: str = "INFO"
     # 日志目录：留空时仅输出到 stdout（开发 / 测试）；生产指向运行目录 logs/
     LOG_DIR: str = ""

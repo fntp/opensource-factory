@@ -1,7 +1,7 @@
 {
   "name": "opensource-factory-admin",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "开源项目工厂 · 个人开源资产管理与智能推荐系统（后台管理端）",
   "type": "module",
   "scripts": {
