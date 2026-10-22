@@ -22,6 +22,16 @@ from app.tasks.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 
+def _maybe_enqueue_vectorization(scope: str) -> None:
+    """同步 / 抓取完成后自动入队增量向量化；失败不影响主任务。"""
+    if not get_settings().VECTORIZE_AUTO:
+        return
+    try:
+        vectorize_repositories.delay(scope=scope)
+    except Exception:  # noqa: BLE001 - 自动任务失败只记录，不阻塞主流程
+        logger.warning("自动入队向量化失败（scope=%s）", scope, exc_info=True)
+
+
 def _run_async(coro: Coroutine[Any, Any, Any]) -> Any:
     """在同步 Celery 任务中执行协程；若已处于事件循环（eager 模式），另起线程执行。"""
     try:
@@ -108,6 +118,9 @@ def sync_repositories(
             summary_task_id = getattr(summary_task, "id", None)
         except Exception:  # noqa: BLE001 - 入队失败不影响同步结果，可手动补跑
             logger.exception("摘要任务入队失败")
+
+    if created or updated:
+        _maybe_enqueue_vectorization("my")
 
     logger.info(
         "GitHub 同步完成: 共 %d 个仓库（新增 %d / 更新 %d），摘要任务 %s",
@@ -369,6 +382,9 @@ def crawl_trending(
         except Exception:  # noqa: BLE001 - 入队失败不影响抓取结果，可手动补跑
             logger.exception("热榜摘要任务入队失败")
 
+    if items:
+        _maybe_enqueue_vectorization("trending")
+
     logger.info(
         "热榜抓取完成: 共 %d 条（新增 %d / 更新 %d，失败页 %d，告警 %d），摘要任务 %s",
         len(items),
@@ -543,3 +559,46 @@ def daily_push(limit: int = 50) -> dict[str, Any]:
 
     logger.info("每日推送准备完成: %d 条", pushed)
     return {"status": "ok", "pushed": pushed}
+
+
+@celery_app.task(bind=True, name="app.tasks.jobs.vectorize_repositories")
+def vectorize_repositories(
+    self,
+    scope: str = "all",
+    limit: Optional[int] = None,
+    batch_size: Optional[int] = None,
+    force: bool = False,
+    run_id: Optional[str] = None,
+) -> dict[str, Any]:
+    """向量化任务：批量 / 增量 / 断点续跑。
+
+    - `run_id` 为空时新建运行；传入失败运行的 id 时从游标续跑；
+    - 进度通过 Celery `PROGRESS` 状态上报（eager 模式下后端不可用时静默跳过）。
+    """
+    from app.services.vector_pipeline import create_run, run_vectorization
+
+    try:
+        if run_id is None:
+            db = SessionLocal()
+            try:
+                run = create_run(
+                    db,
+                    scope=scope,
+                    limit=limit,
+                    batch_size=batch_size,
+                    force=force,
+                )
+                run_id = run.id
+            finally:
+                db.close()
+
+        def progress(meta: dict[str, Any]) -> None:
+            try:
+                self.update_state(state="PROGRESS", meta=meta)
+            except Exception:  # noqa: BLE001 - 进度上报失败不影响向量化
+                logger.debug("向量化进度上报失败（run=%s）", run_id, exc_info=True)
+
+        return run_vectorization(run_id, progress=progress)
+    except Exception as exc:  # noqa: BLE001 - 任务失败降级返回结构化结果
+        logger.exception("向量化任务失败（run=%s）", run_id)
+        return {"status": "error", "error": str(exc)[:300], "runId": run_id}

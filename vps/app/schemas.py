@@ -233,3 +233,73 @@ class QualitySampleExistingIn(BaseModel):
     limit: int = Field(default=200, ge=1, le=1000)
     rate: Optional[float] = Field(default=None, ge=0, le=1)
     batchId: Optional[str] = Field(default=None, max_length=128)
+
+
+class VectorizeEnqueued(TaskEnqueued):
+    """向量化任务入队响应（附带运行 id，可用于续跑 / 查询）。"""
+
+    runId: str
+
+
+class VectorRunOut(BaseModel):
+    """向量化运行状态。"""
+
+    runId: str
+    scope: str
+    status: str  # running | completed | failed
+    model: str = ""
+    backend: str = ""
+    dim: int = 0
+    force: bool = False
+    limit: int = 0
+    batchSize: int = 0
+    total: int = 0
+    processed: int = 0
+    vectorized: int = 0
+    skipped: int = 0
+    failed: int = 0
+    cursorSource: str = ""
+    cursorRepoId: str = ""
+    error: Optional[str] = None
+    createdAt: Optional[datetime] = None
+    updatedAt: Optional[datetime] = None
+    finishedAt: Optional[datetime] = None
+
+
+class VectorModelStats(BaseModel):
+    """按模型 / 后端分组的向量数量。"""
+
+    model: str
+    backend: str
+    count: int
+
+
+class VectorSourceStats(BaseModel):
+    """单个来源的向量覆盖情况。"""
+
+    total: int
+    vectorized: int
+    pending: int
+
+
+class VectorStatsResponse(BaseModel):
+    """向量化统计响应。"""
+
+    totalVectors: int
+    bySource: dict[str, int]
+    byModel: list[VectorModelStats]
+    repositories: dict[str, VectorSourceStats]
+    latestRuns: list[VectorRunOut]
+
+
+class VectorDetail(BaseModel):
+    """单条向量详情（调试 / 后续 Vectorize 同步使用）。"""
+
+    source: str
+    repoId: str
+    model: str
+    backend: str
+    dim: int
+    textHash: str
+    vector: list[float]
+    updatedAt: Optional[datetime] = None

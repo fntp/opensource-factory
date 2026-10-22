@@ -34,16 +34,18 @@ vps/
 │   │   ├── trending_retention.py # 热榜保留窗口 / gzip JSONL 归档 / 本地与 D1 清理
 │   │   ├── readme.py             # README 去噪（徽章 / 图片 / HTML）+ 技术栈别名归并
 │   │   ├── embedding.py          # BGE-M3（懒加载）与确定性 hash 降级向量
+│   │   ├── vector_pipeline.py    # 收藏库 / 热榜向量化：批量、增量、断点续跑
 │   │   ├── summarizer.py         # Ollama → DeepSeek → 截断降级 的摘要生成
 │   │   └── recommender.py        # 余弦排序 + 中文推荐理由模板
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
 │   │   ├── trending.py           # GET /api/trending、/snapshots、/dates、/history、/retention、POST /crawl、/retention/cleanup
 │   │   ├── recommend.py          # POST /api/recommend/query、POST /api/recommend/generate
+│   │   ├── vectors.py            # GET /api/vectors/stats、runs、单条向量
 │   │   └── tasks.py              # /api/tasks/*（与边缘 Worker 的集成契约，X-Internal-Token 鉴权）
 │   └── tasks/                # Celery 任务（薄封装，调用 services + 落库）
 │       ├── celery_app.py         # Celery 应用与 beat 定时计划
-│       └── jobs.py               # sync / crawl / generate / daily_push / cleanup_trending_data 任务
+│       └── jobs.py               # sync / crawl / generate / daily_push / vectorize / cleanup_trending_data 任务
 └── tests/                    # pytest（不访问网络）
 ```
 
@@ -116,7 +118,11 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | `EMBEDDING_MODEL` | `BAAI/bge-m3` | 向量模型名（sentence-transformers / FlagEmbedding） |
 | `EMBEDDING_QUANTIZATION` | `int8` | 向量模型量化口径；`fp16` 约 2.3G 超预算，仅按需启用 |
 | `EMBEDDING_DEVICE` | `cpu` | 向量模型运行设备（`cpu` / `cuda`） |
+| `EMBEDDING_FORCE_FALLBACK` | `0` | 置 `1` 强制使用确定性 hash 向量（CI / 2G 预算紧张时） |
 | `MODEL_BUDGET_MB` | `2048` | AI 推理峰值驻留上限（MB），同一时刻仅加载 1 个模型 |
+| `VECTORIZE_BATCH_SIZE` | `32` | 向量化每批编码 / 提交条数（1~256） |
+| `VECTORIZE_MAX_PER_RUN` | `1000` | 单次向量化默认上限 |
+| `VECTORIZE_AUTO` | `1` | 同步 / 热榜抓取完成后自动入队增量向量化 |
 | `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
 | `EDGE_BASE_URL` | 空 | 边缘 API 地址；配置后摘要任务与热榜快照批量回写 D1，留空只写本地镜像 |
 | `CELERY_TASK_ALWAYS_EAGER` | `0` | 置 `1` 时任务同步执行（本地调试 / 测试用） |
@@ -179,9 +185,14 @@ int8 量化在 `sentence-transformers` 后端下对 Linear 层做动态量化；
 | POST | `/api/tasks/generate-recommendations` | 入队推荐生成（可选 `user_id`、`top_k`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/daily-push` | 入队每日推送准备（将 `new` 推荐标记为 `pushed`） | `202 {"taskId": "..."}` |
 | GET | `/api/tasks/{task_id}` | 查询任务状态（`pending/started/progress/success/failure`，PROGRESS 时带 `progress`） | `200 {"taskId","status","result","progress"}` |
+| POST | `/api/tasks/vectorize` | 入队向量化（`scope=my\|trending\|all`，可选 `limit` / `batch_size` / `force` / `run_id`） | `202 {"taskId","runId"}` |
 | GET | `/api/trending/{owner}/{repo}` | 热榜详情（摘要 + 元信息；摘要回退 readme_summary → description → tech_stack） | `200 TrendingRepoDetail` / `404` |
 | GET | `/api/trending/retention` | 热榜保留策略状态（窗口 / 过期数 / SQLite 与归档占用） | `200 {...}` |
 | POST | `/api/trending/retention/cleanup` | 入队热榜归档与清理（`dryRun` / `retentionDays` / `archive`） | `202 {"taskId": "..."}` |
+| GET | `/api/vectors/stats` | 向量覆盖率与最近运行 | `200` |
+| GET | `/api/vectors/runs?limit=20` | 最近向量化运行 | `200` |
+| GET | `/api/vectors/runs/{runId}` | 单次运行详情（含游标 / 计数 / 错误） | `200` |
+| GET | `/api/vectors/{source}/{repoId}` | 单条仓库向量（`source=my\|trending`） | `200` |
 
 约定：
 
@@ -237,6 +248,38 @@ int8 量化在 `sentence-transformers` 后端下对 Linear 层做动态量化；
 - 本地删除成功后调用 edge `POST /api/internal/trending/retention/cleanup` 删除 D1 同日期范围；未配置 `EDGE_BASE_URL` / `INTERNAL_TOKEN` 时跳过，失败标记 `status=partial`；
 - 归档文件按 `TRENDING_ARCHIVE_KEEP_DAYS`（默认 365 天）滚动清理；状态与手动触发见 `GET/POST /api/trending/retention*`；
 - 完整操作手册：`docs/guides/trending-retention.md`。
+
+## 向量化管线（M3-02）
+
+`vector_pipeline` 把收藏库（`my_repositories`）与热榜（`trending_repositories`）的文本
+编码为向量并持久化到本地 `repo_vectors`，供后续语义检索 / Vectorize 同步使用：
+
+- **批量**：`batch_size` 条一批，逐批编码并提交，内存占用可控；
+- **增量**：文本 SHA-256、模型名、编码后端三者一致时跳过；同步 / 抓取后自动入队；
+- **limit 口径**：只限制待处理条数，已是最新向量的仓库只计入 `skipped`，不占单次预算；
+- **断点续跑**：运行记录 `vectorization_runs` 保存 `source + repo_id` 游标，失败后用同一 `runId` 继续；
+- **降级**：未安装 BGE-M3 依赖时自动使用 256 维确定性 hash 向量，测试与 CI 不依赖模型。
+
+```bash
+# 全量（收藏库 + 热榜）增量向量化，单次最多 500 条
+curl -sS -X POST 'http://127.0.0.1:8000/api/tasks/vectorize?scope=all&limit=500' \
+  -H 'X-Internal-Token: <token>'
+
+# 强制重算收藏库
+curl -sS -X POST 'http://127.0.0.1:8000/api/tasks/vectorize?scope=my&force=true' \
+  -H 'X-Internal-Token: <token>'
+
+# 失败后续跑（runId 来自入队响应或 GET /api/vectors/runs）
+curl -sS -X POST 'http://127.0.0.1:8000/api/tasks/vectorize?run_id=<runId>' \
+  -H 'X-Internal-Token: <token>'
+
+# 查看覆盖率 / 运行状态
+curl -sS 'http://127.0.0.1:8000/api/vectors/stats'
+curl -sS 'http://127.0.0.1:8000/api/vectors/runs/<runId>'
+```
+
+> M3-01 完成模型选型后，只需调整 `EMBEDDING_MODEL`（必要时设置 `EMBEDDING_FORCE_FALLBACK=0`）；
+> 模型 / 后端变化会在下一次运行时自动触发重算。Vectorize 索引同步由 M3-03 承接。
 
 ## 常用检查
 

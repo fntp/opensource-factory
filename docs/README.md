@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | `standards/` | 规范落实：项目规范 / 代码约束 / 需求规范 / 编码规范 | [project-spec.md](./standards/project-spec.md) |
 | `guides/` | Agent 维护、开发周期、部署基线、热榜数据保留等运维手册 | [agent-maintenance.md](./guides/agent-maintenance.md) · [deployment-baseline.md](./guides/deployment-baseline.md) · [trending-retention.md](./guides/trending-retention.md) |
-| `planning/` | 路线图、计划文档、资源规划、验收报告 | [roadmap.md](./planning/roadmap.md) · [task-planning.md](./planning/task-planning.md) · [resource-plan.md](./planning/resource-plan.md) · [REQ-0912 摘要质量计划](./planning/plan-req-202610-0912-summary-quality.md) · [REQ-0916 热榜保留计划](./planning/plan-req-202610-0916-trending-retention.md) · [REQ-0918 M2 验收计划](./planning/plan-req-202610-0918-m2-acceptance.md) · [M2 验收报告](./planning/acceptance-m2.md) |
+| `planning/` | 路线图、计划文档、资源规划、验收报告 | [roadmap.md](./planning/roadmap.md) · [task-planning.md](./planning/task-planning.md) · [resource-plan.md](./planning/resource-plan.md) · [REQ-0912 摘要质量计划](./planning/plan-req-202610-0912-summary-quality.md) · [REQ-0916 热榜保留计划](./planning/plan-req-202610-0916-trending-retention.md) · [REQ-0918 M2 验收计划](./planning/plan-req-202610-0918-m2-acceptance.md) · [M2 验收报告](./planning/acceptance-m2.md) · [REQ-202610-0920 向量化管线](./planning/plan-req-202610-0920-vector-pipeline.md) |
 | `requirements/` | 需求规格、功能梳理、需求池、待确认问题 | [spec.md](./requirements/spec.md) · [backlog.md](./requirements/backlog.md) |
 | `architecture/` | 架构总览、数据模型 | [overview.md](./architecture/overview.md) |
 | `integration/` | 参考项目集成说明 | [reference-projects.md](./integration/reference-projects.md) |

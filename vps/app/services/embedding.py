@@ -175,8 +175,8 @@ _service: Optional[EmbeddingService] = None
 
 
 def get_embedding_service() -> EmbeddingService:
-    """获取全局向量化服务单例。"""
+    """获取全局向量化服务单例（尊重 `EMBEDDING_FORCE_FALLBACK`）。"""
     global _service
     if _service is None:
-        _service = EmbeddingService()
+        _service = EmbeddingService(force_fallback=get_settings().EMBEDDING_FORCE_FALLBACK)
     return _service

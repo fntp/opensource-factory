@@ -73,7 +73,7 @@ Celery beat 每日 → 抓取 GitHub Trending（全局页 + 多语言页，超�
 → upsert trending_repositories（最新状态）→ README 去噪（徽章 / 图片 / HTML）+ 技术栈提取（别名归并 / language 优先）
 → 写 trending_snapshots（按日快照 + 排名 / Star 增量 / 连续上榜等趋势字段）
 → 变化仓库入队 summarize_readmes（source=trending）→ 摘要 / 质量抽检
-→ 配置 EDGE_BASE_URL 时批量回写 D1（快照 + 摘要）→ （M3）向量化 → 同步 Vectorize
+→ 配置 EDGE_BASE_URL 时批量回写 D1（快照 + 摘要）→ 向量化（M3-02）→ 同步 Vectorize（M3-03）
 → admin 热榜页按日期 / 语言筛选，展示趋势徽标（↑ / ↓ / 新上榜 / —）
 
 admin 热榜列表 → 详情页 GET /api/trending/{owner}/{name}（摘要 + 元信息 + 收藏态）
@@ -106,6 +106,16 @@ admin 热榜列表 → 详情页 GET /api/trending/{owner}/{name}（摘要 + 元
 - 同一时刻仅加载 1 个模型（摘要与向量化分队列串行），峰值驻留 ≤ `MODEL_BUDGET_MB`（默认 2048）；
 - `vps/app/services/model_budget.py` 维护选型表与预算报告，CLI `python -m app.model_budget check` 可离线复跑；
 - 部署自检 `deploy/scripts/doctor.sh` 包含 `model_budget` 检查项；模型不可用时仍走 hash 向量 / 截断摘要降级。
+
+### 3.6 向量化流（M3-02）
+
+```
+同步 / 抓取完成 → 自动入队 vectorize_repositories（或 POST /api/tasks/vectorize）
+→ 按批读取 my_repositories / trending_repositories
+→ 文本哈希 + 模型 + 后端判断增量 → EmbeddingService（BGE-M3 / hash 降级）
+→ upsert repo_vectors（逐批提交 + 游标）→ 运行状态可查询 / 可断点续跑
+→ M3-03 批量同步 Cloudflare Vectorize
+```
 
 ## 4. 接口边界
 
@@ -147,12 +157,16 @@ admin 热榜列表 → 详情页 GET /api/trending/{owner}/{name}（摘要 + 元
 | `/api/tasks/crawl-trending` | POST | 入队热榜抓取 |
 | `/api/tasks/generate-recommendations` | POST | 入队推荐生成 |
 | `/api/tasks/daily-push` | POST | 入队每日推送 |
+| `/api/tasks/vectorize` | POST | 入队向量化（批量 / 增量 / 断点续跑） |
 | `/api/tasks/{taskId}` | GET | 任务状态 |
 | `/api/trending/retention` | GET | 热榜保留策略状态（窗口 / 过期数 / 库与归档占用） |
 | `/api/trending/retention/cleanup` | POST | 入队热榜归档与清理（`?dryRun=` / `?retentionDays=` / `?archive=`） |
 | `/api/internal/trending/snapshots` | POST | VPS → edge：批量 upsert 热榜快照（单批 ≤ 500，`X-Internal-Token`） |
 | `/api/internal/trending/retention` | GET | VPS → edge：D1 快照总数与最早 / 最新日期（`X-Internal-Token`） |
 | `/api/internal/trending/retention/cleanup` | POST | VPS → edge：按 `beforeDate` 删除过期快照（`X-Internal-Token`） |
+| `/api/vectors/stats` | GET | 向量覆盖率与最近运行 |
+| `/api/vectors/runs/{runId}` | GET | 向量化运行详情 |
+| `/api/vectors/{source}/{repoId}` | GET | 单条仓库向量 |
 | `/healthz` | GET | 健康检查 |
 
 ## 5. 安全边界

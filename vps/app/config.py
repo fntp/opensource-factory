@@ -57,9 +57,16 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "BAAI/bge-m3"
     EMBEDDING_QUANTIZATION: str = "int8"
     EMBEDDING_DEVICE: str = "cpu"
+    # 强制使用确定性 hash 兜底向量（CI / 2G 预算紧张 / 未安装重型依赖时）
+    EMBEDDING_FORCE_FALLBACK: bool = False
 
     # AI 推理侧内存预算（MB）；同一时刻仅加载 1 个模型
     MODEL_BUDGET_MB: int = 2048
+
+    # 向量化管线
+    VECTORIZE_BATCH_SIZE: int = 32  # 每批编码 / 提交条数
+    VECTORIZE_MAX_PER_RUN: int = 1000  # 单次默认上限
+    VECTORIZE_AUTO: bool = True  # 同步 / 抓取完成后自动入队增量任务
 
     # 内部接口鉴权（设置后 /api/tasks/* 校验 X-Internal-Token）
     INTERNAL_TOKEN: str = ""

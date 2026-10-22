@@ -78,6 +78,16 @@
   - C. 其他：由维护者指定模型与地址。
 - **默认处理**：A。`SUMMARY_BATCH_SIZE / SUMMARY_MAX_PER_RUN / SUMMARY_DELAY_MS / OLLAMA_KEEP_ALIVE` 已按 2G 预算给出保守默认值；正式联调时在 `vps/.env` 配置 `EDGE_BASE_URL` 与 `INTERNAL_TOKEN` 即可回写 D1。
 
+## Q12. 向量化模型与 Vectorize 维度（REQ-202610-0920 新增）
+
+- **背景**：M3-02 的本地向量管线按 `EMBEDDING_MODEL` 可配置；当前默认 `BAAI/bge-m3` 为 1024 维，
+  未安装重型依赖时降级为 256 维确定性 hash。M3-01 模型选型尚未合并，M3-03 同步 Vectorize 前需确认索引维度；
+- **选项**：
+  - A. 按 M3-01 选定的量化 BGE-M3 统一 1024 维，Vectorize 索引按 1024 维创建（**推荐**）；
+  - B. 切换其他模型 / 维度：需同步重建 Vectorize 索引，并用 `force=true` 全量重算本地向量；
+- **默认处理**：A；管线以 `model + backend` 判断增量，模型或后端变化时自动重算，
+  上线前用 `GET /api/vectors/stats` 核对 `byModel` 与 `dim`。
+
 ---
 
 > 处理约定：人工确认任一问题后，更新本文件状态并在 `docs/planning/task-planning.md` 记录。

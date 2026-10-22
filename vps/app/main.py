@@ -13,7 +13,7 @@ from typing import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import recommend, repos, summaries, tasks, trending
+from app.api import recommend, repos, summaries, tasks, trending, vectors
 from app.config import get_settings
 from app.db import init_db
 
@@ -75,6 +75,7 @@ app.include_router(repos.router)
 app.include_router(trending.router)
 app.include_router(summaries.router)
 app.include_router(recommend.router)
+app.include_router(vectors.router)
 
 
 @app.get("/healthz", tags=["health"], summary="健康检查")
