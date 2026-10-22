@@ -30,7 +30,10 @@ edge/
 ├── tsconfig.json         # strict TypeScript 配置（@cloudflare/workers-types）
 ├── wrangler.toml         # Worker 名称、D1 绑定、vars（机密不在此处）
 ├── migrations/
-│   └── 0001_init.sql     # 初始 D1 schema（表 + 索引）
+│   ├── 0001_init.sql          # 初始 D1 schema（表 + 索引）
+│   └── 0003_search_indexes.sql # 检索复合索引（REQ-202610-0904）
+├── scripts/
+│   └── search-bench.mjs       # 查询计划核对 + P95 基准
 └── src/
     ├── index.ts          # Hono 入口：CORS、日志、/healthz、路由挂载、404/500
     ├── types.ts          # Env 绑定 + 数据库行 + API 响应实体
@@ -66,6 +69,16 @@ npm run db:migrate:local
 ```bash
 npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FROM categories;"
 ```
+
+### 检索性能基线（M1-12）
+
+```bash
+npm run perf:search   # 20k 行灌入 + EXPLAIN QUERY PLAN 断言 + P95 基准
+```
+
+脚本加载 `migrations/` 的真实 SQL，要求四类查询命中复合索引、无临时排序，
+且 P95 < 300ms（spec §6）。方法与远端 D1 复测步骤见
+[`docs/guides/search-performance.md`](../docs/guides/search-performance.md)。
 
 ## 部署步骤
 
@@ -128,7 +141,7 @@ npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FR
 
 | 方法/路径 | 返回 |
 | --- | --- |
-| `GET /api/repos?q=&categoryId=` | `RepoItem[]`（会话用户自己的仓库；`q` 模糊匹配名称/描述，`categoryId` 过滤分类） |
+| `GET /api/repos?q=&categoryId=&limit=&offset=` | `RepoItem[]`（会话用户自己的仓库；`q` 模糊匹配名称/ID/描述，`categoryId` 过滤分类；`limit` 默认 100、上限 200） |
 | `GET /api/trending?limit=20` | `TrendingRepo[]`（公开；按 `stars_today` 降序，limit 上限 100） |
 | `GET /api/recommendations` | `Recommendation[]`（用户私有 + 全局，按 `score` 降序；需登录） |
 | `GET /api/categories` | `CategoriesPayload` |

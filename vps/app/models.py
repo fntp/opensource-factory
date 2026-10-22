@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Date, DateTime, Float, Integer, String, Text
+from sqlalchemy import Date, DateTime, Float, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -24,6 +24,11 @@ class MyRepository(Base):
     """我的仓库（GitHub / Gitee），镜像 D1 `my_repositories`。"""
 
     __tablename__ = "my_repositories"
+    # 检索优化（REQ-202610-0904）：列表按 stars 排序，分类筛选后同样按 stars 排序
+    __table_args__ = (
+        Index("idx_my_repositories_stars", "stars"),
+        Index("idx_my_repositories_category_stars", "category_id", "stars"),
+    )
 
     id: Mapped[str] = mapped_column(String(255), primary_key=True)  # 例如 "owner/repo"
     platform: Mapped[str] = mapped_column(String(32), nullable=False, default="github")  # 'github' | 'gitee'

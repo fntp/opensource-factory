@@ -40,11 +40,29 @@ engine = create_engine(settings.DATABASE_URL, connect_args=_connect_args, future
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
 
 
+# 检索索引（REQ-202610-0904）：create_all 不会给既有库补索引，这里显式幂等创建。
+_SQLITE_INDEX_STATEMENTS = (
+    "CREATE INDEX IF NOT EXISTS idx_my_repositories_stars ON my_repositories (stars)",
+    "CREATE INDEX IF NOT EXISTS idx_my_repositories_category_stars "
+    "ON my_repositories (category_id, stars)",
+)
+
+
+def _ensure_sqlite_indexes() -> None:
+    """为既有 SQLite 镜像库补齐检索索引（幂等，非 SQLite 跳过）。"""
+    if not settings.DATABASE_URL.startswith("sqlite"):
+        return
+    with engine.begin() as conn:
+        for statement in _SQLITE_INDEX_STATEMENTS:
+            conn.exec_driver_sql(statement)
+
+
 def init_db() -> None:
     """建表（幂等）。在应用启动与任务执行前调用。"""
     from app import models  # noqa: F401  确保所有模型已注册到 Base.metadata
 
     Base.metadata.create_all(bind=engine)
+    _ensure_sqlite_indexes()
     logger.info("数据库已就绪: %s", settings.DATABASE_URL)
 
 

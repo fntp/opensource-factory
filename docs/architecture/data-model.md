@@ -103,11 +103,17 @@ recommendations              （user_id 可空 = 全局推荐）
 
 | 表 | 索引 | 用途 |
 | --- | --- | --- |
-| my_repositories | `(user_id)`、`(category_id)`、`(platform)` | 列表与筛选 |
+| my_repositories | `(category_id)`、`(user_id, stars DESC, updated_at DESC)`、`(user_id, category_id, stars DESC, updated_at DESC)` | 列表、分类筛选与 Star 排序（REQ-202610-0904；单列 `(user_id)` 已被复合索引最左前缀覆盖并删除） |
 | trending_repositories | `(stars_today DESC)`、`(crawled_at)` | 榜单查询 |
 | sessions | `(user_id)`、`(expires_at)` | 会话校验与清理 |
 | repo_tags | `(repo_id)`、`(tag_id)` | 反查 |
 | recommendations | `(user_id, score DESC)` | 推荐列表 |
+
+> 检索说明（M1-12）：`GET /api/repos` 的 `WHERE user_id = ? [AND category_id = ?]`
+> 与 `ORDER BY stars DESC, updated_at DESC` 由复合索引一次完成，避免临时排序；
+> `LIKE '%q%'` 无法走 B-Tree，索引先把扫描收敛到单用户（单分类）分区。
+> 本地镜像在 `vps/app/db.py::init_db()` 幂等补 `(stars)` / `(category_id, stars)` 索引。
+> README 全文检索（FTS）由 M6-01 承接。
 
 ## 5. 向量数据（Vectorize，M3）
 

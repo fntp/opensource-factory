@@ -85,7 +85,7 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 | `/api/auth/github/callback` | GET | OAuth 回调（code → 会话） |
 | `/api/auth/me` | GET | 当前用户（未登录 401） |
 | `/api/auth/logout` | POST | 退出（204） |
-| `/api/repos` | GET | 仓库列表（`?q=` / `?categoryId=`） |
+| `/api/repos` | GET | 仓库列表（`?q=` / `?categoryId=` / `?limit=` / `?offset=`；检索 P95 < 300ms） |
 | `/api/trending` | GET | 热榜（`?limit=`） |
 | `/api/recommendations` | GET | 推荐列表 |
 | `/api/categories` | GET | 分类 + 标签 |

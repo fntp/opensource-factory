@@ -101,8 +101,10 @@ CREATE TABLE recommendations (
 );
 
 -- ── 索引 ────────────────────────────────────────────────────────
-CREATE INDEX idx_my_repositories_user_id ON my_repositories (user_id);
 CREATE INDEX idx_my_repositories_category_id ON my_repositories (category_id);
+-- 检索优化（REQ-202610-0904 / M1-12）：用户列表与分类筛选均按 Star / 更新时间排序
+CREATE INDEX idx_my_repositories_user_stars ON my_repositories (user_id, stars DESC, updated_at DESC);
+CREATE INDEX idx_my_repositories_user_category_stars ON my_repositories (user_id, category_id, stars DESC, updated_at DESC);
 CREATE INDEX idx_trending_repositories_stars_today ON trending_repositories (stars_today DESC);
 CREATE INDEX idx_sessions_user_id ON sessions (user_id);
 CREATE INDEX idx_sessions_expires_at ON sessions (expires_at);
