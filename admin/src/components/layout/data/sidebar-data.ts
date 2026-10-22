@@ -7,6 +7,7 @@ import {
   GitMerge,
   LayoutDashboard,
   Monitor,
+  Network,
   Palette,
   Search,
   Settings,
@@ -41,6 +42,7 @@ export const sidebarData: SidebarData = {
         { title: '推荐', url: '/recommend', icon: Sparkles },
         { title: '语义搜索', url: '/search', icon: Search },
         { title: '重复检测', url: '/duplicates', icon: GitMerge },
+        { title: '技术栈图谱', url: '/tech-stack', icon: Network },
       ],
     },
     {

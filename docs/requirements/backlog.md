@@ -116,7 +116,7 @@
 | M6-01 | 全文检索（README 全文索引，FTS） | P1 | M1-12 | 本地镜像先行 |
 | M6-02 | 相似项目推荐（向量近邻「看了又看」） | P1 | M3-03 | ✅ 已完成（2026-10-22）：REQ-202610-0949，见 `planning/plan-req-202610-0949-similar-recommendations.md` |
 | M6-03 | 重复 / 相似项目检测与合并建议 | P2 | M6-02 | ✅ 已完成（2026-10-22）：REQ-202610-0950，见 `planning/plan-req-202610-0950-duplicate-detection.md` |
-| M6-04 | 技术栈图谱视图（语言 / 框架聚合） | P2 | M1-11 | — |
+| M6-04 | 技术栈图谱视图（语言 / 框架聚合） | P2 | M1-11 | ✅ 已完成（2026-10-22，REQ-202610-0951）：edge `/api/tech-stack` + admin `/tech-stack`；见 `planning/plan-req-202610-0951-tech-stack-graph.md` |
 | M6-05 | 项目健康度追踪（最后提交 / issue 活跃 / 归档标记） | P1 | M1-05 | GitHub API 补充字段 |
 | M6-06 | License 识别与合规提示 | P2 | M2-03 | — |
 | M6-07 | 依赖分析（项目依赖 ↔ 个人技术栈关联） | P2 | M6-04 | — |

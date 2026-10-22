@@ -81,6 +81,7 @@
 | IT-0044 | M6-01 | 全文检索（README 全文镜像 + SQLite FTS5 trigram + 短词 LIKE 回退） | IT-0025；M1-12 | ✅ 已完成（2026-10-22） |
 | IT-0045 | M6-02 | 相似项目推荐（向量近邻「看了又看」，edge 降级 + admin 详情页） | IT-0017/0018 | ✅ 已完成（2026-10-22） |
 | IT-0046 | M6-03 | 重复 / 相似项目检测与合并建议（VPS 规则 + 向量复核、edge 兜底、admin 页面、按用户忽略） | IT-0045 | ✅ 已完成（2026-10-22） |
+| IT-0047 | M6-04 | 技术栈图谱视图（语言 / 框架聚合） | IT-0010；M1-11 | ✅ 已完成（2026-10-22） |
 
 > 说明：IT-0004 / IT-0005 在人工资源（Cloudflare 账号、OAuth App）就绪前，可先以 `wrangler --local` + 本地回调完成开发与验证；其余按需求池顺序滚动排期。
 
@@ -121,3 +122,4 @@
 | 2026-10-22 | 交付 | IT-0028 / M6-01 全文检索（REQ-202610-0948）：VPS `repo_readmes` 全文镜像 + FTS5 trigram 触发器同步、全文 / 状态 / 重建 API、每日补索引任务；edge 全文代理与用户过滤、admin 全文 / 语义切换与命中片段；计划见 `plan-req-202610-0948-fulltext-search.md` |
 | 2026-10-22 | 交付 | IT-0045 / M6-02 完成（REQ-202610-0949）：相似项目向量近邻接口 + edge local→keyword 降级 + admin 详情页「看了又看」；计划见 `plan-req-202610-0949-similar-recommendations.md` |
 | 2026-10-22 | 交付 | IT-0046 / M6-03 完成（REQ-202610-0950）：VPS 重复检测（地址 / 名称 / 简介 / 向量复核 + 合并建议）、edge 扫描与按用户忽略（migration 0013）、admin 重复检测页；计划见 `plan-req-202610-0950-duplicate-detection.md` |
+| 2026-10-22 | 交付 | IT-0047 / M6-04 技术栈图谱（REQ-202610-0951）：新增 edge `GET /api/tech-stack`（D1 只读聚合，语言归一 + 标签 / 简介启发式框架识别）与 admin `/tech-stack` 页面（KPI、SVG 径向关系图、语言条形榜、框架排行、组合洞察、空状态）；计划见 `planning/plan-req-202610-0951-tech-stack-graph.md` |

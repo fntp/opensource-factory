@@ -124,6 +124,9 @@ duplicate_dismissals         （重复检测：按用户忽略的簇）
 - `tags`：`id`、`name`（唯一）、`count`（冗余计数）；
 - `repo_tags`：仓库与标签的多对多关联。
 
+> 技术栈图谱（M6-04）**不新增表**：直接聚合 `my_repositories.language` 与
+> `tags` / `repo_tags`，框架由标签 + 简介 / 摘要启发式识别，属读时计算，不落库。
+
 ### 3.4 `summary_quality_samples` 摘要质量抽检样本
 
 VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工复核与质量统计。
