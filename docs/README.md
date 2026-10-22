@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | `standards/` | 规范落实：项目规范 / 代码约束 / 需求规范 / 编码规范 | [project-spec.md](./standards/project-spec.md) |
 | `guides/` | Agent 维护文档、开发周期文档 | [agent-maintenance.md](./guides/agent-maintenance.md) |
-| `planning/` | 路线图、计划文档、资源规划 | [roadmap.md](./planning/roadmap.md) · [resource-plan.md](./planning/resource-plan.md) |
+| `planning/` | 路线图、计划文档、资源规划 | [roadmap.md](./planning/roadmap.md) · [task-planning.md](./planning/task-planning.md) · [resource-plan.md](./planning/resource-plan.md) · [REQ-0912 摘要质量计划](./planning/plan-req-202610-0912-summary-quality.md) |
 | `requirements/` | 需求规格、功能梳理、需求池、待确认问题 | [spec.md](./requirements/spec.md) · [backlog.md](./requirements/backlog.md) |
 | `architecture/` | 架构总览、数据模型 | [overview.md](./architecture/overview.md) |
 | `integration/` | 参考项目集成说明 | [reference-projects.md](./integration/reference-projects.md) |

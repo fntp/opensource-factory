@@ -13,7 +13,13 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from app.config import get_settings
 from app.schemas import TaskEnqueued, TaskStatus
 from app.tasks.celery_app import celery_app
-from app.tasks.jobs import crawl_trending, daily_push, generate_recommendations, sync_repositories
+from app.tasks.jobs import (
+    crawl_trending,
+    daily_push,
+    generate_recommendations,
+    summarize_readmes,
+    sync_repositories,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +42,39 @@ def require_internal_token(
     status_code=status.HTTP_202_ACCEPTED,
     response_model=TaskEnqueued,
     dependencies=[Depends(require_internal_token)],
-    summary="入队：GitHub 仓库同步",
+    summary="入队：GitHub 仓库同步（完成后自动排队摘要）",
 )
-async def enqueue_sync(include_starred: bool = Query(default=True)) -> TaskEnqueued:
-    task = sync_repositories.delay(include_starred=include_starred)
+async def enqueue_sync(
+    include_starred: bool = Query(default=True),
+    with_summary: bool = Query(default=True),
+) -> TaskEnqueued:
+    task = sync_repositories.delay(include_starred=include_starred, with_summary=with_summary)
+    return TaskEnqueued(taskId=task.id)
+
+
+@router.post(
+    "/summarize",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=TaskEnqueued,
+    dependencies=[Depends(require_internal_token)],
+    summary="入队：README 摘要批量生成",
+)
+async def enqueue_summarize(
+    repo_id: list[str] | None = Query(default=None, description="仅处理指定仓库，可重复传"),
+    limit: int = Query(default=200, ge=1, le=1000),
+    batch_size: int = Query(default=10, ge=1, le=50),
+    force: bool = Query(default=False, description="已有摘要也重新生成"),
+    max_chars: int = Query(default=800, ge=200, le=4000),
+    source: str = Query(default="my", pattern="^(my|trending|all)$", description="摘要来源"),
+) -> TaskEnqueued:
+    task = summarize_readmes.delay(
+        repo_ids=repo_id,
+        limit=limit,
+        batch_size=batch_size,
+        force=force,
+        max_chars=max_chars,
+        source=source,
+    )
     return TaskEnqueued(taskId=task.id)
 
 
@@ -101,6 +136,8 @@ async def get_task_status(task_id: str) -> TaskStatus:
             payload.result = result.result
         elif result.failed():
             payload.error = str(result.result)[:500]
+        elif state in ("progress", "started") and isinstance(result.info, dict):
+            payload.progress = result.info
         return payload
     except Exception as exc:  # noqa: BLE001 - 后端不可用属于预期降级路径
         logger.warning("任务状态查询失败 %s: %s", task_id, exc)
