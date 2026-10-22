@@ -160,12 +160,21 @@ def crawl_trending(platform: str = "github", language: Optional[str] = None) -> 
 
 @celery_app.task(name="app.tasks.jobs.generate_recommendations")
 def generate_recommendations(user_id: Optional[str] = None, top_k: int = 20) -> dict[str, Any]:
-    """生成推荐：以本地仓库集合的平均向量为用户画像，对热榜候选排序后落库。"""
+    """生成推荐：用户画像 → 热榜候选 → 排除已收藏 / 已忽略 → 落库并回写 edge。
+
+    M3-07 闭环：生成前从 edge 拉取用户反馈（saved / dismissed），生成后把推荐快照
+    upsert 到 D1；edge 未配置或不可达时只影响回写，不影响本地生成。
+    """
     from app.services.embedding import get_embedding_service
+    from app.services.recommendation_feedback import fetch_feedback, push_recommendations
     from app.services.recommender import build_reason, recommend
 
     service = get_embedding_service()
     db = SessionLocal()
+    target_users: list[str] = []
+    created = 0
+    pushed: dict[str, int] = {}
+    feedback_excluded: dict[str, int] = {}
     try:
         # 目标用户：指定用户 → 全部用户 → 兜底创建 default（单机自测友好）
         if user_id:
@@ -202,19 +211,28 @@ def generate_recommendations(user_id: Optional[str] = None, top_k: int = 20) -> 
             for r in trending_rows
         ]
         candidate_vectors = service.encode(candidate_texts)
-        ranked = recommend(
-            profile_vec,
-            [(row.id, vec) for row, vec in zip(trending_rows, candidate_vectors)],
-            top_k=max(1, int(top_k)),
-        )
+
+        # 反馈回流：每个用户单独排除已收藏 / 已忽略
+        collected_ids = set(db.execute(select(MyRepository.id)).scalars().all())
+        exclusions: dict[str, set[str]] = {}
+        for uid in target_users:
+            snapshot = fetch_feedback(db, uid)
+            merged = set(collected_ids) | snapshot.excluded_repo_ids
+            exclusions[uid] = merged
+            feedback_excluded[uid] = len(snapshot.excluded_repo_ids)
 
         by_id = {row.id: row for row in trending_rows}
-        created = 0
-        for repo_id, score in ranked:
-            row = by_id.get(repo_id)
-            if row is None:
-                continue
-            for uid in target_users:
+        for uid in target_users:
+            allowed = [
+                (row.id, vec)
+                for row, vec in zip(trending_rows, candidate_vectors)
+                if row.id not in exclusions[uid]
+            ]
+            ranked = recommend(profile_vec, allowed, top_k=max(1, int(top_k)))
+            for repo_id, score in ranked:
+                row = by_id.get(repo_id)
+                if row is None:
+                    continue
                 existing = db.execute(
                     select(Recommendation).where(
                         Recommendation.user_id == uid, Recommendation.repo_id == repo_id
@@ -223,6 +241,8 @@ def generate_recommendations(user_id: Optional[str] = None, top_k: int = 20) -> 
                 if existing is not None:
                     existing.score = float(score)
                     existing.reason = build_reason(row, score)
+                    if existing.status not in ("saved", "dismissed"):
+                        existing.status = "new"
                     continue
                 db.add(
                     Recommendation(
@@ -236,11 +256,27 @@ def generate_recommendations(user_id: Optional[str] = None, top_k: int = 20) -> 
                 )
                 created += 1
         db.commit()
+
+        # 回写 edge D1（推荐页读取）；失败只记日志
+        for uid in target_users:
+            pushed[uid] = push_recommendations(db, uid)
     finally:
         db.close()
 
-    logger.info("推荐生成完成: 用户 %s，新增 %d 条", target_users, created)
-    return {"status": "ok", "users": target_users, "created": created}
+    logger.info(
+        "推荐生成完成: 用户 %s，新增 %d 条，反馈排除 %s，回写 %s",
+        target_users,
+        created,
+        feedback_excluded,
+        pushed,
+    )
+    return {
+        "status": "ok",
+        "users": target_users,
+        "created": created,
+        "feedbackExcluded": feedback_excluded,
+        "pushed": pushed,
+    }
 
 
 @celery_app.task(name="app.tasks.jobs.daily_push")

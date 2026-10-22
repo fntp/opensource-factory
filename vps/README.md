@@ -105,7 +105,8 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | `OLLAMA_MODEL` | `qwen2.5:7b` | Ollama 摘要模型 |
 | `DEEPSEEK_API_KEY` | 空 | 可选；配置后作为 LLM 云端降级（OpenAI 兼容） |
 | `EMBEDDING_MODEL` | `BAAI/bge-m3` | 向量模型名（sentence-transformers / FlagEmbedding） |
-| `EDGE_BASE_URL` | 空 | edge Worker 地址；与 `INTERNAL_TOKEN` 同时配置后启用 Vectorize 同步 |
+| `EDGE_BASE_URL` | 空 | edge Worker 地址；与 `INTERNAL_TOKEN` 同时配置后启用 Vectorize 同步与推荐反馈回流 |
+| `RECOMMEND_FEEDBACK_SYNC` | `1` | 是否在生成推荐前拉取 edge 收藏 / 忽略反馈、生成后回写 D1（0 = 仅本地） |
 | `VECTORIZE_SYNC_ENABLED` | `true` | 是否启用 Vectorize 索引同步 |
 | `VECTORIZE_INDEX_NAME` | `opensource-factory-vectors` | Cloudflare Vectorize 索引名（需与 edge 绑定一致） |
 | `VECTORIZE_INDEX_DIM` | `1024` | 索引维度；与本地向量维度不一致的条目会标记 `dim_mismatch` 跳过 |

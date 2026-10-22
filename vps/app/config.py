@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     # 本地全量余弦扫描的向量上限（超过后依赖 Vectorize）
     SEARCH_MAX_VECTORS: int = 50000
 
+    # 推荐反馈回流（M3-07）：生成前拉取 edge 反馈、生成后回写 D1
+    RECOMMEND_FEEDBACK_SYNC: bool = True
+
     # 内部接口鉴权（设置后 /api/tasks/* 校验 X-Internal-Token）
     INTERNAL_TOKEN: str = ""
 

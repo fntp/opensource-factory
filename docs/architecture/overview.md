@@ -68,11 +68,20 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 → 摘要/技术栈提取 → 向量化（M3-02）→ 同步 Vectorize（M3-03）
 ```
 
-### 3.4 推荐流（RAG）
+### 3.4 推荐流（M3-07 闭环）
 
 ```
-用户自然语言查询 → edge → Vectorize 检索（已收藏库 + 热榜库）
-→ 结果聚合排序 → 返回（含匹配度与理由）；每日推送任务见 M4
+VPS 生成（Celery / POST /api/tasks/generate-recommendations）
+→ 按用户从 edge GET /api/internal/recommendations/feedback 拉取 saved / dismissed
+→ 排除已收藏、已忽略与本地收藏库 → 余弦排序 + 中文理由
+→ 本地 recommendations 落库
+→ POST /api/internal/recommendations/upsert 回写 D1（saved / dismissed 状态不被覆盖）
+→ admin 推荐页 GET /api/recommendations?status=new
+→ 用户收藏 / 忽略 / 查看（save / dismiss / click 接口写 recommendation_feedback）
+→ 下一轮生成读取反馈，形成闭环
+
+降级：edge 未配置或不可达时使用本地 recommendations 状态兜底；回写失败只记日志，
+不影响本地生成结果。
 ```
 
 ### 3.5 向量化流（M3-02）
@@ -123,7 +132,11 @@ Vectorize 未绑定 / 查询失败 / 水合 0 条 → VPS POST /api/search/query
 | `/api/auth/logout` | POST | 退出（204） |
 | `/api/repos` | GET | 仓库列表（`?q=` / `?categoryId=`） |
 | `/api/trending` | GET | 热榜（`?limit=`） |
-| `/api/recommendations` | GET | 推荐列表 |
+| `/api/recommendations` | GET | 推荐列表（`?status=new\|saved\|dismissed\|all`、`?limit=`） |
+| `/api/recommendations/stats` | GET | 推荐状态统计 + 点击反馈数 |
+| `/api/recommendations/:id/save` | POST | 收藏推荐（写 my_repositories + saved 反馈） |
+| `/api/recommendations/:id/dismiss` | POST | 忽略推荐（可带 `reason`） |
+| `/api/recommendations/:id/click` | POST | 记录查看点击（clicked 反馈） |
 | `/api/categories` | GET | 分类 + 标签 |
 | `/api/dashboard/stats` | GET | 仪表盘统计 |
 | `/api/sync` | POST | 触发同步任务（202） |
