@@ -72,6 +72,14 @@ class Settings(BaseSettings):
     RECOMMEND_SIMILARITY_WEIGHT: float = 0.8
     RECOMMEND_TRENDING_WEIGHT: float = 0.2
 
+    # 每日评估（M4-01）
+    # 匹配度硬门槛：原始余弦相似度低于该值的推荐直接 filtered
+    EVAL_MATCH_THRESHOLD: float = 0.35
+    # 综合质量分门槛：仓库内容质量 × 权重 + 推荐理由质量 × 权重
+    EVAL_QUALITY_THRESHOLD: float = 0.55
+    EVAL_REPO_WEIGHT: float = 0.7
+    EVAL_REASON_WEIGHT: float = 0.3
+
     # 内部接口鉴权（设置后 /api/tasks/* 校验 X-Internal-Token）
     INTERNAL_TOKEN: str = ""
 

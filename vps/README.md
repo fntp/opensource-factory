@@ -33,11 +33,12 @@ vps/
 │   │   ├── summarizer.py         # Ollama → DeepSeek → 截断降级 的摘要生成
 │   │   ├── recommender.py        # 余弦排序 + 综合打分 + 中文推荐理由模板
 │   │   ├── recommendation_service.py # 每日推荐：画像 / 去重已收藏 / 阈值 / 落库
+│   │   ├── recommendation_eval.py # 每日评估：质量分 / 匹配度门槛 / 运行记录（M4-01）
 │   │   └── vector_sync.py        # Vectorize 批量 upsert / 重试 / 对账 / 孤儿清理
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
 │   │   ├── trending.py           # GET /api/trending、POST /api/trending/crawl
-│   │   ├── recommend.py          # POST /api/recommend/query、POST /api/recommend/generate
+│   │   ├── recommend.py          # /api/recommend/*（查询 / 生成 / 评估 / 合格推荐）
 │   │   ├── vector_sync.py        # /api/vector-index/*（同步入队、状态、运行记录）
 │   │   ├── vectors.py            # GET /api/vectors/stats、runs、单条向量
 │   │   └── tasks.py              # /api/tasks/*（与边缘 Worker 的集成契约，X-Internal-Token 鉴权）
@@ -120,6 +121,10 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | `RECOMMEND_CANDIDATE_LIMIT` | `500` | 单次参与打分的热榜候选上限 |
 | `RECOMMEND_SIMILARITY_WEIGHT` | `0.8` | 相似度权重 |
 | `RECOMMEND_TRENDING_WEIGHT` | `0.2` | 热榜热度权重 |
+| `EVAL_MATCH_THRESHOLD` | `0.35` | 每日评估匹配度硬门槛（低于直接 `filtered`） |
+| `EVAL_QUALITY_THRESHOLD` | `0.55` | 每日评估质量分门槛 |
+| `EVAL_REPO_WEIGHT` | `0.7` | 质量分中仓库质量权重 |
+| `EVAL_REASON_WEIGHT` | `0.3` | 质量分中理由质量权重 |
 | `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/vector-index/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
 | `EMBEDDING_FORCE_FALLBACK` | `0` | 置 `1` 强制使用确定性 hash 向量（CI / 2G 预算紧张时） |
 | `VECTORIZE_BATCH_SIZE` | `32` | 向量化每批编码 / 提交条数（1~256） |
@@ -140,7 +145,8 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | POST | `/api/tasks/sync` | 入队 GitHub 仓库同步（自己的 + Starred） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/crawl-trending` | 入队热榜抓取（`platform=github\|gitee\|all`，可选 `language`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/generate-recommendations` | 入队推荐生成（可选 `user_id`、`top_k`、`min_score`） | `202 {"taskId": "..."}` |
-| POST | `/api/tasks/daily-push` | 入队每日推送准备（将 `new` 推荐标记为 `pushed`） | `202 {"taskId": "..."}` |
+| POST | `/api/tasks/evaluate-recommendations` | 入队每日评估（可选 `user_id`、`match_threshold`、`quality_threshold`） | `202 {"taskId": "..."}` |
+| POST | `/api/tasks/daily-push` | 入队每日推送准备（仅将 `qualified` 推荐标记为 `pushed`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/vectorize` | 入队向量化（`scope=my\|trending\|all`，可选 `limit` / `batch_size` / `force` / `run_id`） | `202 {"taskId","runId"}` |
 | GET | `/api/tasks/{task_id}` | 查询任务状态（`pending/started/success/failure`） | `200 {"taskId","status","result"}` |
 | POST | `/api/vector-index/sync` | 入队 Vectorize 同步 / 对账（`kind=sync\|reconcile`、`scope=my\|trending\|all`、`force`、`limit`、`batchSize`） | `202 {"taskId": "..."}` |
@@ -158,7 +164,7 @@ Celery beat 每 30 分钟（`7,37` 分）自动执行一次增量同步；对账
 
 - **鉴权**：当服务端设置 `INTERNAL_TOKEN` 时，请求必须携带请求头 `X-Internal-Token: <token>`，否则返回 `401`；
 - **异步语义**：任务接口一律 `202` + `{"taskId": ...}`（camelCase），由边缘侧轮询 `GET /api/tasks/{task_id}` 获取结果；
-- **直接查询接口**（供边缘回源或调试）：`GET /api/repos`、`GET /api/trending`、`POST /api/recommend/query`；
+- **直接查询接口**（供边缘回源或调试）：`GET /api/repos`、`GET /api/trending`、`POST /api/recommend/query`、`GET /api/recommend/evaluations`、`GET /api/recommend/qualified`；
 - **数据契约**：本地表结构与 D1 Schema 保持一致（`my_repositories` / `trending_repositories` / `categories` 字段名与语义镜像），边缘侧按 `id`（`owner/repo`）对齐；
 - **降级语义**：外部依赖不可用时任务返回 `{"status": "skipped"|"error", ...}` 而不是失败抛错，边缘侧可安全重试。
 
@@ -215,6 +221,30 @@ curl -sS -X POST 'http://127.0.0.1:8000/api/tasks/generate-recommendations?user_
 ```
 
 任务返回 `created / updated / expired / selected / candidates / excludedCollected / belowThreshold` 等计数，便于 M3-08 调参。
+
+## 每日推荐评估（M4-01）
+
+Celery beat 每天 08:45 执行 `evaluate_recommendations`，在生成（08:30）与推送准备（09:00）之间：
+
+1. **范围**：`status in (new, qualified, filtered)` 的推荐；`saved` / `dismissed` / `pushed` 不覆盖；
+2. **质量分**：`quality_score = 仓库质量 × 0.7 + 理由质量 × 0.3`，仓库质量看简介 / 技术栈 / 今日 Star / README 摘要 / 语言，理由质量看长度与依据关键词；
+3. **双重门槛**：`match_score ≥ EVAL_MATCH_THRESHOLD` 且 `quality_score ≥ EVAL_QUALITY_THRESHOLD`；历史数据无 `match_score` 时回退到综合 `score`；
+4. **结果**：通过 → `qualified`，未通过 → `filtered`，缺失热榜仓库 → `skipped`；同时写 `recommendation_evaluation_runs` 运行统计与 `quality_detail` 明细；
+5. **幂等**：重复运行会按当前阈值重算同一批推荐，可用于调参后回补。
+
+```bash
+# 手动触发全量评估
+curl -sS -X POST 'http://127.0.0.1:8000/api/tasks/evaluate-recommendations' \
+  -H 'X-Internal-Token: <token>'
+
+# 指定用户 / 自定义门槛
+curl -sS -X POST 'http://127.0.0.1:8000/api/tasks/evaluate-recommendations?user_id=default&match_threshold=0.4&quality_threshold=0.6' \
+  -H 'X-Internal-Token: <token>'
+
+# 查询运行记录 / 合格推荐
+curl -sS 'http://127.0.0.1:8000/api/recommend/evaluations?limit=10'
+curl -sS 'http://127.0.0.1:8000/api/recommend/qualified?user_id=default'
+```
 
 ## 常用检查
 

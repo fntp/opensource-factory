@@ -358,6 +358,8 @@ def generate_for_user(
                     user_id=user_id,
                     repo_id=item.repo_id,
                     score=round(float(item.score), 6),
+                    match_score=round(float(item.similarity), 6),
+                    quality_score=0.0,
                     reason=reason,
                     status="new",
                     created_at=now,
@@ -367,14 +369,20 @@ def generate_for_user(
             continue
 
         existing.score = round(float(item.score), 6)
+        existing.match_score = round(float(item.similarity), 6)
         existing.reason = reason
-        # 只有 new / expired 可以被重新激活；saved / dismissed / pushed 保留用户反馈。
-        if existing.status in ("new", "expired"):
+        # 只有评估态 / 过期记录可以被重新激活；saved / dismissed / pushed 保留用户反馈。
+        if existing.status in ("new", "expired", "qualified", "filtered"):
             existing.status = "new"
+            # 重新生成后旧的评估结论失效，等待当日评估任务重算
+            existing.quality_score = 0.0
+            existing.quality_detail = None
+            existing.evaluation_run_id = None
+            existing.evaluated_at = None
         updated += 1
 
     for row in existing_rows:
-        if row.status != "new":
+        if row.status not in ("new", "qualified", "filtered"):
             continue
         if row.repo_id in collected_ids or row.repo_id not in selected_ids:
             row.status = "expired"

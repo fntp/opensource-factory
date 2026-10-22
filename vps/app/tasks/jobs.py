@@ -194,16 +194,57 @@ def generate_recommendations(
     return result
 
 
+@celery_app.task(name="app.tasks.jobs.evaluate_recommendations")
+def evaluate_recommendations(
+    user_id: Optional[str] = None,
+    match_threshold: Optional[float] = None,
+    quality_threshold: Optional[float] = None,
+) -> dict[str, Any]:
+    """每日推荐评估（M4-01）：质量分 + 匹配度阈值，产出 `qualified` / `filtered`。
+
+    参数为空时使用配置默认值（`EVAL_MATCH_THRESHOLD` / `EVAL_QUALITY_THRESHOLD`）；
+    单用户异常由服务层降级为结构化结果，不向 Celery 抛错。
+    """
+    from app.services.recommendation_eval import evaluate_daily
+
+    db = SessionLocal()
+    try:
+        result = evaluate_daily(
+            db,
+            user_id=user_id,
+            match_threshold=match_threshold,
+            quality_threshold=quality_threshold,
+        )
+    except Exception as exc:  # noqa: BLE001 - 任务失败降级返回结构化结果
+        logger.exception("每日推荐评估任务失败")
+        return {"status": "error", "error": str(exc)[:300], "userId": user_id}
+    finally:
+        db.close()
+
+    logger.info(
+        "每日推荐评估任务完成: run=%s total=%d qualified=%d filtered=%d",
+        result.get("runId"),
+        result.get("total", 0),
+        result.get("qualified", 0),
+        result.get("filtered", 0),
+    )
+    return result
+
+
 @celery_app.task(name="app.tasks.jobs.daily_push")
 def daily_push(limit: int = 50) -> dict[str, Any]:
-    """每日推送准备（占位）：把 `new` 状态的推荐标记为 `pushed`，由边缘侧负责真正下发。"""
+    """每日推送准备：只把通过评估的 `qualified` 推荐标记为 `pushed`。
+
+    真实下发由边缘侧（M4-02 站内通知中心及后续通道）负责；未通过评估的
+    `new` / `filtered` 记录不会被推送。
+    """
     db = SessionLocal()
     try:
         rows = (
             db.execute(
                 select(Recommendation)
-                .where(Recommendation.status == "new")
-                .order_by(Recommendation.score.desc())
+                .where(Recommendation.status == "qualified")
+                .order_by(Recommendation.quality_score.desc(), Recommendation.score.desc())
                 .limit(max(1, int(limit)))
             )
             .scalars()

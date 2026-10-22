@@ -94,10 +94,27 @@ recommendations              （user_id 可空 = 全局推荐）
 | user_id | 目标用户（NULL = 全局） |
 | owner / name / description / language / stars / url | 推荐项目快照 |
 | score REAL | 综合得分 0~1（相似度 × 0.8 + 热榜热度 × 0.2） |
+| match_score REAL | 原始余弦相似度（M4-01 匹配度硬门槛；历史数据缺失时回退到 `score`） |
+| quality_score REAL | 每日评估质量分 0~1（仓库质量 × 0.7 + 理由质量 × 0.3） |
+| quality_detail TEXT | 评估明细 JSON（各分量、阈值、是否通过） |
+| evaluation_run_id TEXT | 最近一次评估运行 id |
+| evaluated_at DATETIME | 最近评估时间 |
 | reason TEXT | 推荐理由（中文） |
 | based_on TEXT | 依据（JSON 数组，如 `["AI/LLM","Python"]`） |
-| status TEXT | `new` / `saved` / `dismissed` / `pushed` / `expired`（VPS 每日任务未入选或已收藏） |
+| status TEXT | `new` / `qualified` / `filtered` / `saved` / `dismissed` / `pushed` / `expired` |
 | created_at | 生成时间 |
+
+### 3.5 `recommendation_evaluation_runs` 评估运行（M4-01）
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | 运行 id |
+| user_id | 目标用户（NULL = 全量评估） |
+| status TEXT | `running` / `completed` / `failed` |
+| match_threshold / quality_threshold REAL | 本次运行使用的门槛 |
+| total / qualified / filtered / skipped / failed INTEGER | 运行计数 |
+| error TEXT | 失败原因（截断） |
+| created_at / finished_at | 开始 / 结束时间 |
 
 ## 4. 索引策略
 
@@ -107,7 +124,7 @@ recommendations              （user_id 可空 = 全局推荐）
 | trending_repositories | `(stars_today DESC)`、`(crawled_at)` | 榜单查询 |
 | sessions | `(user_id)`、`(expires_at)` | 会话校验与清理 |
 | repo_tags | `(repo_id)`、`(tag_id)` | 反查 |
-| recommendations | `(user_id, score DESC)` | 推荐列表 |
+| recommendations | `(user_id, score DESC)`、`(evaluation_run_id)` | 推荐列表 / 评估批次查询 |
 
 ## 5. 向量数据（M3）
 

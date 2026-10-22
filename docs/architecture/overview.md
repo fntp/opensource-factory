@@ -75,12 +75,16 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 → 结果聚合排序 → 返回（含匹配度与理由）；每日推送任务见 M4
 ```
 
-每日推荐生成（M3-05）：
+每日推荐生成与评估（M3-05 + M4-01）：
 
 ```
 Celery beat 08:30 → 收藏库平均向量（复用 repo_vectors）→ 热榜候选
 → 排除已收藏 → 相似度 × 0.8 + 热榜热度 × 0.2 → 阈值过滤 → top_k
-→ upsert recommendations（旧 new 未入选标记 expired）→ 09:00 推送准备
+→ upsert recommendations（status=new、match_score=原始相似度；旧 new 未入选标记 expired）
+08:45 每日评估 → 质量分 = 仓库质量 × 0.7 + 理由质量 × 0.3
+→ 双重门槛：match_score ≥ EVAL_MATCH_THRESHOLD 且 quality_score ≥ EVAL_QUALITY_THRESHOLD
+→ qualified / filtered，写 recommendation_evaluation_runs
+→ 09:00 推送准备只把 qualified 标记为 pushed
 ```
 
 ### 3.5 向量化流（M3-02）
@@ -131,7 +135,8 @@ Celery beat（每 30 分钟）或 POST /api/vector-index/sync
 | `/api/tasks/sync` | POST | 入队仓库同步 |
 | `/api/tasks/crawl-trending` | POST | 入队热榜抓取 |
 | `/api/tasks/generate-recommendations` | POST | 入队推荐生成 |
-| `/api/tasks/daily-push` | POST | 入队每日推送 |
+| `/api/tasks/evaluate-recommendations` | POST | 入队每日评估（质量分 + 匹配度阈值） |
+| `/api/tasks/daily-push` | POST | 入队每日推送（仅 `qualified`） |
 | `/api/tasks/vectorize` | POST | 入队向量化（批量 / 增量 / 断点续跑） |
 | `/api/tasks/{taskId}` | GET | 任务状态 |
 | `/api/vector-index/sync` | POST | 入队 Vectorize 同步 / 对账（`kind` / `scope` / `force`） |
