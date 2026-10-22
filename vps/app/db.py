@@ -17,6 +17,19 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
+# 旧 SQLite 库的幂等补列（create_all 不会给已存在的表加列）。
+# 字段名与 models.Recommendation 保持一致，仅 SQLite 生效。
+_RECOMMENDATION_COLUMNS: dict[str, str] = {
+    "match_score": "REAL NOT NULL DEFAULT 0",
+    "quality_score": "REAL NOT NULL DEFAULT 0",
+    "quality_detail": "TEXT",
+    "evaluation_run_id": "TEXT",
+    "evaluated_at": "DATETIME",
+    "based_on": "TEXT",
+    "bark_sent_at": "DATETIME",
+    "bark_error": "TEXT",
+}
+
 
 class Base(DeclarativeBase):
     """所有 ORM 模型的基类。"""
@@ -44,8 +57,11 @@ def _ensure_sqlite_columns() -> None:
     """为既有 SQLite 库幂等补齐新增列（create_all 不会修改已有表）。"""
     if not settings.DATABASE_URL.startswith("sqlite"):
         return
+
     inspector = inspect(engine)
-    if "trending_repositories" in inspector.get_table_names():
+    tables = set(inspector.get_table_names())
+
+    if "trending_repositories" in tables:
         existing = {column["name"] for column in inspector.get_columns("trending_repositories")}
         additions = {
             "readme_summary": "TEXT",
@@ -60,13 +76,27 @@ def _ensure_sqlite_columns() -> None:
                     connection.execute(text(f"ALTER TABLE trending_repositories ADD COLUMN {name} {ddl}"))
             logger.info("trending_repositories 已补齐列: %s", ", ".join(sorted(missing)))
 
-    with engine.begin() as conn:
-        rows = conn.exec_driver_sql("PRAGMA table_info(recommendations)").fetchall()
-        if rows:
-            columns = {row[1] for row in rows}
-            if "based_on" not in columns:
-                conn.exec_driver_sql("ALTER TABLE recommendations ADD COLUMN based_on TEXT")
-                logger.info("已为 recommendations 补充 based_on 列")
+    if "recommendations" in tables:
+        existing = {column["name"] for column in inspector.get_columns("recommendations")}
+        missing = [
+            (name, ddl) for name, ddl in _RECOMMENDATION_COLUMNS.items() if name not in existing
+        ]
+        if missing:
+            try:
+                with engine.begin() as connection:
+                    for name, ddl in missing:
+                        connection.execute(
+                            text(f"ALTER TABLE recommendations ADD COLUMN {name} {ddl}")
+                        )
+                    connection.execute(
+                        text(
+                            "CREATE INDEX IF NOT EXISTS ix_recommendations_evaluation_run_id "
+                            "ON recommendations (evaluation_run_id)"
+                        )
+                    )
+                logger.info("推荐表已补齐评估列: %s", ", ".join(name for name, _ in missing))
+            except Exception:  # noqa: BLE001 - 补列失败不阻塞启动，任务会返回明确错误
+                logger.warning("推荐表补列失败（可手工迁移后重试）", exc_info=True)
 
 
 def init_db() -> None:

@@ -239,6 +239,86 @@ class RecommendEvalReport(BaseModel):
     warnings: list[str]
 
 
+class EvaluationRunOut(BaseModel):
+    """单次推荐评估运行输出（M4-01）。"""
+
+    runId: str
+    userId: Optional[str] = None
+    status: str
+    matchThreshold: float
+    qualityThreshold: float
+    total: int = 0
+    qualified: int = 0
+    filtered: int = 0
+    skipped: int = 0
+    failed: int = 0
+    error: Optional[str] = None
+    createdAt: Optional[datetime] = None
+    finishedAt: Optional[datetime] = None
+
+
+class EvaluationRunListResponse(BaseModel):
+    """评估运行列表。"""
+
+    count: int
+    items: list[EvaluationRunOut]
+
+
+class QualifiedRecommendationOut(BaseModel):
+    """通过每日评估、等待推送的推荐。"""
+
+    id: str
+    userId: str
+    repoId: str
+    score: float
+    matchScore: float
+    qualityScore: float
+    qualityDetail: Optional[dict[str, Any]] = None
+    reason: Optional[str] = None
+    status: str
+    evaluatedAt: Optional[datetime] = None
+
+
+class QualifiedListResponse(BaseModel):
+    """合格推荐列表。"""
+
+    count: int
+    items: list[QualifiedRecommendationOut]
+
+
+class BarkStatusOut(BaseModel):
+    """Bark 推送通道状态（不包含 device key）。"""
+
+    enabled: bool
+    configured: bool
+    serverUrl: str
+    group: str
+    level: str
+    maxPerRun: int
+    dryRun: bool
+    pending: int = 0
+    sent: int = 0
+    failed: int = 0
+    lastError: Optional[str] = None
+    lastSentAt: Optional[datetime] = None
+
+
+class BarkTestRequest(BaseModel):
+    """Bark 测试通知请求。"""
+
+    title: Optional[str] = Field(default=None, max_length=120)
+    body: Optional[str] = Field(default=None, max_length=2000)
+    url: Optional[str] = Field(default=None, max_length=2000)
+
+
+class BarkTestOut(BaseModel):
+    """Bark 测试通知结果。"""
+
+    ok: bool
+    statusCode: Optional[int] = None
+    error: Optional[str] = None
+
+
 class TaskEnqueued(BaseModel):
     """任务入队响应（与边缘 Worker 的契约，字段名保持 camelCase）。"""
 

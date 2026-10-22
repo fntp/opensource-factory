@@ -535,9 +535,7 @@ def regenerate_recommendation_reasons(
             updated += 1
         db.commit()
 
-        # 回写 edge D1（推荐页读取）；失败只记日志
-        for uid in target_users:
-            pushed[uid] = push_recommendations(db, uid)
+        # 推荐理由只影响本地展示，edge 回写由每日生成任务统一负责。
     finally:
         db.close()
 
@@ -545,16 +543,58 @@ def regenerate_recommendation_reasons(
     return {"status": "ok", "updated": updated}
 
 
+@celery_app.task(name="app.tasks.jobs.evaluate_recommendations")
+def evaluate_recommendations(
+    user_id: Optional[str] = None,
+    match_threshold: Optional[float] = None,
+    quality_threshold: Optional[float] = None,
+) -> dict[str, Any]:
+    """每日推荐评估（M4-01）：质量分 + 匹配度阈值，产出 `qualified` / `filtered`。
+
+    参数为空时使用配置默认值（`EVAL_MATCH_THRESHOLD` / `EVAL_QUALITY_THRESHOLD`）；
+    单用户异常由服务层降级为结构化结果，不向 Celery 抛错。
+    """
+    from app.services.recommendation_eval import evaluate_daily
+
+    db = SessionLocal()
+    try:
+        result = evaluate_daily(
+            db,
+            user_id=user_id,
+            match_threshold=match_threshold,
+            quality_threshold=quality_threshold,
+        )
+    except Exception as exc:  # noqa: BLE001 - 任务失败降级返回结构化结果
+        logger.exception("每日推荐评估任务失败")
+        return {"status": "error", "error": str(exc)[:300], "userId": user_id}
+    finally:
+        db.close()
+
+    logger.info(
+        "每日推荐评估任务完成: run=%s total=%d qualified=%d filtered=%d",
+        result.get("runId"),
+        result.get("total", 0),
+        result.get("qualified", 0),
+        result.get("filtered", 0),
+    )
+    return result
+
+
+
 @celery_app.task(name="app.tasks.jobs.daily_push")
 def daily_push(limit: int = 50) -> dict[str, Any]:
-    """每日推送准备（占位）：把 `new` 状态的推荐标记为 `pushed`，由边缘侧负责真正下发。"""
+    """每日推送准备：只把通过评估的 `qualified` 推荐标记为 `pushed`。
+
+    真实下发由边缘侧（M4-02 站内通知中心及后续通道）负责；未通过评估的
+    `new` / `filtered` 记录不会被推送。
+    """
     db = SessionLocal()
     try:
         rows = (
             db.execute(
                 select(Recommendation)
-                .where(Recommendation.status == "new")
-                .order_by(Recommendation.score.desc())
+                .where(Recommendation.status == "qualified")
+                .order_by(Recommendation.quality_score.desc(), Recommendation.score.desc())
                 .limit(max(1, int(limit)))
             )
             .scalars()
@@ -569,6 +609,37 @@ def daily_push(limit: int = 50) -> dict[str, Any]:
 
     logger.info("每日推送准备完成: %d 条", pushed)
     return {"status": "ok", "pushed": pushed}
+
+
+@celery_app.task(name="app.tasks.jobs.send_bark_notifications")
+def send_bark_notifications(
+    user_id: Optional[str] = None,
+    limit: Optional[int] = None,
+) -> dict[str, Any]:
+    """Bark 通道（M4-03）：把 `pushed` 且未投递的推荐推送到 iOS。
+
+    参数为空时使用配置默认值（`BARK_MAX_PER_RUN`）；Bark 未启用 / 未配置 /
+    网络失败均由服务层降级为结构化结果，不向 Celery 抛错。
+    """
+    from app.services.bark import dispatch_bark_notifications
+
+    db = SessionLocal()
+    try:
+        result = dispatch_bark_notifications(db, user_id=user_id, limit=limit)
+    except Exception as exc:  # noqa: BLE001 - 任务失败降级返回结构化结果
+        logger.exception("Bark 推送任务失败")
+        return {"status": "error", "error": str(exc)[:300], "userId": user_id}
+    finally:
+        db.close()
+
+    logger.info(
+        "Bark 推送任务完成: status=%s candidates=%d sent=%d failed=%d",
+        result.get("status"),
+        result.get("candidates", 0),
+        result.get("sent", 0),
+        result.get("failed", 0),
+    )
+    return result
 
 
 @celery_app.task(bind=True, name="app.tasks.jobs.vectorize_repositories")

@@ -155,12 +155,50 @@ class Recommendation(Base):
     user_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     repo_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    # 原始余弦相似度（M4-01 每日评估使用；历史数据缺失时回退到 score）
+    match_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    # 每日评估产出的综合质量分与可解释明细
+    quality_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    quality_detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    evaluation_run_id: Mapped[Optional[str]] = mapped_column(
+        String(64), nullable=True, index=True
+    )
+    evaluated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Bark 通道投递标记（M4-03）：成功时间 / 最近一次失败原因
+    bark_sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    bark_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     based_on: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON 数组字符串
     status: Mapped[str] = mapped_column(
         String(32), nullable=False, default="new"
-    )  # new | pushed | saved | dismissed | expired
+    )  # new | qualified | filtered | pushed | saved | dismissed | expired
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+
+
+class RecommendationEvaluationRun(Base):
+    """每日推荐评估运行记录（M4-01）。
+
+    一次运行覆盖指定用户或全部用户，保存本次阈值与合格 / 过滤 / 跳过计数，
+    供接口查询与问题排查；评估明细落在 `recommendations.quality_detail`。
+    """
+
+    __tablename__ = "recommendation_evaluation_runs"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True, index=True)
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="running"
+    )  # running | completed | failed
+    match_threshold: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    quality_threshold: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    total: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    qualified: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    filtered: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    skipped: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 
 class RepoVector(Base):

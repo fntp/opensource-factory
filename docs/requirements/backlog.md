@@ -85,9 +85,11 @@
 
 | 编号 | 需求 | 优先级 | 依赖 | 备注 |
 | --- | --- | --- | --- | --- |
-| M4-01 | 每日评估任务（质量分 + 匹配度阈值） | P0 | M3-05 | — |
-| M4-02 | 站内通知中心（edge + admin） | P0 | M4-01 | ✅ 已实现：迁移 0010 + `/api/notifications` + admin `/notifications`（惰性物化 `status='pushed'`） |
-| M4-03 | Bark 通道 | P1 | M4-02 | — |
+| M4-01 | 每日评估任务（质量分 + 匹配度阈值） | P0 | M3-05 | ✅ 已交付（REQ-202610-0930）：质量分 + 匹配度双门槛，见 `planning/plan-req-202610-0930-daily-evaluation.md` |
+| M4-02 | 站内通知中心（edge + admin） | P0 | M4-01 | ✅ 已交付（REQ-202610-0931）：迁移 0010 + `/api/notifications` + admin `/notifications`（惰性物化 `status='pushed'`） |
+| M4-03 | Bark 通道 | P1 | M4-02 | ✅ 已交付（REQ-202610-0932）：09:05 投递 / 幂等 / 失败重试 / dry-run |
+| M4-04 | Telegram 通道 | P1 | M4-02 | ✅ 已交付（REQ-202610-0933）：HTML 摘要 / 分片 / 429 退避 |
+| M4-05 | Email 通道（SMTP） | P2 | M4-02 | ✅ 已交付（REQ-202610-0934）：STARTTLS/SSL / 重试 / 同日幂等 |
 | M4-04 | Telegram 通道 | P1 | M4-02 | — |
 | M4-05 | Email 通道（SMTP） | P2 | M4-02 | — |
 | M4-06 | 推送偏好设置（时间 / 阈值 / 通道开关） | P1 | M4-02 | — |

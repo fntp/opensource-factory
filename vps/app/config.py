@@ -125,6 +125,32 @@ class Settings(BaseSettings):
     # 推荐反馈回流（M3-07）：生成前拉取 edge 反馈、生成后回写 D1
     RECOMMEND_FEEDBACK_SYNC: bool = True
 
+    # 每日评估（M4-01）
+    # 匹配度硬门槛：原始余弦相似度低于该值的推荐直接 filtered
+    EVAL_MATCH_THRESHOLD: float = 0.35
+    # 综合质量分门槛：仓库内容质量 × 权重 + 推荐理由质量 × 权重
+    EVAL_QUALITY_THRESHOLD: float = 0.55
+    EVAL_REPO_WEIGHT: float = 0.7
+    EVAL_REASON_WEIGHT: float = 0.3
+
+    # Bark 推送通道（M4-03）
+    # 总开关；关闭时定时任务直接 skipped，不发起任何外部请求
+    BARK_ENABLED: bool = False
+    # Bark 服务地址（默认官方服务；自建服务同样走 POST {server}/push）
+    BARK_SERVER_URL: str = "https://api.day.app"
+    # Bark device key（密钥，仅存 .env，接口不回显）
+    BARK_DEVICE_KEY: str = ""
+    BARK_GROUP: str = "OpenFactory"
+    BARK_SOUND: str = ""
+    BARK_ICON: str = ""
+    # active | timeSensitive | passive | critical
+    BARK_LEVEL: str = "active"
+    BARK_TIMEOUT_SECONDS: float = 10.0
+    # 单次任务最多投递条数，避免一次刷屏
+    BARK_MAX_PER_RUN: int = 5
+    # 试运行：只生成消息不发送、不写投递标记
+    BARK_DRY_RUN: bool = False
+
     # 内部接口鉴权（设置后 /api/tasks/*、/api/vector-index/*、/api/search/* 校验 X-Internal-Token）
     INTERNAL_TOKEN: str = ""
 

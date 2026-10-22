@@ -105,14 +105,18 @@ VPS 生成（Celery / POST /api/tasks/generate-recommendations）
 不影响本地生成结果。
 ```
 
-### 3.4.1 每日推荐生成（M3-05）
+### 3.4.1 每日推荐生成与评估（M3-05 + M4-01）
 
-每日推荐生成（M3-05）：
+每日推荐生成与评估（M3-05 + M4-01）：
 
 ```
 Celery beat 08:30 → 收藏库平均向量（复用 repo_vectors）→ 热榜候选
 → 排除已收藏 → 相似度 × 0.8 + 热榜热度 × 0.2 → 阈值过滤 → top_k
-→ upsert recommendations（旧 new 未入选标记 expired）→ 09:00 推送准备
+→ upsert recommendations（status=new、match_score=原始相似度；旧 new 未入选标记 expired）
+08:45 每日评估 → 质量分 = 仓库质量 × 0.7 + 理由质量 × 0.3
+→ 双重门槛：match_score ≥ EVAL_MATCH_THRESHOLD 且 quality_score ≥ EVAL_QUALITY_THRESHOLD
+→ qualified / filtered，写 recommendation_evaluation_runs
+→ 09:00 推送准备只把 qualified 标记为 pushed
 ```
 
 ### 3.5 模型选型与推理预算（M3-01）
@@ -212,6 +216,23 @@ VPS 每日评估 → recommendations.status = 'pushed'
 
 通知正文与推荐快照同表存储，前端无需二次请求推荐接口；同一 `(user_id, recommendation_id)` 只生成一条通知。
 
+### 3.13 Bark 推送流（M4-03）
+
+```
+Celery beat（每天 09:05）或 POST /api/push/bark/dispatch
+→ 读取 recommendations：status='pushed' 且 bark_sent_at IS NULL
+  （可选 user_id 过滤，按 quality_score / score 降序取前 BARK_MAX_PER_RUN 条）
+→ 组装中文消息（标题 owner/name；正文 = 简介 + 推荐理由 + 匹配度 / 语言 / Star）
+→ POST {BARK_SERVER_URL}/push（device_key / title / body / group / level / url）
+→ 成功：写 bark_sent_at、清空 bark_error；失败：写 bark_error（截断 300 字符）留待重试
+
+降级：BARK_ENABLED=false 或 BARK_DEVICE_KEY 为空 → 任务 skipped；
+BARK_DRY_RUN=true → 只返回预览，不发送、不写标记；
+网络 / Bark 返回异常 → 单条失败不中断整批。
+```
+
+M4-02 站内通知中心与本通道消费同一批 `pushed` 推荐，彼此独立：站内通知失败不影响 Bark 投递，反之亦然。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -262,7 +283,8 @@ VPS 每日评估 → recommendations.status = 'pushed'
 | `/api/tasks/crawl-trending` | POST | 入队热榜抓取 |
 | `/api/tasks/generate-recommendations` | POST | 入队推荐生成 |
 | `/api/tasks/regenerate-recommendation-reasons` | POST | 入队重算存量推荐理由与依据字段 |
-| `/api/tasks/daily-push` | POST | 入队每日推送 |
+| `/api/tasks/evaluate-recommendations` | POST | 入队每日评估（质量分 + 匹配度阈值） |
+| `/api/tasks/daily-push` | POST | 入队每日推送（仅 `qualified`） |
 | `/api/recommend/query` | POST | 语义查询（返回 `reason` + `based_on`） |
 | `/api/recommend/list` | GET | 本地已生成推荐（`reason` + `based_on`） |
 | `/api/tasks/vectorize` | POST | 入队向量化（批量 / 增量 / 断点续跑） |
@@ -289,6 +311,9 @@ VPS 每日评估 → recommendations.status = 'pushed'
 | `/api/search/understand` | POST | 查询理解：同义词 / 技术栈词表扩展（`query` / `expand`） |
 | `/api/recommend/eval` | POST | 推荐质量评估与阈值 / 权重调参建议（抽样评估集） |
 | `/api/degradation/status` | GET | 降级路径自检（模型缺失 / 超预算） |
+| `/api/push/bark/status` | GET | Bark 通道状态与待投递 / 已投递 / 失败计数 |
+| `/api/push/bark/test` | POST | 同步发送 Bark 测试通知 |
+| `/api/push/bark/dispatch` | POST | 入队 Bark 投递（`user_id` / `limit` 可选） |
 | `/healthz` | GET | 健康检查 |
 
 ### 4.3 vps → edge（Vectorize 内部接口，`X-Internal-Token`）

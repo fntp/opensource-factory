@@ -24,6 +24,7 @@ from app.tasks.celery_app import celery_app
 from app.tasks.jobs import (
     crawl_trending,
     daily_push,
+    evaluate_recommendations,
     generate_recommendations,
     regenerate_recommendation_reasons,
     summarize_readmes,
@@ -143,6 +144,26 @@ async def enqueue_regenerate_recommendation_reasons(
     limit: int = Query(default=500, ge=1, le=5000),
 ) -> TaskEnqueued:
     task = regenerate_recommendation_reasons.delay(user_id=user_id, limit=limit)
+    return TaskEnqueued(taskId=task.id)
+
+
+@router.post(
+    "/evaluate-recommendations",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=TaskEnqueued,
+    dependencies=[Depends(require_internal_token)],
+    summary="入队：每日推荐评估（质量分 + 匹配度阈值）",
+)
+async def enqueue_evaluate_recommendations(
+    user_id: str | None = Query(default=None),
+    match_threshold: float | None = Query(default=None, ge=0.0, le=1.0),
+    quality_threshold: float | None = Query(default=None, ge=0.0, le=1.0),
+) -> TaskEnqueued:
+    task = evaluate_recommendations.delay(
+        user_id=user_id,
+        match_threshold=match_threshold,
+        quality_threshold=quality_threshold,
+    )
     return TaskEnqueued(taskId=task.id)
 
 

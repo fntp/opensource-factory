@@ -1,4 +1,4 @@
-"""推荐接口：语义查询（即时计算）、本地推荐查询、推荐生成入队与质量评估。"""
+"""推荐接口：语义查询（即时计算）、本地推荐查询、推荐生成入队、质量评估与每日评估。"""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query, status
@@ -6,8 +6,18 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import Category, MyRepository, Recommendation, TrendingRepository
+from app.models import (
+    Category,
+    MyRepository,
+    Recommendation,
+    RecommendationEvaluationRun,
+    TrendingRepository,
+)
 from app.schemas import (
+    EvaluationRunListResponse,
+    EvaluationRunOut,
+    QualifiedListResponse,
+    QualifiedRecommendationOut,
     RecommendEvalReport,
     RecommendEvalRequest,
     RecommendItem,
@@ -22,9 +32,10 @@ from app.services.recommend_reason import (
     build_user_profile,
     parse_based_on,
 )
-from app.services.recommendation_eval import evaluate_recommendation_quality
+from app.services.recommendation_eval import get_run, list_qualified, list_runs
+from app.services.recommendation_quality import evaluate_recommendation_quality
 from app.services.recommender import recommend
-from app.tasks.jobs import generate_recommendations
+from app.tasks.jobs import evaluate_recommendations, generate_recommendations
 
 router = APIRouter(prefix="/api/recommend", tags=["recommend"])
 
@@ -170,3 +181,105 @@ def evaluate_recommend(
         seed=payload.seed,
     )
     return RecommendEvalReport.model_validate(report)
+
+
+@router.post(
+    "/evaluate",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=TaskEnqueued,
+    summary="入队：每日推荐评估（质量分 + 匹配度阈值）",
+)
+async def enqueue_evaluate(
+    user_id: str | None = Query(default=None),
+    match_threshold: float | None = Query(default=None, ge=0.0, le=1.0),
+    quality_threshold: float | None = Query(default=None, ge=0.0, le=1.0),
+) -> TaskEnqueued:
+    task = evaluate_recommendations.delay(
+        user_id=user_id,
+        match_threshold=match_threshold,
+        quality_threshold=quality_threshold,
+    )
+    return TaskEnqueued(taskId=task.id)
+
+
+def _run_out(run: RecommendationEvaluationRun) -> EvaluationRunOut:
+    """ORM 运行记录 → API 输出（字段名保持 camelCase）。"""
+    return EvaluationRunOut(
+        runId=run.id,
+        userId=run.user_id,
+        status=run.status,
+        matchThreshold=run.match_threshold,
+        qualityThreshold=run.quality_threshold,
+        total=run.total,
+        qualified=run.qualified,
+        filtered=run.filtered,
+        skipped=run.skipped,
+        failed=run.failed,
+        error=run.error,
+        createdAt=run.created_at,
+        finishedAt=run.finished_at,
+    )
+
+
+@router.get(
+    "/evaluations",
+    response_model=EvaluationRunListResponse,
+    summary="最近推荐评估运行",
+)
+def list_evaluation_runs(
+    limit: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+) -> EvaluationRunListResponse:
+    runs = list_runs(db, limit=limit)
+    return EvaluationRunListResponse(count=len(runs), items=[_run_out(run) for run in runs])
+
+
+@router.get(
+    "/evaluations/{run_id}",
+    response_model=EvaluationRunOut,
+    summary="推荐评估运行详情",
+)
+def get_evaluation_run(run_id: str, db: Session = Depends(get_db)) -> EvaluationRunOut:
+    run = get_run(db, run_id)
+    if run is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="evaluation run not found")
+    return _run_out(run)
+
+
+def _parse_detail(raw: Optional[str]) -> Optional[dict[str, Any]]:
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _qualified_out(row: Recommendation) -> QualifiedRecommendationOut:
+    return QualifiedRecommendationOut(
+        id=row.id,
+        userId=row.user_id,
+        repoId=row.repo_id,
+        score=row.score,
+        matchScore=row.match_score,
+        qualityScore=row.quality_score,
+        qualityDetail=_parse_detail(row.quality_detail),
+        reason=row.reason,
+        status=row.status,
+        evaluatedAt=row.evaluated_at,
+    )
+
+
+@router.get(
+    "/qualified",
+    response_model=QualifiedListResponse,
+    summary="通过每日评估、等待推送的推荐",
+)
+def list_qualified_recommendations(
+    user_id: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(get_db),
+) -> QualifiedListResponse:
+    rows = list_qualified(db, user_id=user_id, limit=limit)
+    return QualifiedListResponse(count=len(rows), items=[_qualified_out(row) for row in rows])

@@ -151,6 +151,13 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | repo_id TEXT | 稳定仓库 id（`owner/name`，M3-07 起） |
 | owner / name / description / language / stars / url | 推荐项目快照 |
 | score REAL | 综合得分 0~1（相似度 × 0.8 + 热榜热度 × 0.2） |
+| match_score REAL | 原始余弦相似度（M4-01 匹配度硬门槛；历史数据缺失时回退到 `score`） |
+| quality_score REAL | 每日评估质量分 0~1（仓库质量 × 0.7 + 理由质量 × 0.3） |
+| quality_detail TEXT | 评估明细 JSON（各分量、阈值、是否通过） |
+| evaluation_run_id TEXT | 最近一次评估运行 id |
+| evaluated_at DATETIME | 最近评估时间 |
+| bark_sent_at DATETIME | Bark 投递成功时间（M4-03；NULL = 待投递 / 投递失败） |
+| bark_error TEXT | 最近一次 Bark 投递失败原因（截断 300 字符，成功后清空） |
 | reason TEXT | 推荐理由（中文） |
 | based_on TEXT | 依据（JSON 数组，如 `["AI/LLM","Python"]`） |
 | status TEXT | `new` / `qualified` / `filtered` / `pushed` / `saved` / `dismissed` / `expired` |
@@ -204,7 +211,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | occurrences | 累计出现次数 |
 | first_seen_at / last_seen_at / acknowledged_at | 首次 / 最近 / 确认时间 |
 
-### 3.5 `notifications` 站内通知
+### 3.8 `notifications` 站内通知（M4-02）
 
 | 字段 | 说明 |
 | --- | --- |
@@ -222,6 +229,18 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 
 **生成规则**：`GET /api/notifications` 与 `/unread-count` 触发惰性物化——把当前用户（含全局）`recommendations.status = 'pushed'` 且尚未通知的记录写入 `notifications`，由唯一索引 `(user_id, recommendation_id)` / `(user_id, dedupe_key)` 保证幂等。通知忽略时同步把关联推荐置为 `dismissed`。
 
+### 3.9 `recommendation_evaluation_runs` 评估运行（M4-01）
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | 运行 id |
+| user_id | 目标用户（NULL = 全量评估） |
+| status TEXT | `running` / `completed` / `failed` |
+| match_threshold / quality_threshold REAL | 本次运行使用的门槛 |
+| total / qualified / filtered / skipped / failed INTEGER | 运行计数 |
+| error TEXT | 失败原因（截断） |
+| created_at / finished_at | 开始 / 结束时间 |
+
 ## 4. 索引策略
 
 | 表 | 索引 | 用途 |
@@ -232,7 +251,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | sessions | `(user_id)`、`(expires_at)` | 会话校验与清理 |
 | repo_tags | `(repo_id)`、`(tag_id)` | 反查 |
 | summary_quality_samples | `(batch_id)`、唯一 `(batch_id, repo_source, repo_id)` | 抽检批次查询与去重 |
-| recommendations | `(user_id, score DESC)` | 推荐列表 |
+| recommendations | `(user_id, score DESC)`、`(evaluation_run_id)` | 推荐列表 / 评估批次查询 |
 | crawl_alerts | `(dedupe_key)`、`(status)` | 告警去重与未确认列表 |
 | recommendation_feedback | `(user_id, recommendation_id, action)` UNIQUE、`(user_id, created_at)`、`(user_id, repo_id)` | 反馈幂等 / 回流查询 |
 | notifications | `(user_id, status, created_at DESC)` | 通知列表与未读数 |
