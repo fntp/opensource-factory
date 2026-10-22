@@ -73,21 +73,67 @@ pytest -q
 
 > 未安装 `requirements-ml.txt` 时节点自动降级：向量走确定性 hash 兜底、摘要走截断降级，所有接口与任务仍可运行。
 
+## 生产运行（systemd 基线）
+
+本机部署不再手工 `nohup`，统一由 [`deploy/`](../deploy/README.md) 提供的基线托管：
+运行目录 `/opt/openfactory`（`.env` / `data` / `logs` / `backups`）、Redis 配置与
+`openfactory-api` / `-worker` / `-beat` / `-redis` 四个 systemd 单元。
+
+```bash
+deploy/scripts/bootstrap-runtime.sh          # 创建运行目录、渲染 .env 与 redis.conf
+deploy/scripts/bootstrap-runtime.sh --install-units   # 安装 systemd 单元（root）
+deploy/scripts/doctor.sh --services          # 基线自检
+```
+
+完整步骤与验收标准见 [docs/guides/deployment-baseline.md](../docs/guides/deployment-baseline.md)。
+
 ## 环境变量说明
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
+| `LOG_LEVEL` | `INFO` | 日志级别 |
+| `LOG_DIR` | 空 | 非空时 API 写滚动日志（10MB × 5）到该目录 |
 | `DATABASE_URL` | `sqlite:///./data/opensource_factory.db` | 本地镜像库（SQLite 起步，可换 PostgreSQL） |
 | `REDIS_URL` | `redis://localhost:6379/0` | Celery broker / result backend |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | 本地 Ollama 服务地址 |
-| `OLLAMA_MODEL` | `qwen2.5:7b` | Ollama 摘要模型 |
+| `OLLAMA_MODEL` | `qwen2.5:1.5b-instruct-q4_K_M` | Ollama 摘要模型（≤2B 量化，M3-01 选型） |
 | `DEEPSEEK_API_KEY` | 空 | 可选；配置后作为 LLM 云端降级（OpenAI 兼容） |
 | `EMBEDDING_MODEL` | `BAAI/bge-m3` | 向量模型名（sentence-transformers / FlagEmbedding） |
+| `EMBEDDING_QUANTIZATION` | `int8` | 向量模型量化口径；`fp16` 约 2.3G 超预算，仅按需启用 |
+| `EMBEDDING_DEVICE` | `cpu` | 向量模型运行设备（`cpu` / `cuda`） |
+| `MODEL_BUDGET_MB` | `2048` | AI 推理峰值驻留上限（MB），同一时刻仅加载 1 个模型 |
 | `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
 | `CELERY_TASK_ALWAYS_EAGER` | `0` | 置 `1` 时任务同步执行（本地调试 / 测试用） |
 | `GITHUB_TOKEN` | 空 | GitHub PAT（仅需 read 权限）；为空时同步任务跳过 |
 
 完整清单见 `.env.example`。所有真实密钥只存在于本地 `.env`（git 忽略）或平台密钥托管，**不得提交**。
+
+## 模型选型与 2G 预算（M3-01）
+
+| 用途 | 默认模型 | 量化 | 估算驻留 | 说明 |
+| --- | --- | --- | --- | --- |
+| Embedding | `BAAI/bge-m3` | int8 | ~1.1 GB | 1024 维；fp16 约 2.3G，超预算 |
+| LLM 摘要 | `qwen2.5:1.5b-instruct-q4_K_M` | q4_K_M | ~1.3 GB | ≤2B，替代旧默认 `qwen2.5:7b`（~4.7G） |
+| 降级 Embedding | `BAAI/bge-small-zh-v1.5` | fp32 | ~0.3 GB | 模型缺失 / 超预算时切换 |
+
+同一时刻仅加载 1 个模型（摘要与向量化分队列串行），因此约束的是**峰值驻留**，不是两者之和。
+准备模型：
+
+```bash
+ollama pull qwen2.5:1.5b-instruct-q4_K_M
+pip install -r requirements-ml.txt   # BGE-M3 真实向量（未安装时 hash 兜底）
+```
+
+校验命令（离线即可运行；`--probe` 额外读取本机 Ollama `/api/ps`）：
+
+```bash
+cd vps
+.venv/bin/python -m app.model_budget check
+.venv/bin/python -m app.model_budget check --probe --json
+```
+
+预算内退出码 0；超预算或未收录模型退出码 1。`deploy/scripts/doctor.sh` 也会执行同一项检查。
+int8 量化在 `sentence-transformers` 后端下对 Linear 层做动态量化；生产更推荐预量化的 ONNX int8 权重。
 
 ## 与 Cloudflare 边缘的接口约定
 

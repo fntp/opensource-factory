@@ -1,0 +1,28 @@
+# OpenFactory Celery beat（定时抓取 / 每日推送）
+[Unit]
+Description=OpenFactory Celery beat scheduler
+Documentation=file://@APP_DIR@/deploy/README.md
+After=network-online.target openfactory-redis.service
+Wants=network-online.target openfactory-redis.service
+
+[Service]
+Type=simple
+User=@SERVICE_USER@
+Group=@SERVICE_USER@
+WorkingDirectory=@APP_DIR@/vps
+EnvironmentFile=@RUNTIME_DIR@/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=@APP_DIR@/vps/.venv/bin/celery -A app.tasks.celery_app beat --loglevel=INFO --schedule=@RUNTIME_DIR@/data/celerybeat-schedule
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+KillSignal=SIGTERM
+MemoryMax=192M
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=@RUNTIME_DIR@
+
+[Install]
+WantedBy=multi-user.target
