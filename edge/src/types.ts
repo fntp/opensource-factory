@@ -400,9 +400,19 @@ export interface NotificationsPayload {
   hasMore: boolean;
 }
 
+/** GET /api/categories 列表项（扁平结构，前端按 parentId 组树） */
+export interface CategoryItem {
+  id: string;
+  name: string;
+  parentId: string | null;
+  description: string | null;
+  sortOrder: number;
+  count: number;
+}
+
 /** GET /api/categories */
 export interface CategoriesPayload {
-  categories: Array<{ id: string; name: string; count: number; description: string | null }>;
+  categories: CategoryItem[];
   tags: Array<{ name: string; count: number }>;
 }
 
@@ -550,6 +560,53 @@ export interface DuplicateDismissal {
   repoIds: string[];
   reason: string | null;
   createdAt: string | null;
+}
+
+// ── 自动分类建议（M7-02）──────────────────────────────────────
+
+export interface CategorySuggestionRow {
+  id: string;
+  user_id: string;
+  repo_id: string;
+  category_name: string;
+  business_line: string;
+  score: number;
+  reason: string | null;
+  evidence: string | null;
+  status: 'pending' | 'accepted' | 'dismissed';
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface CategorySuggestionListItem {
+  id: string;
+  repoId: string;
+  repoName: string;
+  repoUrl: string;
+  summary: string | null;
+  categoryName: string;
+  businessLine: string;
+  score: number;
+  reason: string | null;
+  evidence: string | null;
+  status: 'pending' | 'accepted' | 'dismissed';
+  currentCategory: string | null;
+  updatedAt: string | null;
+}
+
+export interface CategorySuggestionSummary {
+  total: number;
+  pending: number;
+  accepted: number;
+  dismissed: number;
+  repos: number;
+  avgScore: number;
+}
+
+export interface CategorySuggestionListResponse {
+  items: CategorySuggestionListItem[];
+  summary: CategorySuggestionSummary;
+  categories: Array<{ id: string; name: string }>;
 }
 
 /** GitHub /user 接口返回（仅取所需字段） */

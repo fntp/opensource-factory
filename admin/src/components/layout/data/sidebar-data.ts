@@ -42,6 +42,7 @@ export const sidebarData: SidebarData = {
       items: [
         { title: '我的仓库', url: '/repos', icon: FolderGit2 },
         { title: '分类', url: '/categories', icon: FolderTree },
+        { title: '分类建议', url: '/category-suggestions', icon: Tags },
         { title: '热榜', url: '/trending', icon: Flame },
         { title: 'License 合规', url: '/licenses', icon: Scale },
         { title: '推荐', url: '/recommend', icon: Sparkles },

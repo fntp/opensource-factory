@@ -223,6 +223,7 @@ CREATE INDEX idx_my_repositories_license_spdx ON my_repositories (license_spdx);
 CREATE INDEX idx_trending_repositories_license_spdx ON trending_repositories (license_spdx);
 CREATE INDEX idx_my_repositories_category_id ON my_repositories (category_id);
 CREATE INDEX idx_my_repositories_health ON my_repositories (user_id, health_status);
+CREATE INDEX idx_categories_parent_sort ON categories (parent_id, sort_order, name);
 CREATE INDEX idx_trending_repositories_stars_today ON trending_repositories (stars_today DESC);
 CREATE INDEX idx_trending_snapshots_date_rank ON trending_snapshots (snapshot_date, rank);
 CREATE INDEX idx_trending_snapshots_repo_date ON trending_snapshots (repo_id, snapshot_date);
@@ -298,3 +299,23 @@ CREATE INDEX IF NOT EXISTS idx_tag_suggestions_list
     ON tag_suggestions (user_id, status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tag_suggestions_repo
     ON tag_suggestions (user_id, repo_id, status);
+-- REQ-202610-0961 自动分类建议（M7-02）
+CREATE TABLE IF NOT EXISTS category_suggestions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    repo_id TEXT NOT NULL,
+    category_name TEXT NOT NULL,
+    business_line TEXT NOT NULL,
+    score REAL NOT NULL DEFAULT 0,
+    reason TEXT,
+    evidence TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_category_suggestions_unique
+    ON category_suggestions (user_id, repo_id, category_name);
+CREATE INDEX IF NOT EXISTS idx_category_suggestions_user_status
+    ON category_suggestions (user_id, status, score DESC);
+CREATE INDEX IF NOT EXISTS idx_category_suggestions_repo
+    ON category_suggestions (user_id, repo_id);

@@ -60,6 +60,7 @@ vps/
 │   │   ├── repo_health.py        # 项目健康度：分档 / 理由 / 汇总 / 回写 edge（M6-05）
 │   │   ├── license.py            # License 识别 / 目录 / 合规分级（M6-06）
 │   │   ├── dependency_analysis.py # 依赖清单解析 / 扫描入库 / 技术栈关联聚合（M6-07）
+│   │   ├── category_suggestions.py # 自动分类建议：18 条业务线词表 + 加权打分 + 证据抽取（M7-02）
 │   │   └── degradation.py        # 降级路径自检（模型缺失 / 超预算，离线可跑）
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
@@ -74,6 +75,7 @@ vps/
 │   │   ├── duplicates.py         # POST /api/duplicates/scan（重复检测，只读）
 │   │   ├── licenses.py           # /api/licenses/*（目录 / 分布统计，M6-06）
 │   │   ├── analysis.py           # /api/analysis/*（依赖分析聚合 / 清单扫描）
+│   │   ├── category_suggestions.py # POST /api/category-suggestions/generate（分类建议，无状态）
 │   │   ├── degradation.py        # GET /api/degradation/status（降级自检）
 │   │   └── tasks.py              # /api/tasks/*（与边缘 Worker 的集成契约，X-Internal-Token 鉴权）
 │   └── tasks/                # Celery 任务（薄封装，调用 services + 落库）
@@ -446,6 +448,7 @@ Celery beat 每日 04:37 自动增量同步、05:17 自动对账；06:12 自动�
 | POST | `/api/search/fulltext/rebuild` | 全量重建 FTS 索引 | `200 {rebuilt}` |
 | POST | `/api/search/similar` | 相似项目向量近邻（未水合） | `200 {source,repoId,scope,count,topK,minScore,excludeSaved,model,backend,dim,scanned,seed,items:[{source,repoId,score}]}` |
 | POST | `/api/duplicates/scan` | 重复 / 相似项目检测（`scope` / `myRepoIds` / `maxRepos` / `maxClusters`；只读） | `200 {scanId,scope,scanned,compared,clusters,tookMs,thresholds}` |
+| POST | `/api/category-suggestions/generate` | 自动分类建议（`repos[]` 内联快照 / `perRepo` / `minScore`；18 条业务线规则，无状态） | `200 {generatedAt,scanned,suggested,skipped,items:[{repoId,suggestions:[...]}]}` |
 | GET | `/api/search/status` | 向量覆盖率、模型分布、最近运行与词表规模 | `200 {...}` |
 | GET | `/api/analysis/dependencies?repoIds=&top=20` | 依赖分析聚合（技术栈 / 生态 / 依赖覆盖 / 依赖 × 语言关联） | `200 {...}` |
 | POST | `/api/analysis/dependencies/refresh` | 扫描仓库依赖清单并入库（`repoIds` / `force` / `limit`） | `200 {...}` |

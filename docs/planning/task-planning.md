@@ -42,7 +42,7 @@
 | IT-0005 | M1-03 | GitHub OAuth 注册与登录联调（先本地回调） | 人工：OAuth App（Q3） | 待排期 |
 | IT-0006 | M1-05 | Starred 全量同步 | IT-0003~0005 | 待排期 |
 | IT-0007 | M1-07 | 增量同步策略 | IT-0006 | 待排期 |
-| IT-0008 | M1-09 | 分类树 CRUD | IT-0004 | 待排期 |
+| IT-0008 | M1-09 | 分类树 CRUD | IT-0004 | ✅ 已完成（2026-10-22，REQ-202610-0901） |
 | IT-0009 | M1-10 | 标签体系 CRUD | IT-0004 | 待排期 |
 | IT-0010 | M1-11/12 | 组合筛选与秒级检索优化 | IT-0006/0008/0009 | 待排期 |
 | IT-0011 | M1-13 | README 摘要接入（Ollama 降级链 + 批量队列，2G 预算内） | IT-0006；M3-01 前置 | ✅ 已完成（2026-10-22） |
@@ -135,3 +135,4 @@
 | 2026-10-22 | 交付 | IT-0050 / M6-07 依赖分析（REQ-202610-0954）：8 类依赖清单解析 + `repo_dependencies` / 扫描状态落库 + 技术栈关联聚合 + edge 用户级代理与本地降级 + admin「依赖分析」页；计划见 `planning/plan-req-202610-0954-dependency-analysis.md` |
 | 2026-10-22 | 交付 | IT-0051 / M6-08 知识库导出（REQ-202610-0955）：知识库导出（Markdown / JSON / Obsidian），edge 只读聚合 + `openfactory.knowledge.v1` 格式规范 + admin 导出页；计划见 `planning/plan-req-202610-0955-knowledge-export.md`，格式见 `guides/knowledge-export.md` |
 | 2026-10-22 | 验收 | IT-0052 / M6-12 完成（REQ-202610-0959）：集成 M6-01~08 八个分支，M6 验收 18/18 PASS、3 项平台 pending 缺口登记；三端检查全绿（vps 482 / edge 108 / admin 156）；报告见 `planning/acceptance-m6.md` / `acceptance-m6-report.md` |
+| 2026-10-22 | 交付 | IT-0047 / M7-02 完成（REQ-202610-0961）：18 条业务线分类规则（VPS 纯函数 + edge 本地兜底）、可解释建议生成、edge 建议表与采纳写回（migration 0014）、admin 分类建议页；计划见 `plan-req-202610-0961-auto-classification.md` |
