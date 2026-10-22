@@ -88,7 +88,11 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 | `/api/repos` | GET | 仓库列表（`?q=` / `?categoryId=`） |
 | `/api/trending` | GET | 热榜（`?limit=`） |
 | `/api/recommendations` | GET | 推荐列表 |
-| `/api/categories` | GET | 分类 + 标签 |
+| `/api/categories` | GET | 分类树（扁平，含 `parentId` / `sortOrder` / `count`）+ 标签 |
+| `/api/categories` | POST | 新建分类（登录） |
+| `/api/categories/:id` | PATCH | 编辑分类：名称 / 描述 / 父级 / 排序（登录） |
+| `/api/categories/:id` | DELETE | 删除分类（登录；有子分类或被仓库引用时 409） |
+| `/api/categories/:id/move` | POST | 移动分类：换父级 + 插到 `beforeId` 之前（登录） |
 | `/api/dashboard/stats` | GET | 仪表盘统计 |
 | `/api/sync` | POST | 触发同步任务（202） |
 

@@ -103,6 +103,7 @@ CREATE TABLE recommendations (
 -- ── 索引 ────────────────────────────────────────────────────────
 CREATE INDEX idx_my_repositories_user_id ON my_repositories (user_id);
 CREATE INDEX idx_my_repositories_category_id ON my_repositories (category_id);
+CREATE INDEX idx_categories_parent_sort ON categories (parent_id, sort_order, name);
 CREATE INDEX idx_trending_repositories_stars_today ON trending_repositories (stars_today DESC);
 CREATE INDEX idx_sessions_user_id ON sessions (user_id);
 CREATE INDEX idx_sessions_expires_at ON sessions (expires_at);
