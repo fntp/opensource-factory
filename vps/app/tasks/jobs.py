@@ -86,27 +86,69 @@ def sync_repositories(include_starred: bool = True) -> dict[str, Any]:
 
 
 @celery_app.task(name="app.tasks.jobs.crawl_trending")
-def crawl_trending(platform: str = "github", language: Optional[str] = None) -> dict[str, Any]:
-    """抓取热榜（GitHub Trending，可选 Gitee）并 upsert 到 trending 表。"""
-    from app.services.readme import extract_tech_stack
-    from app.services.trending_crawler import crawl_gitee_explore, crawl_github_trending
+def crawl_trending(
+    platform: str = "github",
+    language: Optional[str] = None,
+    languages: Optional[list[str] | str] = None,
+    since: str = "daily",
+) -> dict[str, Any]:
+    """抓取热榜（GitHub Trending 全局页 + 多语言页，可选 Gitee）并 upsert。
 
+    容错（M2-02）：单页失败只记录并继续其他页；抓取 / 解析 / 告警任何环节都不抛异常。
+    返回 `pages[]`（页面诊断）与 `alerts`（告警统计），供边缘侧与值班排查。
+    """
+    from app.services.crawl_guard import process_crawl_health
+    from app.services.readme import extract_tech_stack
+    from app.services.trending_crawler import (
+        crawl_gitee_explore,
+        crawl_github_trending_page,
+        crawl_github_trending_pages,
+    )
+
+    settings = get_settings()
     items: list[dict[str, Any]] = []
+    pages: list[dict[str, Any]] = []
     try:
         if platform in ("github", "all", ""):
-            items.extend(_run_async(crawl_github_trending(language=language)))
+            if language:
+                result = _run_async(crawl_github_trending_page(language=language, since=since))
+                items.extend(result.get("items") or [])
+                pages.append(result.get("page") or {"language": language, "ok": False, "count": 0})
+            else:
+                configured = settings.TRENDING_LANGUAGES if languages is None else languages
+                result = _run_async(crawl_github_trending_pages(languages=configured, since=since))
+                items.extend(result.get("items") or [])
+                pages.extend(result.get("pages") or [])
         if platform in ("gitee", "all"):
-            items.extend(_run_async(crawl_gitee_explore()))
+            gitee_items = _run_async(crawl_gitee_explore())
+            items.extend(gitee_items)
+            pages.append(
+                {
+                    "platform": "gitee",
+                    "language": "gitee",
+                    "ok": True,
+                    "count": len(gitee_items),
+                    "error": None,
+                }
+            )
     except Exception as exc:  # noqa: BLE001 - 抓取失败降级返回空结果
         logger.exception("热榜抓取失败")
-        return {"status": "error", "error": str(exc)[:300]}
+        return {"status": "error", "error": str(exc)[:300], "pages": pages}
+
+    # 跨平台 / 多页去重（同一 owner/repo 只保留一条）
+    unique: dict[str, dict[str, Any]] = {}
+    for item in items:
+        repo_id = str(item.get("id") or "").strip()
+        if repo_id and repo_id not in unique:
+            unique[repo_id] = item
+    items = list(unique.values())
 
     created = 0
     updated = 0
     db = SessionLocal()
     try:
         for item in items:
-            repo_id = item.get("id") or ""
+            repo_id = str(item.get("id") or "").strip()
             if not repo_id:
                 continue
             tech_stack = extract_tech_stack(
@@ -132,7 +174,8 @@ def crawl_trending(platform: str = "github", language: Optional[str] = None) -> 
                 row.name = item.get("name") or row.name
                 row.html_url = item.get("html_url") or row.html_url
                 row.stars_today = int(item.get("stars_today") or 0)
-                row.description = item.get("description") or row.description
+                if item.get("description"):
+                    row.description = item["description"]
                 row.tech_stack = tech_stack or row.tech_stack
                 row.crawled_at = date.today()
                 updated += 1
@@ -140,8 +183,49 @@ def crawl_trending(platform: str = "github", language: Optional[str] = None) -> 
     finally:
         db.close()
 
-    logger.info("热榜抓取完成: 共 %d 条（新增 %d / 更新 %d）", len(items), created, updated)
-    return {"status": "ok", "total": len(items), "created": created, "updated": updated}
+    # 页面健康判定与告警：独立会话，任何异常都不影响抓取结果
+    health: dict[str, Any] = {"created": 0, "deduplicated": 0, "alerts": []}
+    try:
+        health_db = SessionLocal()
+        try:
+            health = process_crawl_health(
+                health_db,
+                platform="github" if platform in ("github", "all", "") else platform,
+                pages=pages,
+                total_items=len(items),
+                settings=settings,
+            )
+        finally:
+            health_db.close()
+    except Exception:  # noqa: BLE001 - 告警失败不能影响抓取
+        logger.exception("热榜抓取告警处理失败（抓取结果已保留）")
+
+    failed_pages = [page for page in pages if not page.get("ok", True)]
+    if not items and failed_pages:
+        crawl_status = "error"
+    elif failed_pages:
+        crawl_status = "partial"
+    else:
+        crawl_status = "ok"
+
+    logger.info(
+        "热榜抓取完成: 共 %d 条（新增 %d / 更新 %d，失败页 %d，告警 %d）",
+        len(items),
+        created,
+        updated,
+        len(failed_pages),
+        health.get("created", 0),
+    )
+    return {
+        "status": crawl_status,
+        "platform": platform,
+        "total": len(items),
+        "created": created,
+        "updated": updated,
+        "pages": pages,
+        "failedPages": failed_pages,
+        "alerts": health,
+    }
 
 
 @celery_app.task(name="app.tasks.jobs.generate_recommendations")

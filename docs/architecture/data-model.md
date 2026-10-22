@@ -99,6 +99,35 @@ recommendations              （user_id 可空 = 全局推荐）
 | status TEXT | `new` / `saved` / `dismissed` / `pushed` |
 | created_at | 生成时间 |
 
+### 3.5 `crawl_alerts` / `crawl_page_stats` 抓取告警（VPS 本地表）
+
+> 仅存在于 VPS 本地镜像库，不进入 D1；用于热榜抓取的容错基线与值班告警。
+
+`crawl_page_stats`（按「平台 + 页面」记录上次成功条数）：
+
+| 字段 | 说明 |
+| --- | --- |
+| page_key TEXT PK | `平台:页面`，如 `github:python` |
+| platform / page | `github` / `gitee`；`all` 或语言 slug |
+| last_count | 上次成功解析条数（结构变更判定基线） |
+| last_status_code / last_rows / last_parsed | 最近一次抓取的 HTTP 状态与解析诊断 |
+| last_ok_at / last_error | 上次成功时间 / 最近错误 |
+| updated_at | 更新时间 |
+
+`crawl_alerts`（告警记录）：
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | 告警 id |
+| platform / page | 来源平台与页面 |
+| kind | `fetch_failed` / `structure_change` / `count_drop` / `all_failed` |
+| severity | `warning` / `error` |
+| message / details | 中文摘要 / JSON 诊断明细 |
+| dedupe_key | `平台:页面:类型`，冷却窗口内合并 |
+| status | `open` / `acknowledged` |
+| occurrences | 累计出现次数 |
+| first_seen_at / last_seen_at / acknowledged_at | 首次 / 最近 / 确认时间 |
+
 ## 4. 索引策略
 
 | 表 | 索引 | 用途 |
@@ -108,6 +137,7 @@ recommendations              （user_id 可空 = 全局推荐）
 | sessions | `(user_id)`、`(expires_at)` | 会话校验与清理 |
 | repo_tags | `(repo_id)`、`(tag_id)` | 反查 |
 | recommendations | `(user_id, score DESC)` | 推荐列表 |
+| crawl_alerts | `(dedupe_key)`、`(status)` | 告警去重与未确认列表 |
 
 ## 5. 向量数据（Vectorize，M3）
 

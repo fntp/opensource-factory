@@ -5,13 +5,17 @@
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
+from dataclasses import dataclass
 from datetime import date
 from typing import Any, Optional
 
 import httpx
 from bs4 import BeautifulSoup, Tag
+
+from app.services.crawl_guard import fetch_html_with_retry, policy_from_settings
 
 logger = logging.getLogger(__name__)
 
@@ -94,14 +98,19 @@ def _parse_github_row(row: Tag) -> Optional[dict[str, Any]]:
     }
 
 
-def parse_trending_html(html: str) -> list[dict[str, Any]]:
-    """解析 github.com/trending 页面 HTML，返回标准化条目列表。
+@dataclass(frozen=True)
+class ParseReport:
+    """页面解析诊断：候选行 / 成功解析 / 丢弃数量。"""
 
-    纯函数、对标记变化容错：优先 `article.Box-row`，回退所有 `article`；
-    单行解析失败仅跳过该行，绝不抛出异常。
-    """
+    rows: int
+    parsed: int
+    dropped: int
+
+
+def parse_trending_html_with_report(html: str) -> tuple[list[dict[str, Any]], ParseReport]:
+    """解析 Trending 页面，同时返回结构诊断（供 M2-02 结构变更判定）。"""
     if not html:
-        return []
+        return [], ParseReport(rows=0, parsed=0, dropped=0)
     soup = BeautifulSoup(html, "html.parser")
     rows = soup.select("article.Box-row") or soup.select("article")
     results: list[dict[str, Any]] = []
@@ -115,32 +124,165 @@ def parse_trending_html(html: str) -> list[dict[str, Any]]:
         if item and item["id"] not in seen:
             seen.add(item["id"])
             results.append(item)
-    return results
+    return results, ParseReport(
+        rows=len(rows), parsed=len(results), dropped=max(0, len(rows) - len(results))
+    )
 
 
-async def crawl_github_trending(language: str | None = None) -> list[dict[str, Any]]:
-    """抓取 GitHub Trending 页面并解析；网络失败返回空列表。"""
+def parse_trending_html(html: str) -> list[dict[str, Any]]:
+    """解析 github.com/trending 页面 HTML，返回标准化条目列表。
+
+    纯函数、对标记变化容错：优先 `article.Box-row`，回退所有 `article`；
+    单行解析失败仅跳过该行，绝不抛出异常。
+    """
+    items, _report = parse_trending_html_with_report(html)
+    return items
+
+
+def _page_name(language: str | None) -> str:
+    """页面标识：语言 slug 小写，空值归为 all。"""
+    return (language or "all").strip().lower() or "all"
+
+
+async def crawl_github_trending_page(
+    language: str | None = None,
+    *,
+    since: str = "daily",
+    client: httpx.AsyncClient | None = None,
+    policy: Any | None = None,
+) -> dict[str, Any]:
+    """抓取单个 Trending 页面，返回 `{items, page}` 诊断；失败不抛异常。
+
+    `page` 字段：`language / ok / count / error / status_code / rows / parsed / attempts`，
+    供任务层做结构变更判定与告警（M2-02）。
+    """
+    page_name = _page_name(language)
+    window = (since or "daily").strip().lower()
+    if window not in ("daily", "weekly", "monthly"):
+        window = "daily"
     url = GITHUB_TRENDING_URL
-    if language:
-        url = f"{GITHUB_TRENDING_URL}/{language.strip().lower()}"
+    if page_name != "all":
+        url = f"{GITHUB_TRENDING_URL}/{page_name}"
+    url = f"{url}?since={window}"
+
+    owns_client = client is None
+    if client is None:
+        client = httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True)
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
-            resp = await client.get(
-                url,
-                headers={"User-Agent": USER_AGENT, "Accept-Language": "en-US,en;q=0.9"},
-            )
-        if resp.status_code != 200:
-            logger.warning("GitHub Trending 返回 %s: %s", resp.status_code, url)
-            return []
-        items = parse_trending_html(resp.text)
-    except httpx.HTTPError as exc:
-        logger.warning("GitHub Trending 抓取失败: %s", exc)
-        return []
+        result = await fetch_html_with_retry(
+            client,
+            url,
+            headers={"User-Agent": USER_AGENT, "Accept-Language": "en-US,en;q=0.9"},
+            policy=policy or policy_from_settings(),
+        )
+    finally:
+        if owns_client:
+            await client.aclose()
+
+    page: dict[str, Any] = {
+        "language": page_name,
+        "url": url,
+        "ok": False,
+        "count": 0,
+        "error": result.error,
+        "status_code": result.status_code,
+        "rows": None,
+        "parsed": None,
+        "attempts": result.attempts,
+    }
+    if not result.ok:
+        logger.warning("GitHub Trending 抓取失败 %s: %s", url, result.error)
+        return {"items": [], "page": page}
+
+    try:
+        items, report = parse_trending_html_with_report(result.text)
+    except Exception as exc:  # noqa: BLE001 - 解析异常按页面失败降级
+        logger.warning("GitHub Trending 解析失败 %s: %s", url, exc)
+        page["error"] = f"parse error: {exc}"
+        return {"items": [], "page": page}
 
     today = date.today().isoformat()
     for item in items:
         item["crawled_at"] = today
-    return items
+
+    page.update(
+        {
+            "ok": True,
+            "count": len(items),
+            "error": None,
+            "rows": report.rows,
+            "parsed": report.parsed,
+        }
+    )
+    return {"items": items, "page": page}
+
+
+async def crawl_github_trending(
+    language: str | None = None, since: str = "daily"
+) -> list[dict[str, Any]]:
+    """抓取单个 GitHub Trending 页面并解析；网络失败返回空列表。"""
+    result = await crawl_github_trending_page(language=language, since=since)
+    return list(result["items"])
+
+
+async def crawl_github_trending_pages(
+    languages: str | list[str] | tuple[str, ...] | None = None,
+    *,
+    since: str = "daily",
+    client: httpx.AsyncClient | None = None,
+    policy: Any | None = None,
+    delay_seconds: float = 1.0,
+    sleep: Any | None = None,
+) -> dict[str, Any]:
+    """顺序抓取「全局页 + 多语言页」，单页失败不中断整轮。
+
+    返回 `{items, pages}`；`pages[]` 含每页诊断，供 M2-02 告警使用。
+    与 M2-01 的页面级统计契约保持一致（`language/ok/count/error`）。
+    """
+    if isinstance(languages, str):
+        raw_slugs = [part.strip().lower() for part in languages.split(",") if part.strip()]
+    else:
+        raw_slugs = [str(part).strip().lower() for part in (languages or []) if str(part).strip()]
+    # 去重且保持顺序
+    slugs: list[str] = []
+    for slug in raw_slugs:
+        if slug not in slugs:
+            slugs.append(slug)
+
+    owns_client = client is None
+    if client is None:
+        client = httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True)
+    sleeper = sleep or asyncio.sleep
+    collected: list[dict[str, Any]] = []
+    pages: list[dict[str, Any]] = []
+    try:
+        for index, slug in enumerate([None, *slugs]):
+            result = await crawl_github_trending_page(
+                slug, since=since, client=client, policy=policy
+            )
+            collected.extend(result["items"])
+            pages.append(result["page"])
+            if delay_seconds > 0 and index < len(slugs):
+                await sleeper(delay_seconds)
+    finally:
+        if owns_client:
+            await client.aclose()
+
+    # 按仓库 id 去重（保留首次出现），字段取首条，避免跨页重复
+    merged: dict[str, dict[str, Any]] = {}
+    for item in collected:
+        repo_id = str(item.get("id") or "").strip()
+        if repo_id and repo_id not in merged:
+            merged[repo_id] = item
+
+    failed_pages = [page for page in pages if not page.get("ok", True)]
+    logger.info(
+        "GitHub Trending 多页抓取完成: %d 页（失败 %d），去重后 %d 条",
+        len(pages),
+        len(failed_pages),
+        len(merged),
+    )
+    return {"items": list(merged.values()), "pages": pages}
 
 
 async def crawl_gitee_explore() -> list[dict[str, Any]]:

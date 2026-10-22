@@ -64,9 +64,14 @@ admin「同步仓库」→ POST /api/sync（edge）→ POST {VPS}/api/tasks/sync
 ### 3.3 热榜流
 
 ```
-Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trending_repositories
-→ 摘要/技术栈提取 → （M3）向量化 → 同步 Vectorize
+Celery beat 每日 → 抓取 GitHub Trending（全局页 + 多语言页，超时/429/5xx 指数退避重试）
+→ 清洗解析 → 页面健康判定（结构变更 / 条数骤降）→ 告警落库（可选 webhook）
+→ upsert trending_repositories → 摘要/技术栈提取 → （M3）向量化 → 同步 Vectorize
 ```
+
+容错约定：单页失败只记录并继续其他页；解析异常 / 页面改版降级为空列表 + 告警，
+任务不抛异常。告警写入本地 `crawl_alerts`，通过 `GET /api/trending/alerts` 查询、
+`POST /api/trending/alerts/{id}/ack` 确认。
 
 ### 3.4 推荐流（RAG）
 
@@ -87,6 +92,8 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 | `/api/auth/logout` | POST | 退出（204） |
 | `/api/repos` | GET | 仓库列表（`?q=` / `?categoryId=`） |
 | `/api/trending` | GET | 热榜（`?limit=`） |
+| `/api/trending/alerts` | GET | 抓取告警（`?status=open\|acknowledged\|all`） |
+| `/api/trending/alerts/{id}/ack` | POST | 确认抓取告警 |
 | `/api/recommendations` | GET | 推荐列表 |
 | `/api/categories` | GET | 分类 + 标签 |
 | `/api/dashboard/stats` | GET | 仪表盘统计 |
