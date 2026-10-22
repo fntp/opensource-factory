@@ -14,7 +14,7 @@
     "test:push-preferences": "node --test scripts/push-preferences-route.test.mjs",
     "test:security": "node --test scripts/security-route.test.mjs",
     "test:monitoring": "node --test scripts/monitoring-route.test.mjs",
-    "test": "node --test scripts/*.test.mjs",
+    "test": "node --experimental-strip-types --experimental-loader ./scripts/ts-import-loader.mjs --test scripts/*.test.mjs",
     "db:migrate:local": "wrangler d1 migrations apply opensource-factory --local"
   },
   "dependencies": {

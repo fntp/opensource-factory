@@ -4,6 +4,7 @@ import {
   Flame,
   FolderGit2,
   FolderTree,
+  GitMerge,
   LayoutDashboard,
   Monitor,
   Palette,
@@ -39,6 +40,7 @@ export const sidebarData: SidebarData = {
         { title: '热榜', url: '/trending', icon: Flame },
         { title: '推荐', url: '/recommend', icon: Sparkles },
         { title: '语义搜索', url: '/search', icon: Search },
+        { title: '重复检测', url: '/duplicates', icon: GitMerge },
       ],
     },
     {

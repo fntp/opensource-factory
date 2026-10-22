@@ -1398,3 +1398,110 @@ class ReadyCheckOut(BaseModel):
     service: str
     version: str
     checks: list[MonitoringCheckItemOut]
+
+
+class DuplicateScanRequest(BaseModel):
+    """重复 / 相似项目扫描请求（M6-03）。"""
+
+    scope: Literal["my", "trending", "all"] = "all"
+    myRepoIds: Optional[list[str]] = Field(
+        default=None,
+        max_length=2000,
+        description="当前用户收藏库 id 列表；edge 传入以限制跨用户数据",
+    )
+    minScore: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="最低置信度")
+    nameThreshold: Optional[float] = Field(
+        default=None, ge=0.5, le=1.0, description="名称相似度阈值"
+    )
+    maxRepos: Optional[int] = Field(default=None, ge=2, le=5000, description="参与扫描的仓库上限")
+    maxClusters: Optional[int] = Field(default=None, ge=1, le=200, description="返回簇上限")
+
+
+class DuplicateThresholdsOut(BaseModel):
+    """本次扫描使用的阈值。"""
+
+    minScore: float
+    nameThreshold: float
+    descriptionThreshold: float
+    vectorThreshold: float
+    maxRepos: int
+    maxClusters: int
+
+
+class DuplicateFieldSourceOut(BaseModel):
+    """字段建议的来源仓库。"""
+
+    source: str
+    repoId: str
+
+
+class DuplicateFieldSuggestionOut(BaseModel):
+    """单个字段的合并建议。"""
+
+    field: str
+    value: Any
+    from_: DuplicateFieldSourceOut = Field(alias="from")
+    reason: str
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class DuplicateSuggestionOut(BaseModel):
+    """合并建议：保留项、合并项与字段级建议。"""
+
+    action: Literal["merge", "review"]
+    keep: DuplicateFieldSourceOut
+    mergeTargets: list[DuplicateFieldSourceOut]
+    fields: list[DuplicateFieldSuggestionOut]
+    notes: str
+
+
+class DuplicateSignalsOut(BaseModel):
+    """成员与簇内其他成员的相似信号。"""
+
+    nameSimilarity: float = 0.0
+    descriptionSimilarity: float = 0.0
+    vectorSimilarity: Optional[float] = None
+    exactKey: bool = False
+
+
+class DuplicateMemberOut(BaseModel):
+    """重复簇成员（未按用户水合，edge 负责权限过滤）。"""
+
+    source: str
+    repoId: str
+    fullName: str
+    name: str = ""
+    description: str = ""
+    language: str = ""
+    stars: int = 0
+    url: str = ""
+    platform: str = ""
+    categoryId: str = ""
+    readmeSummary: str = ""
+    techStack: list[str] = Field(default_factory=list)
+    role: Literal["canonical", "merge"] = "merge"
+    signals: DuplicateSignalsOut = Field(default_factory=DuplicateSignalsOut)
+
+
+class DuplicateClusterOut(BaseModel):
+    """一个重复 / 相似项目簇。"""
+
+    id: str
+    kind: Literal["exact", "name", "semantic", "mixed"]
+    confidence: float
+    reasons: list[str] = Field(default_factory=list)
+    members: list[DuplicateMemberOut] = Field(default_factory=list)
+    suggestion: DuplicateSuggestionOut
+
+
+class DuplicateScanResponse(BaseModel):
+    """重复检测扫描结果。"""
+
+    scanId: str
+    scope: str
+    scanned: int
+    compared: int
+    clusters: list[DuplicateClusterOut]
+    tookMs: int
+    thresholds: DuplicateThresholdsOut

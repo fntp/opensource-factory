@@ -114,6 +114,17 @@ CREATE TABLE recommendation_feedback (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 重复 / 相似项目检测的按用户忽略记录（REQ-202610-0950 / M6-03）
+-- cluster_key 由簇成员（source:repoId）稳定哈希；repo_ids 为 JSON 数组。
+CREATE TABLE IF NOT EXISTS duplicate_dismissals (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    cluster_key TEXT NOT NULL,
+    repo_ids TEXT,
+    reason TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- ── 热榜按日快照（REQ-202610-0913 / M2-05）──────────────────────
 -- 同一仓库同一天只有一行；趋势字段对比上一有效快照计算。
 CREATE TABLE IF NOT EXISTS trending_snapshots (
@@ -239,3 +250,7 @@ CREATE INDEX IF NOT EXISTS idx_rate_limit_counters_expires ON rate_limit_counter
 CREATE INDEX IF NOT EXISTS idx_login_attempts_ip_created ON login_attempts (ip_hash, created_at);
 CREATE INDEX IF NOT EXISTS idx_security_events_type_created ON security_events (event_type, created_at);
 CREATE INDEX idx_worker_metrics_date ON worker_metrics (metric_date);
+CREATE UNIQUE INDEX idx_duplicate_dismissals_unique
+    ON duplicate_dismissals (user_id, cluster_key);
+CREATE INDEX idx_duplicate_dismissals_user_time
+    ON duplicate_dismissals (user_id, created_at DESC);

@@ -55,6 +55,7 @@ vps/
 │   │   ├── semantic_search.py    # 查询向量化 + repo_vectors 余弦检索 + 结果水合
 │   │   ├── fulltext.py           # README 全文镜像 + FTS5 trigram 检索（短词 LIKE 回退）
 │   │   ├── similar_recommendations.py # 相似项目：种子向量近邻 + 水合（M6-02）
+│   │   ├── duplicates.py         # 重复检测：地址 / 名称 / 简介 / 向量复核 + 聚类 + 合并建议（M6-03）
 │   │   └── degradation.py        # 降级路径自检（模型缺失 / 超预算，离线可跑）
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
@@ -66,6 +67,7 @@ vps/
 │   │   ├── vector_index.py       # /api/vector-index/*（同步入队、对账、状态、运行记录）
 │   │   ├── vectors.py            # GET /api/vectors/stats、runs、单条向量
 │   │   ├── search.py             # /api/search/*（understand / embed / query / semantic / fulltext / similar / status）
+│   │   ├── duplicates.py         # POST /api/duplicates/scan（重复检测，只读）
 │   │   ├── degradation.py        # GET /api/degradation/status（降级自检）
 │   │   └── tasks.py              # /api/tasks/*（与边缘 Worker 的集成契约，X-Internal-Token 鉴权）
 │   └── tasks/                # Celery 任务（薄封装，调用 services + 落库）
@@ -251,6 +253,13 @@ permissions / COOP 头，认证路径额外返回 `Cache-Control: no-store`。
 | `RATE_LIMIT_MAX_REQUESTS` | `600` | 普通接口每窗口上限 |
 | `RATE_LIMIT_HEAVY_MAX_REQUESTS` | `120` | 重接口每窗口上限（tasks / vector-index / search / recommend eval） |
 | `RATE_LIMIT_TRUST_PROXY` | `true` | 是否信任 `X-Forwarded-For` 第一跳（仅可信反向代理后开启） |
+| `DUPLICATE_MAX_REPOS` | `500` | 重复检测单次扫描仓库上限（收藏 + 热榜） |
+| `DUPLICATE_NAME_THRESHOLD` | `0.86` | 名称相似度阈值（0.5~1） |
+| `DUPLICATE_DESCRIPTION_THRESHOLD` | `0.75` | 简介 token 相似度阈值（0~1；语义路径按 60% 放宽且不低于 0.5） |
+| `DUPLICATE_VECTOR_THRESHOLD` | `0.88` | 向量余弦复核阈值（0~1） |
+| `DUPLICATE_MIN_CONFIDENCE` | `0.70` | 最低置信度（0~1） |
+| `DUPLICATE_MAX_CLUSTERS` | `50` | 单次返回重复簇上限 |
+| `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/vector-index/*`、`/api/search/*`、`/api/duplicates/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
 | `CELERY_TASK_ALWAYS_EAGER` | `0` | 置 `1` 时任务同步执行（本地调试 / 测试用） |
 | `GITHUB_TOKEN` | 空 | GitHub PAT（仅需 read 权限）；为空时同步任务跳过 |
 | `TRENDING_LANGUAGES` | `python,javascript,typescript,go,rust,java,cpp,c,php,ruby,swift,kotlin` | 每日抓取的 Trending 语言页（逗号分隔；留空只抓全局页） |
@@ -416,6 +425,7 @@ Celery beat 每日 04:37 自动增量同步、05:17 自动对账；也可通过�
 | GET | `/api/search/fulltext/status` | README 全文索引覆盖率与来源分布 | `200 {enabled,totalDocs,bySource,ftsDocs,...}` |
 | POST | `/api/search/fulltext/rebuild` | 全量重建 FTS 索引 | `200 {rebuilt}` |
 | POST | `/api/search/similar` | 相似项目向量近邻（未水合） | `200 {source,repoId,scope,count,topK,minScore,excludeSaved,model,backend,dim,scanned,seed,items:[{source,repoId,score}]}` |
+| POST | `/api/duplicates/scan` | 重复 / 相似项目检测（`scope` / `myRepoIds` / `maxRepos` / `maxClusters`；只读） | `200 {scanId,scope,scanned,compared,clusters,tookMs,thresholds}` |
 | GET | `/api/search/status` | 向量覆盖率、模型分布、最近运行与词表规模 | `200 {...}` |
 | POST | `/api/recommend/eval` | 推荐质量评估与调参（`sampleSize` / `topK` / `holdoutRatio` / `negativesPerPositive` / `seed` / `userId`） | `200 {status,metrics,thresholds,weights,recommended,...}` |
 | POST | `/api/tasks/sync-readmes` | 入队 README 全文索引补录（`source` / `repoId` / `limit` / `force`） | `202 {"taskId"}` |
