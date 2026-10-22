@@ -6,12 +6,23 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 
 import httpx
 
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class SummaryResult:
+    """摘要生成结果（含来源，便于批量任务统计与降级观测）。"""
+
+    text: str
+    source: str  # ollama | deepseek | truncated | empty
+    model: str = ""
+
 
 # 传给 LLM 的原文上限（字符），避免超长 README 撑爆上下文
 _MAX_INPUT_CHARS = 6000
@@ -44,6 +55,7 @@ def _summarize_with_ollama(text: str, max_chars: int) -> str:
         "prompt": _build_prompt(text, max_chars),
         "stream": False,
         "options": {"temperature": 0.3},
+        "keep_alive": settings.OLLAMA_KEEP_ALIVE or "2m",
     }
     try:
         with httpx.Client(timeout=_LLM_TIMEOUT) as client:
@@ -85,19 +97,39 @@ def _summarize_with_deepseek(text: str, max_chars: int) -> str:
         return ""
 
 
-def summarize(text: str, *, max_chars: int = 800) -> str:
-    """生成项目摘要；LLM 全部不可用时返回截断原文并附说明。"""
+def _strip_code_fence(text: str) -> str:
+    """去掉模型偶尔包在外层的 Markdown 代码围栏。"""
+    text = (text or "").strip()
+    if text.startswith("```") and text.endswith("```"):
+        lines = text.splitlines()
+        if len(lines) >= 3:
+            return "\n".join(lines[1:-1]).strip()
+    return text
+
+
+def summarize_with_source(text: str, *, max_chars: int = 800) -> SummaryResult:
+    """生成摘要并标记来源：Ollama → DeepSeek → 截断原文。
+
+    任何外部依赖失败都降级返回，不抛异常；`source` 供批量任务统计与排查。
+    """
     text = (text or "").strip()
     if not text:
-        return ""
+        return SummaryResult(text="", source="empty")
 
-    result = _summarize_with_ollama(text, max_chars)
+    settings = get_settings()
+    result = _strip_code_fence(_summarize_with_ollama(text, max_chars))
     if result:
-        return result
+        return SummaryResult(text=result[:max_chars], source="ollama", model=settings.OLLAMA_MODEL)
 
-    result = _summarize_with_deepseek(text, max_chars)
+    result = _strip_code_fence(_summarize_with_deepseek(text, max_chars))
     if result:
-        return result
+        return SummaryResult(text=result[:max_chars], source="deepseek", model=settings.DEEPSEEK_MODEL)
 
     # 最终降级：截断的清洗后文本 + 说明
-    return f"（LLM 暂不可用，以下为项目原文截断）\n{text[:max_chars]}"
+    fallback = f"（LLM 暂不可用，以下为项目原文截断）\n{text[:max_chars]}"
+    return SummaryResult(text=fallback, source="truncated")
+
+
+def summarize(text: str, *, max_chars: int = 800) -> str:
+    """生成项目摘要；LLM 全部不可用时返回截断原文并附说明。"""
+    return summarize_with_source(text, max_chars=max_chars).text

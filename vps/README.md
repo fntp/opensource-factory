@@ -80,10 +80,16 @@ pytest -q
 | `DATABASE_URL` | `sqlite:///./data/opensource_factory.db` | 本地镜像库（SQLite 起步，可换 PostgreSQL） |
 | `REDIS_URL` | `redis://localhost:6379/0` | Celery broker / result backend |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | 本地 Ollama 服务地址 |
-| `OLLAMA_MODEL` | `qwen2.5:7b` | Ollama 摘要模型 |
+| `OLLAMA_MODEL` | `qwen2.5:7b` | Ollama 摘要模型（M3-01 选型后切换 ≤2B 量化模型） |
+| `OLLAMA_KEEP_ALIVE` | `2m` | 模型空闲卸载时间，控制 2G 推理预算 |
 | `DEEPSEEK_API_KEY` | 空 | 可选；配置后作为 LLM 云端降级（OpenAI 兼容） |
+| `SUMMARY_BATCH_SIZE` | `10` | 摘要任务每批提交条数 |
+| `SUMMARY_MAX_PER_RUN` | `200` | 单次摘要任务最多处理条数 |
+| `SUMMARY_DELAY_MS` | `500` | 每条摘要之间的间隔（毫秒），给 Ollama 留出余量 |
+| `SUMMARY_MAX_CHARS` | `800` | 摘要最大字符数 |
 | `EMBEDDING_MODEL` | `BAAI/bge-m3` | 向量模型名（sentence-transformers / FlagEmbedding） |
 | `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
+| `EDGE_BASE_URL` | 空 | edge Worker 地址；配置后摘要任务批量回写 D1 |
 | `CELERY_TASK_ALWAYS_EAGER` | `0` | 置 `1` 时任务同步执行（本地调试 / 测试用） |
 | `GITHUB_TOKEN` | 空 | GitHub PAT（仅需 read 权限）；为空时同步任务跳过 |
 
@@ -95,11 +101,12 @@ pytest -q
 
 | 方法 | 路径 | 说明 | 返回 |
 | --- | --- | --- | --- |
-| POST | `/api/tasks/sync` | 入队 GitHub 仓库同步（自己的 + Starred） | `202 {"taskId": "..."}` |
+| POST | `/api/tasks/sync` | 入队 GitHub 仓库同步（自己的 + Starred，`with_summary=1` 时完成后自动排队摘要） | `202 {"taskId": "..."}` |
+| POST | `/api/tasks/summarize` | 入队 README 摘要批量生成（可选 `repo_id` 重复传、`limit`、`batch_size`、`force`、`max_chars`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/crawl-trending` | 入队热榜抓取（`platform=github\|gitee\|all`，可选 `language`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/generate-recommendations` | 入队推荐生成（可选 `user_id`、`top_k`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/daily-push` | 入队每日推送准备（将 `new` 推荐标记为 `pushed`） | `202 {"taskId": "..."}` |
-| GET | `/api/tasks/{task_id}` | 查询任务状态（`pending/started/success/failure`） | `200 {"taskId","status","result"}` |
+| GET | `/api/tasks/{task_id}` | 查询任务状态（`pending/started/progress/success/failure`，PROGRESS 时带 `progress`） | `200 {"taskId","status","result","progress"}` |
 
 约定：
 
@@ -108,6 +115,19 @@ pytest -q
 - **直接查询接口**（供边缘回源或调试）：`GET /api/repos`、`GET /api/trending`、`POST /api/recommend/query`；
 - **数据契约**：本地表结构与 D1 Schema 保持一致（`my_repositories` / `trending_repositories` / `categories` 字段名与语义镜像），边缘侧按 `id`（`owner/repo`）对齐；
 - **降级语义**：外部依赖不可用时任务返回 `{"status": "skipped"|"error", ...}` 而不是失败抛错，边缘侧可安全重试。
+
+### README 摘要批量队列（M1-13）
+
+```
+同步任务 upsert → summarize_readmes.delay(变化仓库) → 逐条抓 README / 清洗
+→ Ollama（首选）→ DeepSeek（可选）→ 截断原文（兜底）
+→ 分批写本地 SQLite →（配置 EDGE_BASE_URL 时）POST {edge}/api/repos/summaries 回写 D1
+```
+
+- 只处理 `readme_summary` 为空的仓库；`force=1` 可重算；
+- `SUMMARY_BATCH_SIZE` / `SUMMARY_MAX_PER_RUN` / `SUMMARY_DELAY_MS` / `OLLAMA_KEEP_ALIVE` 共同控制 2G 推理预算；
+- 任务通过 Celery `PROGRESS` 上报 `{phase, processed, total, percent, current}`，边缘侧可轮询 `/api/tasks/{taskId}`；
+- 摘要回写失败不影响本地落库，任务结果里 `writeback` 字段会标明 `ok / skipped / error`。
 
 ## 常用检查
 

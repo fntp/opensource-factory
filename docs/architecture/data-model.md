@@ -32,7 +32,7 @@ recommendations              （user_id 可空 = 全局推荐）
 | html_url | TEXT | 仓库地址 |
 | stars | INTEGER | Star 数 |
 | language | TEXT | 主语言 |
-| readme_summary | TEXT | VPS 大模型生成的项目摘要 |
+| readme_summary | TEXT | VPS 大模型生成的项目摘要（`summarize_readmes` 批量任务写入，Ollama → DeepSeek → 截断降级） |
 | category_id | TEXT | 关联分类 |
 | created_at | DATETIME | 收录时间 |
 
