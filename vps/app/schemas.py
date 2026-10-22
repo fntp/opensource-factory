@@ -325,16 +325,6 @@ class QualitySampleExistingIn(BaseModel):
     batchId: Optional[str] = Field(default=None, max_length=128)
 
 
-class VectorSyncRequest(BaseModel):
-    """Vectorize 索引同步请求。"""
-
-    kind: Literal["sync", "reconcile"] = "sync"
-    scope: Literal["my", "trending", "all"] = "all"
-    limit: Optional[int] = Field(default=None, ge=1, le=100000, description="本次最多处理的向量数")
-    batchSize: Optional[int] = Field(default=None, ge=1, le=1000, description="单批 upsert 条数")
-    force: bool = Field(default=False, description="忽略增量状态，全量重传")
-
-
 class VectorSyncRunOut(BaseModel):
     """一次同步运行的统计输出。"""
 
@@ -548,3 +538,24 @@ class SearchStatusResponse(BaseModel):
     byModel: list[VectorModelStats]
     dimensions: list[int]
     latestRuns: list[VectorRunOut]
+
+class DegradationCheckOut(BaseModel):
+    """单项降级检查结果。"""
+
+    name: str
+    ok: bool
+    detail: str
+
+
+class DegradationStatusOut(BaseModel):
+    """降级路径自检状态（M3-09）。"""
+
+    ok: bool
+    summary: str
+    embeddingModel: str
+    embeddingQuantization: str
+    embeddingExpectedBackend: str
+    llmModel: str
+    llmDegraded: bool
+    budgetMb: int
+    checks: list[DegradationCheckOut]

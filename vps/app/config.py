@@ -69,7 +69,6 @@ class Settings(BaseSettings):
     VECTORIZE_AUTO: bool = True  # 同步 / 抓取完成后自动入队增量任务
 
     # Vectorize 索引同步（M3-03）
-    # 边缘 Worker 地址与内部令牌：两者都配置后才能同步（VPS 不持有 Cloudflare 凭据）
     # edge 地址与内部令牌：两者都配置后才能同步（VPS 不持有 Cloudflare 凭据）
     EDGE_BASE_URL: str = ""
     VECTORIZE_SYNC_ENABLED: bool = True

@@ -26,6 +26,7 @@ vps/
 │   ├── db.py                 # SQLAlchemy engine / Session / init_db
 │   ├── models.py             # 数据库模型（D1 表结构的本地镜像）
 │   ├── schemas.py            # Pydantic 出入参模型
+│   ├── degradation.py        # 降级路径自检 CLI（python -m app.degradation check）
 │   ├── services/             # 业务逻辑（单一职责，可独立单测）
 │   │   ├── github_service.py     # GitHub REST v3 异步客户端（分页、README base64 解码）
 │   │   ├── trending_crawler.py   # GitHub Trending 解析/抓取 + Gitee 探索页（尽力而为）
@@ -42,7 +43,8 @@ vps/
 │   │   ├── recommendation_feedback.py # 推荐反馈：edge 拉取 / 回写 / 本地降级
 │   │   ├── recommendation_eval.py # 质量评估：抽样评估集 / 指标 / 阈值调优
 │   │   ├── vector_index.py       # Vectorize 批量 upsert / 重试 / 对账 / 孤儿清理
-│   │   └── semantic_search.py    # 查询向量化 + repo_vectors 余弦检索 + 结果水合
+│   │   ├── semantic_search.py    # 查询向量化 + repo_vectors 余弦检索 + 结果水合
+│   │   └── degradation.py        # 降级路径自检（模型缺失 / 超预算，离线可跑）
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
 │   │   ├── trending.py           # GET /api/trending、/snapshots、/dates、/history、/retention、POST /crawl、/retention/cleanup
@@ -50,6 +52,7 @@ vps/
 │   │   ├── vector_index.py       # /api/vector-index/*（同步入队、对账、状态、运行记录）
 │   │   ├── vectors.py            # GET /api/vectors/stats、runs、单条向量
 │   │   ├── search.py             # /api/search/*（embed / query / semantic / status）
+│   │   ├── degradation.py        # GET /api/degradation/status（降级自检）
 │   │   └── tasks.py              # /api/tasks/*（与边缘 Worker 的集成契约，X-Internal-Token 鉴权）
 │   └── tasks/                # Celery 任务（薄封装，调用 services + 落库）
 │       ├── celery_app.py         # Celery 应用与 beat 定时计划
@@ -206,6 +209,27 @@ cd vps
 预算内退出码 0；超预算或未收录模型退出码 1。`deploy/scripts/doctor.sh` 也会执行同一项检查。
 int8 量化在 `sentence-transformers` 后端下对 Linear 层做动态量化；生产更推荐预量化的 ONNX int8 权重。
 
+## 降级路径自检（M3-09）
+
+模型缺失或超预算时，节点必须继续可用：
+
+| 场景 | 降级行为 |
+| --- | --- |
+| 未安装 `sentence-transformers` / `FlagEmbedding`，或模型加载失败 | `EmbeddingService` 使用确定性 hash 向量（256 维、L2 归一化） |
+| embedding 模型估算驻留 > `MODEL_BUDGET_MB` | 不加载模型，直接使用 hash 向量（`degraded_reason=over_budget`） |
+| Ollama 未配置 / 请求失败 / 模型超预算 | 继续尝试 DeepSeek；仍不可用则返回截断原文（带「LLM 暂不可用」说明） |
+
+自检命令不加载真实模型、不访问网络，全部 PASS 退出码 0：
+
+```bash
+cd vps
+.venv/bin/python -m app.degradation check
+.venv/bin/python -m app.degradation check --json
+```
+
+部署后也可调用 `GET /api/degradation/status`（配置 `INTERNAL_TOKEN` 时需携带 `X-Internal-Token`）
+核对当前配置的预期后端与五项自检结果。
+
 ## 与 Cloudflare 边缘的接口约定
 
 边缘 Worker 通过内部 API 调度本节点，任务接口位于 `/api/tasks/*`；热榜保留策略接口位于 `/api/trending/retention*`：
@@ -250,6 +274,7 @@ Vectorize 索引维护接口（同样使用 `X-Internal-Token`）：
 | GET | `/api/vector-index/status` | 本地向量数、状态分布、最近运行 | `200` |
 | GET | `/api/vector-index/runs?limit=20` | 最近运行列表 | `200 {"items": [...]}` |
 | GET | `/api/vector-index/runs/{run_id}` | 单次运行详情 | `200` / `404` |
+| GET | `/api/degradation/status` | 降级路径自检（模型缺失 / 超预算） | `200 {...}` |
 
 约定：
 

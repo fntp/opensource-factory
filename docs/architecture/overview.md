@@ -183,6 +183,19 @@ POST /api/recommend/eval（离线、只读）
 → 运维确认后写入 .env（不自动修改运行配置）
 ```
 
+### 3.11 降级路径（M3-09）
+
+```
+EmbeddingService 加载前 → resolve_embedding_spec 估算驻留
+  ├─ 依赖缺失 / 模型加载失败 → hash 向量（256 维 char-trigram、blake2b、L2 归一化）
+  └─ 估算驻留 > MODEL_BUDGET_MB → 不加载模型，直接 hash（degraded_reason=over_budget）
+
+summarize() → Ollama（超预算则跳过请求）→ DeepSeek → 截断原文（带降级说明）
+```
+
+- 降级自检 `python -m app.degradation check [--json]` 五项全部离线执行，PASS 退出码 0；
+- `GET /api/degradation/status` 返回当前配置的预期后端、LLM 降级标记与五项检查结果；
+- 测试不依赖模型与网络，覆盖「模型缺失 / 超预算 → hash 向量 / 截断摘要」两条主路径。
 
 ## 4. 接口边界
 
@@ -251,11 +264,8 @@ POST /api/recommend/eval（离线、只读）
 | `/api/vectors/stats` | GET | 向量覆盖率与最近运行 |
 | `/api/vectors/runs/{runId}` | GET | 向量化运行详情 |
 | `/api/vectors/{source}/{repoId}` | GET | 单条仓库向量 |
-| `/api/search/embed` | POST | 查询向量化（供 edge 调用 Vectorize） |
-| `/api/search/query` | POST | 本地向量余弦检索（未水合，Vectorize 降级路径） |
-| `/api/search/semantic` | POST | 本地检索 + 水合完整项目信息（调试 / CLI） |
-| `/api/search/status` | GET | 语义搜索可用性：向量覆盖率与最近运行 |
 | `/api/recommend/eval` | POST | 推荐质量评估与阈值 / 权重调参建议（抽样评估集） |
+| `/api/degradation/status` | GET | 降级路径自检（模型缺失 / 超预算） |
 | `/healthz` | GET | 健康检查 |
 
 ### 4.3 vps → edge（Vectorize 内部接口，`X-Internal-Token`）

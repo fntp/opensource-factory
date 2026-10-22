@@ -11,6 +11,7 @@ from dataclasses import dataclass
 import httpx
 
 from app.config import get_settings
+from app.services.model_budget import DEFAULT_BUDGET_MB, resolve_llm_spec
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +45,36 @@ def _build_prompt(text: str, max_chars: int) -> str:
     return _PROMPT_TEMPLATE.format(max_chars=max_chars, text=text[:_MAX_INPUT_CHARS])
 
 
+def is_llm_over_budget(settings: object | None = None) -> bool:
+    """判断 Ollama 摘要模型是否超出本地推理预算（未收录模型不阻断）。"""
+    current = settings or get_settings()
+    spec = resolve_llm_spec(str(getattr(current, "OLLAMA_MODEL", "") or ""))
+    if spec is None:
+        return False
+    budget = int(getattr(current, "MODEL_BUDGET_MB", 0) or DEFAULT_BUDGET_MB)
+    return spec.resident_mb > budget
+
+
+def truncated_summary(text: str, *, max_chars: int = 800) -> str:
+    """最终降级：截断清洗后的原文，并标注 LLM 不可用。"""
+    text = (text or "").strip()
+    if not text:
+        return ""
+    return f"（LLM 暂不可用，以下为项目原文截断）\n{text[:max_chars]}"
+
+
 def _summarize_with_ollama(text: str, max_chars: int) -> str:
     """尝试本地 Ollama；不可用时返回空字符串。"""
     settings = get_settings()
     base_url = (settings.OLLAMA_BASE_URL or "").strip().rstrip("/")
     if not base_url:
+        return ""
+    if is_llm_over_budget(settings):
+        logger.warning(
+            "Ollama 模型 %s 超出 %d MB 推理预算，跳过本地摘要（降级）",
+            settings.OLLAMA_MODEL,
+            int(settings.MODEL_BUDGET_MB or DEFAULT_BUDGET_MB),
+        )
         return ""
     payload = {
         "model": settings.OLLAMA_MODEL,
@@ -126,8 +152,8 @@ def summarize_with_source(text: str, *, max_chars: int = 800) -> SummaryResult:
         return SummaryResult(text=result[:max_chars], source="deepseek", model=settings.DEEPSEEK_MODEL)
 
     # 最终降级：截断的清洗后文本 + 说明
-    fallback = f"（LLM 暂不可用，以下为项目原文截断）\n{text[:max_chars]}"
-    return SummaryResult(text=fallback, source="truncated")
+    # 最终降级：截断的清洗后文本 + 说明
+    return SummaryResult(text=truncated_summary(text, max_chars=max_chars), source="truncated")
 
 
 def summarize(text: str, *, max_chars: int = 800) -> str:
