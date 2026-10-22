@@ -19,14 +19,17 @@ import { Route as errors503RouteImport } from './routes/(errors)/503'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings/route'
 import { Route as AuthenticatedCategoriesIndexRouteImport } from './routes/_authenticated/categories/index'
+import { Route as AuthenticatedCategorySuggestionsIndexRouteImport } from './routes/_authenticated/category-suggestions/index'
 import { Route as AuthenticatedDependenciesIndexRouteImport } from './routes/_authenticated/dependencies/index'
 import { Route as AuthenticatedDuplicatesIndexRouteImport } from './routes/_authenticated/duplicates/index'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
 import { Route as AuthenticatedExportIndexRouteImport } from './routes/_authenticated/export/index'
 import { Route as AuthenticatedLicensesIndexRouteImport } from './routes/_authenticated/licenses/index'
+import { Route as AuthenticatedModelRoutingIndexRouteImport } from './routes/_authenticated/model-routing/index'
 import { Route as AuthenticatedMonitoringIndexRouteImport } from './routes/_authenticated/monitoring/index'
 import { Route as AuthenticatedNotificationsIndexRouteImport } from './routes/_authenticated/notifications/index'
 import { Route as AuthenticatedRecommendIndexRouteImport } from './routes/_authenticated/recommend/index'
+import { Route as AuthenticatedReportsIndexRouteImport } from './routes/_authenticated/reports/index'
 import { Route as AuthenticatedReposIndexRouteImport } from './routes/_authenticated/repos/index'
 import { Route as AuthenticatedRerankIndexRouteImport } from './routes/_authenticated/rerank/index'
 import { Route as AuthenticatedSearchIndexRouteImport } from './routes/_authenticated/search/index'
@@ -36,6 +39,7 @@ import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_a
 import { Route as AuthenticatedSettingsDisplayRouteImport } from './routes/_authenticated/settings/display'
 import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings/notifications'
 import { Route as AuthenticatedStarTrendsIndexRouteImport } from './routes/_authenticated/star-trends/index'
+import { Route as AuthenticatedTagSuggestionsIndexRouteImport } from './routes/_authenticated/tag-suggestions/index'
 import { Route as AuthenticatedTechStackIndexRouteImport } from './routes/_authenticated/tech-stack/index'
 import { Route as AuthenticatedTrendingIndexRouteImport } from './routes/_authenticated/trending/index'
 import { Route as AuthenticatedUpdatesIndexRouteImport } from './routes/_authenticated/updates/index'
@@ -92,6 +96,12 @@ const AuthenticatedCategoriesIndexRoute =
     path: '/categories/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedCategorySuggestionsIndexRoute =
+  AuthenticatedCategorySuggestionsIndexRouteImport.update({
+    id: '/category-suggestions/',
+    path: '/category-suggestions/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedDependenciesIndexRoute =
   AuthenticatedDependenciesIndexRouteImport.update({
     id: '/dependencies/',
@@ -122,6 +132,12 @@ const AuthenticatedLicensesIndexRoute =
     path: '/licenses/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedModelRoutingIndexRoute =
+  AuthenticatedModelRoutingIndexRouteImport.update({
+    id: '/model-routing/',
+    path: '/model-routing/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedMonitoringIndexRoute =
   AuthenticatedMonitoringIndexRouteImport.update({
     id: '/monitoring/',
@@ -138,6 +154,12 @@ const AuthenticatedRecommendIndexRoute =
   AuthenticatedRecommendIndexRouteImport.update({
     id: '/recommend/',
     path: '/recommend/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedReportsIndexRoute =
+  AuthenticatedReportsIndexRouteImport.update({
+    id: '/reports/',
+    path: '/reports/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedReposIndexRoute = AuthenticatedReposIndexRouteImport.update({
@@ -193,6 +215,12 @@ const AuthenticatedStarTrendsIndexRoute =
     path: '/star-trends/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedTagSuggestionsIndexRoute =
+  AuthenticatedTagSuggestionsIndexRouteImport.update({
+    id: '/tag-suggestions/',
+    path: '/tag-suggestions/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedTechStackIndexRoute =
   AuthenticatedTechStackIndexRouteImport.update({
     id: '/tech-stack/',
@@ -233,18 +261,22 @@ export interface FileRoutesByFullPath {
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/categories/': typeof AuthenticatedCategoriesIndexRoute
+  '/category-suggestions/': typeof AuthenticatedCategorySuggestionsIndexRoute
   '/dependencies/': typeof AuthenticatedDependenciesIndexRoute
   '/duplicates/': typeof AuthenticatedDuplicatesIndexRoute
   '/export/': typeof AuthenticatedExportIndexRoute
   '/licenses/': typeof AuthenticatedLicensesIndexRoute
+  '/model-routing/': typeof AuthenticatedModelRoutingIndexRoute
   '/monitoring/': typeof AuthenticatedMonitoringIndexRoute
   '/notifications/': typeof AuthenticatedNotificationsIndexRoute
   '/recommend/': typeof AuthenticatedRecommendIndexRoute
+  '/reports/': typeof AuthenticatedReportsIndexRoute
   '/repos/': typeof AuthenticatedReposIndexRoute
   '/rerank/': typeof AuthenticatedRerankIndexRoute
   '/search/': typeof AuthenticatedSearchIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/star-trends/': typeof AuthenticatedStarTrendsIndexRoute
+  '/tag-suggestions/': typeof AuthenticatedTagSuggestionsIndexRoute
   '/tech-stack/': typeof AuthenticatedTechStackIndexRoute
   '/trending/': typeof AuthenticatedTrendingIndexRoute
   '/updates/': typeof AuthenticatedUpdatesIndexRoute
@@ -264,18 +296,22 @@ export interface FileRoutesByTo {
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/categories': typeof AuthenticatedCategoriesIndexRoute
+  '/category-suggestions': typeof AuthenticatedCategorySuggestionsIndexRoute
   '/dependencies': typeof AuthenticatedDependenciesIndexRoute
   '/duplicates': typeof AuthenticatedDuplicatesIndexRoute
   '/export': typeof AuthenticatedExportIndexRoute
   '/licenses': typeof AuthenticatedLicensesIndexRoute
+  '/model-routing': typeof AuthenticatedModelRoutingIndexRoute
   '/monitoring': typeof AuthenticatedMonitoringIndexRoute
   '/notifications': typeof AuthenticatedNotificationsIndexRoute
   '/recommend': typeof AuthenticatedRecommendIndexRoute
+  '/reports': typeof AuthenticatedReportsIndexRoute
   '/repos': typeof AuthenticatedReposIndexRoute
   '/rerank': typeof AuthenticatedRerankIndexRoute
   '/search': typeof AuthenticatedSearchIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/star-trends': typeof AuthenticatedStarTrendsIndexRoute
+  '/tag-suggestions': typeof AuthenticatedTagSuggestionsIndexRoute
   '/tech-stack': typeof AuthenticatedTechStackIndexRoute
   '/trending': typeof AuthenticatedTrendingIndexRoute
   '/updates': typeof AuthenticatedUpdatesIndexRoute
@@ -298,18 +334,22 @@ export interface FileRoutesById {
   '/_authenticated/settings/display': typeof AuthenticatedSettingsDisplayRoute
   '/_authenticated/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/_authenticated/categories/': typeof AuthenticatedCategoriesIndexRoute
+  '/_authenticated/category-suggestions/': typeof AuthenticatedCategorySuggestionsIndexRoute
   '/_authenticated/dependencies/': typeof AuthenticatedDependenciesIndexRoute
   '/_authenticated/duplicates/': typeof AuthenticatedDuplicatesIndexRoute
   '/_authenticated/export/': typeof AuthenticatedExportIndexRoute
   '/_authenticated/licenses/': typeof AuthenticatedLicensesIndexRoute
+  '/_authenticated/model-routing/': typeof AuthenticatedModelRoutingIndexRoute
   '/_authenticated/monitoring/': typeof AuthenticatedMonitoringIndexRoute
   '/_authenticated/notifications/': typeof AuthenticatedNotificationsIndexRoute
   '/_authenticated/recommend/': typeof AuthenticatedRecommendIndexRoute
+  '/_authenticated/reports/': typeof AuthenticatedReportsIndexRoute
   '/_authenticated/repos/': typeof AuthenticatedReposIndexRoute
   '/_authenticated/rerank/': typeof AuthenticatedRerankIndexRoute
   '/_authenticated/search/': typeof AuthenticatedSearchIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/star-trends/': typeof AuthenticatedStarTrendsIndexRoute
+  '/_authenticated/tag-suggestions/': typeof AuthenticatedTagSuggestionsIndexRoute
   '/_authenticated/tech-stack/': typeof AuthenticatedTechStackIndexRoute
   '/_authenticated/trending/': typeof AuthenticatedTrendingIndexRoute
   '/_authenticated/updates/': typeof AuthenticatedUpdatesIndexRoute
@@ -332,18 +372,22 @@ export interface FileRouteTypes {
     | '/settings/display'
     | '/settings/notifications'
     | '/categories/'
+    | '/category-suggestions/'
     | '/dependencies/'
     | '/duplicates/'
     | '/export/'
     | '/licenses/'
+    | '/model-routing/'
     | '/monitoring/'
     | '/notifications/'
     | '/recommend/'
+    | '/reports/'
     | '/repos/'
     | '/rerank/'
     | '/search/'
     | '/settings/'
     | '/star-trends/'
+    | '/tag-suggestions/'
     | '/tech-stack/'
     | '/trending/'
     | '/updates/'
@@ -363,18 +407,22 @@ export interface FileRouteTypes {
     | '/settings/display'
     | '/settings/notifications'
     | '/categories'
+    | '/category-suggestions'
     | '/dependencies'
     | '/duplicates'
     | '/export'
     | '/licenses'
+    | '/model-routing'
     | '/monitoring'
     | '/notifications'
     | '/recommend'
+    | '/reports'
     | '/repos'
     | '/rerank'
     | '/search'
     | '/settings'
     | '/star-trends'
+    | '/tag-suggestions'
     | '/tech-stack'
     | '/trending'
     | '/updates'
@@ -396,18 +444,22 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/display'
     | '/_authenticated/settings/notifications'
     | '/_authenticated/categories/'
+    | '/_authenticated/category-suggestions/'
     | '/_authenticated/dependencies/'
     | '/_authenticated/duplicates/'
     | '/_authenticated/export/'
     | '/_authenticated/licenses/'
+    | '/_authenticated/model-routing/'
     | '/_authenticated/monitoring/'
     | '/_authenticated/notifications/'
     | '/_authenticated/recommend/'
+    | '/_authenticated/reports/'
     | '/_authenticated/repos/'
     | '/_authenticated/rerank/'
     | '/_authenticated/search/'
     | '/_authenticated/settings/'
     | '/_authenticated/star-trends/'
+    | '/_authenticated/tag-suggestions/'
     | '/_authenticated/tech-stack/'
     | '/_authenticated/trending/'
     | '/_authenticated/updates/'
@@ -496,6 +548,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCategoriesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/category-suggestions/': {
+      id: '/_authenticated/category-suggestions/'
+      path: '/category-suggestions'
+      fullPath: '/category-suggestions/'
+      preLoaderRoute: typeof AuthenticatedCategorySuggestionsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/dependencies/': {
       id: '/_authenticated/dependencies/'
       path: '/dependencies'
@@ -531,6 +590,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedLicensesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/model-routing/': {
+      id: '/_authenticated/model-routing/'
+      path: '/model-routing'
+      fullPath: '/model-routing/'
+      preLoaderRoute: typeof AuthenticatedModelRoutingIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/monitoring/': {
       id: '/_authenticated/monitoring/'
       path: '/monitoring'
@@ -550,6 +616,13 @@ declare module '@tanstack/react-router' {
       path: '/recommend'
       fullPath: '/recommend/'
       preLoaderRoute: typeof AuthenticatedRecommendIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/reports/': {
+      id: '/_authenticated/reports/'
+      path: '/reports'
+      fullPath: '/reports/'
+      preLoaderRoute: typeof AuthenticatedReportsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/repos/': {
@@ -615,6 +688,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStarTrendsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/tag-suggestions/': {
+      id: '/_authenticated/tag-suggestions/'
+      path: '/tag-suggestions'
+      fullPath: '/tag-suggestions/'
+      preLoaderRoute: typeof AuthenticatedTagSuggestionsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/tech-stack/': {
       id: '/_authenticated/tech-stack/'
       path: '/tech-stack'
@@ -674,17 +754,21 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedCategoriesIndexRoute: typeof AuthenticatedCategoriesIndexRoute
+  AuthenticatedCategorySuggestionsIndexRoute: typeof AuthenticatedCategorySuggestionsIndexRoute
   AuthenticatedDependenciesIndexRoute: typeof AuthenticatedDependenciesIndexRoute
   AuthenticatedDuplicatesIndexRoute: typeof AuthenticatedDuplicatesIndexRoute
   AuthenticatedExportIndexRoute: typeof AuthenticatedExportIndexRoute
   AuthenticatedLicensesIndexRoute: typeof AuthenticatedLicensesIndexRoute
+  AuthenticatedModelRoutingIndexRoute: typeof AuthenticatedModelRoutingIndexRoute
   AuthenticatedMonitoringIndexRoute: typeof AuthenticatedMonitoringIndexRoute
   AuthenticatedNotificationsIndexRoute: typeof AuthenticatedNotificationsIndexRoute
   AuthenticatedRecommendIndexRoute: typeof AuthenticatedRecommendIndexRoute
+  AuthenticatedReportsIndexRoute: typeof AuthenticatedReportsIndexRoute
   AuthenticatedReposIndexRoute: typeof AuthenticatedReposIndexRoute
   AuthenticatedRerankIndexRoute: typeof AuthenticatedRerankIndexRoute
   AuthenticatedSearchIndexRoute: typeof AuthenticatedSearchIndexRoute
   AuthenticatedStarTrendsIndexRoute: typeof AuthenticatedStarTrendsIndexRoute
+  AuthenticatedTagSuggestionsIndexRoute: typeof AuthenticatedTagSuggestionsIndexRoute
   AuthenticatedTechStackIndexRoute: typeof AuthenticatedTechStackIndexRoute
   AuthenticatedTrendingIndexRoute: typeof AuthenticatedTrendingIndexRoute
   AuthenticatedUpdatesIndexRoute: typeof AuthenticatedUpdatesIndexRoute
@@ -696,17 +780,22 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedCategoriesIndexRoute: AuthenticatedCategoriesIndexRoute,
+  AuthenticatedCategorySuggestionsIndexRoute:
+    AuthenticatedCategorySuggestionsIndexRoute,
   AuthenticatedDependenciesIndexRoute: AuthenticatedDependenciesIndexRoute,
   AuthenticatedDuplicatesIndexRoute: AuthenticatedDuplicatesIndexRoute,
   AuthenticatedExportIndexRoute: AuthenticatedExportIndexRoute,
   AuthenticatedLicensesIndexRoute: AuthenticatedLicensesIndexRoute,
+  AuthenticatedModelRoutingIndexRoute: AuthenticatedModelRoutingIndexRoute,
   AuthenticatedMonitoringIndexRoute: AuthenticatedMonitoringIndexRoute,
   AuthenticatedNotificationsIndexRoute: AuthenticatedNotificationsIndexRoute,
   AuthenticatedRecommendIndexRoute: AuthenticatedRecommendIndexRoute,
+  AuthenticatedReportsIndexRoute: AuthenticatedReportsIndexRoute,
   AuthenticatedReposIndexRoute: AuthenticatedReposIndexRoute,
   AuthenticatedRerankIndexRoute: AuthenticatedRerankIndexRoute,
   AuthenticatedSearchIndexRoute: AuthenticatedSearchIndexRoute,
   AuthenticatedStarTrendsIndexRoute: AuthenticatedStarTrendsIndexRoute,
+  AuthenticatedTagSuggestionsIndexRoute: AuthenticatedTagSuggestionsIndexRoute,
   AuthenticatedTechStackIndexRoute: AuthenticatedTechStackIndexRoute,
   AuthenticatedTrendingIndexRoute: AuthenticatedTrendingIndexRoute,
   AuthenticatedUpdatesIndexRoute: AuthenticatedUpdatesIndexRoute,
