@@ -1,0 +1,80 @@
+# 部署基线（`deploy/`）
+
+> 对应需求：REQ-202610-0893（backlog M1-01 / IT-0003）｜ 维护人：fntp
+
+本目录把「本机运行」固化为可复现的基线：运行目录、Redis、systemd 进程管理与环境模板。
+完整说明见 [docs/guides/deployment-baseline.md](../docs/guides/deployment-baseline.md)。
+
+## 1. 运行目录
+
+```
+/opt/openfactory/            700  运行根目录（仅本机，不进仓库）
+├── .env                     600  真实配置（bootstrap 从模板渲染）
+├── etc/redis.conf           600  Redis 配置（bootstrap 渲染）
+├── data/                    700  SQLite / Celery beat schedule
+│   └── redis/               700  Redis 工作目录
+├── logs/                    700  应用滚动日志
+├── backups/                 700  备份产物
+└── run/                     700  运行态文件
+```
+
+代码与运行目录分离：systemd 单元里的 `@APP_DIR@` 在安装时指向当前检出目录。
+
+## 2. 首次部署
+
+```bash
+# 1) 创建运行目录 / 渲染 .env 与 redis.conf（幂等，可重复执行）
+deploy/scripts/bootstrap-runtime.sh
+
+# 2) 安装 Python 依赖（vps）
+cd vps && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+
+# 3) 安装并启用 systemd 单元（需 root）
+deploy/scripts/bootstrap-runtime.sh --install-units
+systemctl enable --now openfactory-redis openfactory-api openfactory-worker openfactory-beat
+
+# 4) 自检
+deploy/scripts/doctor.sh --services
+```
+
+> `bootstrap-runtime.sh --with-redis` 可在缺少 `redis-server` 时用 apt 安装，
+> 并停用发行版默认的 `redis.service`（由 `openfactory-redis.service` 接管 6379）。
+
+## 3. 进程与资源上限
+
+| 单元 | 进程 | 监听 / 产物 | MemoryMax |
+| --- | --- | --- | --- |
+| `openfactory-redis.service` | redis-server | `127.0.0.1:6379` | 320M |
+| `openfactory-api.service` | uvicorn（单 worker） | `127.0.0.1:8000` | 384M |
+| `openfactory-worker.service` | celery worker（并发 2） | — | 768M |
+| `openfactory-beat.service` | celery beat | `data/celerybeat-schedule` | 192M |
+
+合计上限约 1.66G，落在应用侧 2G 预算内（见 [resource-plan.md](../docs/planning/resource-plan.md) §2）。
+
+## 4. 环境模板对齐
+
+| 文件 | 用途 | 是否入库 |
+| --- | --- | --- |
+| `vps/.env.example` | 开发 / 本地模板（相对路径） | ✅ |
+| `deploy/env/openfactory.env.example` | 生产 / 本机模板（绝对路径、回环地址） | ✅ |
+| `/opt/openfactory/.env` | 真实配置（bootstrap 渲染，`INTERNAL_TOKEN` 自动生成） | ❌ |
+
+两份模板的键集合必须与 `vps/app/config.py` 的 `Settings` 字段一致，
+由 `vps/tests/test_deploy_assets.py` 自动校验，新增配置项时同步三处。
+
+## 5. 常用命令
+
+```bash
+deploy/scripts/bootstrap-runtime.sh --help
+deploy/scripts/doctor.sh                 # 目录 / 权限 / 环境文件自检
+deploy/scripts/doctor.sh --services      # 额外探测 Redis
+python3 -m app.runtime layout --home /opt/openfactory   # 在 vps/ 下执行
+journalctl -u openfactory-api -f         # 查看进程日志
+```
+
+## 6. 安全红线
+
+- `.env`、`redis.conf` 权限 600，运行目录 700；真实密钥不入库、不回显；
+- Redis 仅监听回环地址，禁止暴露公网；
+- `CORS_ORIGINS` 生产环境禁止使用 `*`；
+- 单元默认以专用系统用户 `openfactory` 运行，启用 `NoNewPrivileges` / `ProtectSystem=full`。
