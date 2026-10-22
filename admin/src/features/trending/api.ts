@@ -274,6 +274,7 @@ export function fetchTrendingLanguages(
         ),
     }
   )
+}
 
 const MOCK_TECH_STACK: Record<string, string[]> = {
   'langchain-ai/langchain': ['Python', 'LLM', 'RAG'],
@@ -319,6 +320,10 @@ function mockDetail(owner: string, name: string): TrendingRepoDetail {
     stars: 0,
     starsToday: 0,
     url: `https://github.com/${owner}/${name}`,
+    snapshotDate: null,
+    rank: 0,
+    rankChange: null,
+    trend: 'same',
     platform: 'github',
     techStack: [],
     summary: '演示模式下暂无该项目的摘要。',

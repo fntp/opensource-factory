@@ -26,14 +26,14 @@
 
 ```
 edge/
-├── package.json          # 依赖与脚本（dev / deploy / typecheck / db:migrate:local）
+├── package.json          # 依赖与脚本（dev / deploy / typecheck / test:m2 / db:migrate:local）
 ├── tsconfig.json         # strict TypeScript 配置（@cloudflare/workers-types）
 ├── wrangler.toml         # Worker 名称、D1 绑定、vars（机密不在此处）
 ├── migrations/
 │   ├── 0001_init.sql     # 初始 D1 schema（表 + 索引）
 │   ├── 0002_trending_snapshots.sql  # 热榜按日快照（M2-05）
 │   ├── 0007_trending_summary.sql  # 热榜摘要列（M2-04）
-│   └── 0008_trending_detail.sql  # 热榜详情：readme_summary + 平台/Star 索引
+│   └── 0008_trending_detail.sql  # 热榜详情：平台/Star 查询索引（摘要列见 0007）
 └── src/
     ├── index.ts          # Hono 入口：CORS、日志、/healthz、路由挂载、404/500
     ├── types.ts          # Env 绑定 + 数据库行 + API 响应实体
@@ -70,6 +70,18 @@ npm run db:migrate:local
 ```bash
 npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FROM categories;"
 ```
+
+### 检查与验收
+
+```bash
+npm run typecheck        # TypeScript 全量类型检查
+npm run test:trending    # 热榜查询 / 详情纯函数用例（11 个）
+npm run test:m2 -- --strict \
+  --report-md docs/planning/acceptance-m2-report.md \
+  --report-json docs/planning/acceptance-m2-report.json
+```
+
+`test:m2` 会自动应用本地 D1 迁移、种入固定热榜数据集并启动 `wrangler dev`，覆盖 M2 列表 / 筛选 / 趋势 / 详情 / 收藏 / 摘要回写 / 快照 upsert / 保留清理 24 项断言。
 
 ## 部署步骤
 
