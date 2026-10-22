@@ -52,6 +52,18 @@ export interface SessionRow {
   expires_at: string;
 }
 
+/** 浏览器扩展令牌（M8-02）：只存 sha-256 摘要，明文仅创建时返回一次。 */
+export interface ExtensionTokenRow {
+  id: string;
+  user_id: string;
+  label: string | null;
+  token_hash: string;
+  hint: string;
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+}
+
 export interface TagSuggestionRow {
   id: string;
   user_id: string;

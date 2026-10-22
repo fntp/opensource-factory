@@ -706,6 +706,25 @@ admin /tag-suggestions「生成建议」
 | `/api/internal/security/cleanup`（edge） | POST | 清理过期限流计数、30 天前登录失败与 90 天前安全事件（`X-Internal-Token`） |
 | `/api/security/status`（vps） | GET | VPS 侧限流参数与双令牌状态（`X-Internal-Token`） |
 | `/api/internal/analytics` | GET | Workers 请求指标聚合（`?days=1..30`，`X-Internal-Token`） |
+
+### 4.5 浏览器扩展接口（M8-02）
+
+| 端点 | 方法 | 说明 |
+| --- | --- | --- |
+| `/api/extension/tokens` | GET | 当前用户的扩展令牌列表（会话 Cookie；不含明文） |
+| `/api/extension/tokens` | POST | 创建令牌（`label` 可选；明文仅在 201 响应中返回一次，每人最多 20 个有效令牌） |
+| `/api/extension/tokens/:id` | DELETE | 撤销令牌（软删除，写 `revoked_at`） |
+| `/api/extension/me` | GET | 扩展连接测试（Bearer `ofx_…`，返回用户与令牌摘要） |
+| `/api/extension/check` | GET | 查询仓库是否已收藏（`?id=owner/repo` 或仓库 URL；其他用户的收藏返回 `saved=false`） |
+| `/api/extension/bookmark` | POST | 一键收藏 / 更新仓库（Bearer；跨用户重复返回 `409 repo_owned_by_other_user`） |
+
+- 鉴权：管理接口复用 `of_session` httpOnly Cookie；扩展运行时使用 `extension_tokens`
+  中只存哈希的 Bearer 令牌，令牌不进入页面内容脚本；
+- CORS：在原有 `ALLOWED_ORIGIN` 精确回显之外，额外允许 `chrome-extension://` /
+  `moz-extension://` 来源回显，并保留 `Authorization` 请求头；
+- 扩展源码位于仓库 `extension/`（Manifest V3，零构建），安装与配置见
+  [extension/README.md](../../extension/README.md)。
+
 ## 5. 安全边界
 
 - 浏览器侧仅持有 httpOnly 会话 Cookie（`of_session`），**不接触任何第三方 token**；

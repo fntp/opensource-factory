@@ -17,7 +17,7 @@
 | `/notifications` | 通知中心 | 站内通知（全部/未读/已读筛选、标记已读、忽略，侧边栏未读徽标） |
 | `/monitoring` | 系统监控 | 健康检查、内存 4G / 磁盘 15G 红线、请求量与错误率、告警确认、Workers 每日指标、日志治理 |
 | `/tech-stack` | 技术栈图谱 | 语言 / 框架聚合 KPI、语言 × 框架径向关系图、语言分布、框架排行、组合洞察 |
-| `/settings/*` | 设置 | 账号、外观、推送偏好（时间 / 阈值 / 通道开关） |
+| `/settings/*` | 设置 | 账号、外观、推送偏好（时间 / 阈值 / 通道开关）、浏览器扩展令牌（M8-02） |
 | `/search` | 项目搜索 | 语义检索 / README 全文检索切换，展示命中片段（M6-01） |
 | `/duplicates` | 重复检测 | 重复 / 相似项目扫描、保留项与字段合并建议、按用户忽略（M6-03） |
 | `/dependencies` | 依赖分析 | 技术栈分布、热门依赖、生态构成与仓库覆盖（M6-07） |
@@ -63,7 +63,7 @@ npm run format     # Prettier 格式化
 ```
 src/
 ├── components/        # 通用组件（layout / ui / ...）
-├── features/          # 业务模块（dashboard / repos / trending / recommend / notifications / categories / auth）
+├── features/          # 业务模块（dashboard / repos / trending / recommend / notifications / categories / auth / extension）
 ├── routes/            # TanStack Router 文件式路由
 ├── stores/            # zustand 状态（auth-store 等）
 └── lib/               # 工具（api.ts 等）

@@ -298,3 +298,18 @@ CREATE INDEX IF NOT EXISTS idx_tag_suggestions_list
     ON tag_suggestions (user_id, status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tag_suggestions_repo
     ON tag_suggestions (user_id, repo_id, status);
+
+-- ── 浏览器扩展令牌（M8-02，迁移 0016）──────────────────────────
+CREATE TABLE IF NOT EXISTS extension_tokens (
+    id TEXT PRIMARY KEY,                 -- tok_ + 16 位随机 hex
+    user_id TEXT NOT NULL,
+    label TEXT,                          -- 展示名，默认「浏览器扩展」
+    token_hash TEXT NOT NULL UNIQUE,     -- sha-256(明文令牌)，不存明文
+    hint TEXT NOT NULL,                  -- 形如 ofx_…a1b2
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_used_at TEXT,
+    revoked_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_extension_tokens_user
+    ON extension_tokens (user_id, created_at DESC);

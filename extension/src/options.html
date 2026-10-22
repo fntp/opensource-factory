@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenFactory 收藏助手 · 设置</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="hero">
+        <img src="../icons/icon48.png" alt="" width="44" height="44" />
+        <div>
+          <h1>OpenFactory 收藏助手</h1>
+          <p>连接你的 OpenFactory 站点，一键把 GitHub / Gitee 仓库收进「我的仓库」。</p>
+        </div>
+      </header>
+
+      <main>
+        <section class="card">
+          <h2>1. 连接站点</h2>
+          <label class="field">
+            <span>API 地址</span>
+            <input id="api-base" type="url" placeholder="https://your-site.example.com" autocomplete="off" spellcheck="false" />
+            <small>OpenFactory 部署的根地址，不带结尾斜杠。</small>
+          </label>
+          <label class="field">
+            <span>扩展令牌</span>
+            <input id="token" type="password" placeholder="ofx_…" autocomplete="off" spellcheck="false" />
+            <small>在站点「设置 → 浏览器扩展」中生成，只会显示一次。</small>
+          </label>
+          <div class="actions">
+            <button id="save" class="primary" type="button">保存并测试连接</button>
+            <button id="open-admin" class="secondary" type="button">打开令牌管理页</button>
+          </div>
+          <p id="status" class="status" role="status"></p>
+        </section>
+
+        <section class="card">
+          <h2>2. 授予页面访问权限</h2>
+          <p class="description">
+            扩展只在点击收藏时读取当前仓库页的标题、简介与 Star 数，不会上传其他内容。
+            首次连接站点时需要授予该站点的访问权限。
+          </p>
+          <button id="grant" class="secondary" type="button">授予站点访问权限</button>
+          <p id="permission-status" class="status" role="status"></p>
+        </section>
+
+        <section class="card">
+          <h2>使用方式</h2>
+          <ol class="steps">
+            <li>打开任意 GitHub / Gitee 仓库页面。</li>
+            <li>点击工具栏中的扩展图标，或按 <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>O</kbd>。</li>
+            <li>在弹窗中确认仓库信息，点击「收藏到 OpenFactory」。</li>
+          </ol>
+          <p class="description">
+            收藏成功后可在站点「我的仓库」中查看；重复收藏会更新描述、语言与 Star 数。
+          </p>
+        </section>
+
+        <section class="card danger-zone">
+          <h2>断开连接</h2>
+          <p class="description">清除本机保存的 API 地址与令牌，不会影响服务端已生成的令牌。</p>
+          <button id="clear" class="danger" type="button">清除本地配置</button>
+        </section>
+      </main>
+
+      <footer>
+        <span>OpenFactory · 开源项目工厂</span>
+        <span id="version"></span>
+      </footer>
+    </div>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

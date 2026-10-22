@@ -76,6 +76,7 @@ edge/
         ├── similar.ts    # /api/similar（相似项目：VPS 向量近邻 → D1 关键词兜底）
         ├── duplicates.ts # /api/duplicates/*（重复检测：VPS 规则 + 向量 → 本地兜底；按用户忽略）
         ├── analysis.ts   # /api/analysis/*（依赖分析：用户仓库 → VPS 聚合 → 本地语言概览）
+        ├── extension.ts  # /api/extension/*（浏览器扩展令牌 / 收藏，Bearer ofx_…）
         └── internal-vectors.ts # /api/internal/vectors/*（VPS → Vectorize，X-Internal-Token）
 ```
 
@@ -185,6 +186,19 @@ npm run test:m2 -- --strict \
 | `POST /api/auth/logout` | 204，清除会话 |
 
 `AuthUser`：`{id, login, name, email, avatarUrl}`
+
+### 浏览器扩展（M8-02）
+
+令牌管理使用会话 Cookie；扩展运行时使用 `Authorization: Bearer ofx_…`（服务端只存 SHA-256）。
+
+| 方法/路径 | 说明 |
+| --- | --- |
+| `GET /api/extension/tokens` | 当前用户的令牌列表 `{items}`（不含明文） |
+| `POST /api/extension/tokens` | 创建令牌，body `{label?}`；201 返回 `{token, item}`，明文仅此一次；每人最多 20 个有效令牌 |
+| `DELETE /api/extension/tokens/:id` | 撤销令牌（软删除，幂等 404） |
+| `GET /api/extension/me` | Bearer 连接测试，返回 `{user, token}` |
+| `GET /api/extension/check?id=owner/repo` | 查询是否已收藏（支持仓库 URL）；他人收藏返回 `{saved:false}` |
+| `POST /api/extension/bookmark` | 收藏 / 更新仓库，body `{repo:{platform,fullName,url,description?,language?,stars?,forks?}}`；跨用户重复返回 409 |
 
 ### 数据接口
 

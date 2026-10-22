@@ -33,7 +33,9 @@ import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_authenticated/settings/account'
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
 import { Route as AuthenticatedSettingsDisplayRouteImport } from './routes/_authenticated/settings/display'
+import { Route as AuthenticatedSettingsExtensionRouteImport } from './routes/_authenticated/settings/extension'
 import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings/notifications'
+import { Route as AuthenticatedTagSuggestionsIndexRouteImport } from './routes/_authenticated/tag-suggestions/index'
 import { Route as AuthenticatedTechStackIndexRouteImport } from './routes/_authenticated/tech-stack/index'
 import { Route as AuthenticatedTrendingIndexRouteImport } from './routes/_authenticated/trending/index'
 import { Route as AuthenticatedTrendingOwnerNameRouteImport } from './routes/_authenticated/trending/$owner/$name'
@@ -172,11 +174,23 @@ const AuthenticatedSettingsDisplayRoute =
     path: '/display',
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
+const AuthenticatedSettingsExtensionRoute =
+  AuthenticatedSettingsExtensionRouteImport.update({
+    id: '/extension',
+    path: '/extension',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
 const AuthenticatedSettingsNotificationsRoute =
   AuthenticatedSettingsNotificationsRouteImport.update({
     id: '/notifications',
     path: '/notifications',
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
+const AuthenticatedTagSuggestionsIndexRoute =
+  AuthenticatedTagSuggestionsIndexRouteImport.update({
+    id: '/tag-suggestions/',
+    path: '/tag-suggestions/',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedTechStackIndexRoute =
   AuthenticatedTechStackIndexRouteImport.update({
@@ -210,6 +224,7 @@ export interface FileRoutesByFullPath {
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
+  '/settings/extension': typeof AuthenticatedSettingsExtensionRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/categories/': typeof AuthenticatedCategoriesIndexRoute
   '/dependencies/': typeof AuthenticatedDependenciesIndexRoute
@@ -222,6 +237,7 @@ export interface FileRoutesByFullPath {
   '/repos/': typeof AuthenticatedReposIndexRoute
   '/search/': typeof AuthenticatedSearchIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
+  '/tag-suggestions/': typeof AuthenticatedTagSuggestionsIndexRoute
   '/tech-stack/': typeof AuthenticatedTechStackIndexRoute
   '/trending/': typeof AuthenticatedTrendingIndexRoute
   '/trending/$owner/$name': typeof AuthenticatedTrendingOwnerNameRoute
@@ -238,6 +254,7 @@ export interface FileRoutesByTo {
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
+  '/settings/extension': typeof AuthenticatedSettingsExtensionRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/categories': typeof AuthenticatedCategoriesIndexRoute
   '/dependencies': typeof AuthenticatedDependenciesIndexRoute
@@ -250,6 +267,7 @@ export interface FileRoutesByTo {
   '/repos': typeof AuthenticatedReposIndexRoute
   '/search': typeof AuthenticatedSearchIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
+  '/tag-suggestions': typeof AuthenticatedTagSuggestionsIndexRoute
   '/tech-stack': typeof AuthenticatedTechStackIndexRoute
   '/trending': typeof AuthenticatedTrendingIndexRoute
   '/trending/$owner/$name': typeof AuthenticatedTrendingOwnerNameRoute
@@ -269,6 +287,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/_authenticated/settings/display': typeof AuthenticatedSettingsDisplayRoute
+  '/_authenticated/settings/extension': typeof AuthenticatedSettingsExtensionRoute
   '/_authenticated/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/_authenticated/categories/': typeof AuthenticatedCategoriesIndexRoute
   '/_authenticated/dependencies/': typeof AuthenticatedDependenciesIndexRoute
@@ -281,6 +300,7 @@ export interface FileRoutesById {
   '/_authenticated/repos/': typeof AuthenticatedReposIndexRoute
   '/_authenticated/search/': typeof AuthenticatedSearchIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
+  '/_authenticated/tag-suggestions/': typeof AuthenticatedTagSuggestionsIndexRoute
   '/_authenticated/tech-stack/': typeof AuthenticatedTechStackIndexRoute
   '/_authenticated/trending/': typeof AuthenticatedTrendingIndexRoute
   '/_authenticated/trending/$owner/$name': typeof AuthenticatedTrendingOwnerNameRoute
@@ -300,6 +320,7 @@ export interface FileRouteTypes {
     | '/settings/account'
     | '/settings/appearance'
     | '/settings/display'
+    | '/settings/extension'
     | '/settings/notifications'
     | '/categories/'
     | '/dependencies/'
@@ -312,6 +333,7 @@ export interface FileRouteTypes {
     | '/repos/'
     | '/search/'
     | '/settings/'
+    | '/tag-suggestions/'
     | '/tech-stack/'
     | '/trending/'
     | '/trending/$owner/$name'
@@ -328,6 +350,7 @@ export interface FileRouteTypes {
     | '/settings/account'
     | '/settings/appearance'
     | '/settings/display'
+    | '/settings/extension'
     | '/settings/notifications'
     | '/categories'
     | '/dependencies'
@@ -340,6 +363,7 @@ export interface FileRouteTypes {
     | '/repos'
     | '/search'
     | '/settings'
+    | '/tag-suggestions'
     | '/tech-stack'
     | '/trending'
     | '/trending/$owner/$name'
@@ -358,6 +382,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/account'
     | '/_authenticated/settings/appearance'
     | '/_authenticated/settings/display'
+    | '/_authenticated/settings/extension'
     | '/_authenticated/settings/notifications'
     | '/_authenticated/categories/'
     | '/_authenticated/dependencies/'
@@ -370,6 +395,7 @@ export interface FileRouteTypes {
     | '/_authenticated/repos/'
     | '/_authenticated/search/'
     | '/_authenticated/settings/'
+    | '/_authenticated/tag-suggestions/'
     | '/_authenticated/tech-stack/'
     | '/_authenticated/trending/'
     | '/_authenticated/trending/$owner/$name'
@@ -555,12 +581,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsDisplayRouteImport
       parentRoute: typeof AuthenticatedSettingsRouteRoute
     }
+    '/_authenticated/settings/extension': {
+      id: '/_authenticated/settings/extension'
+      path: '/extension'
+      fullPath: '/settings/extension'
+      preLoaderRoute: typeof AuthenticatedSettingsExtensionRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
     '/_authenticated/settings/notifications': {
       id: '/_authenticated/settings/notifications'
       path: '/notifications'
       fullPath: '/settings/notifications'
       preLoaderRoute: typeof AuthenticatedSettingsNotificationsRouteImport
       parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/tag-suggestions/': {
+      id: '/_authenticated/tag-suggestions/'
+      path: '/tag-suggestions'
+      fullPath: '/tag-suggestions/'
+      preLoaderRoute: typeof AuthenticatedTagSuggestionsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/tech-stack/': {
       id: '/_authenticated/tech-stack/'
@@ -590,6 +630,7 @@ interface AuthenticatedSettingsRouteRouteChildren {
   AuthenticatedSettingsAccountRoute: typeof AuthenticatedSettingsAccountRoute
   AuthenticatedSettingsAppearanceRoute: typeof AuthenticatedSettingsAppearanceRoute
   AuthenticatedSettingsDisplayRoute: typeof AuthenticatedSettingsDisplayRoute
+  AuthenticatedSettingsExtensionRoute: typeof AuthenticatedSettingsExtensionRoute
   AuthenticatedSettingsNotificationsRoute: typeof AuthenticatedSettingsNotificationsRoute
   AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
 }
@@ -599,6 +640,7 @@ const AuthenticatedSettingsRouteRouteChildren: AuthenticatedSettingsRouteRouteCh
     AuthenticatedSettingsAccountRoute: AuthenticatedSettingsAccountRoute,
     AuthenticatedSettingsAppearanceRoute: AuthenticatedSettingsAppearanceRoute,
     AuthenticatedSettingsDisplayRoute: AuthenticatedSettingsDisplayRoute,
+    AuthenticatedSettingsExtensionRoute: AuthenticatedSettingsExtensionRoute,
     AuthenticatedSettingsNotificationsRoute:
       AuthenticatedSettingsNotificationsRoute,
     AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
@@ -623,6 +665,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedRecommendIndexRoute: typeof AuthenticatedRecommendIndexRoute
   AuthenticatedReposIndexRoute: typeof AuthenticatedReposIndexRoute
   AuthenticatedSearchIndexRoute: typeof AuthenticatedSearchIndexRoute
+  AuthenticatedTagSuggestionsIndexRoute: typeof AuthenticatedTagSuggestionsIndexRoute
   AuthenticatedTechStackIndexRoute: typeof AuthenticatedTechStackIndexRoute
   AuthenticatedTrendingIndexRoute: typeof AuthenticatedTrendingIndexRoute
   AuthenticatedTrendingOwnerNameRoute: typeof AuthenticatedTrendingOwnerNameRoute
@@ -642,6 +685,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedRecommendIndexRoute: AuthenticatedRecommendIndexRoute,
   AuthenticatedReposIndexRoute: AuthenticatedReposIndexRoute,
   AuthenticatedSearchIndexRoute: AuthenticatedSearchIndexRoute,
+  AuthenticatedTagSuggestionsIndexRoute: AuthenticatedTagSuggestionsIndexRoute,
   AuthenticatedTechStackIndexRoute: AuthenticatedTechStackIndexRoute,
   AuthenticatedTrendingIndexRoute: AuthenticatedTrendingIndexRoute,
   AuthenticatedTrendingOwnerNameRoute: AuthenticatedTrendingOwnerNameRoute,

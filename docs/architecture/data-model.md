@@ -519,6 +519,26 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 唯一索引 `(user_id, repo_id, normalized_name)` 保证重复生成幂等；列表索引
 `(user_id, status, updated_at DESC)`；仓库筛选索引 `(user_id, repo_id, status)`。
 
+### 3.21 `extension_tokens` 浏览器扩展令牌（D1，迁移 `0016`）
+
+> 只存令牌的 SHA-256 摘要，明文仅在创建响应中返回一次；扩展以
+> `Authorization: Bearer ofx_…` 调用 `/api/extension/*`。
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | `tok_` + 16 位随机 hex |
+| user_id TEXT | 所属用户（索引 `user_id, created_at DESC`） |
+| label TEXT | 展示名，默认「浏览器扩展」，最长 40 字 |
+| token_hash TEXT UNIQUE | `sha256(明文令牌)`；鉴权时按哈希等值查询 |
+| hint TEXT | 形如 `ofx_…a1b2`，仅用于列表展示 |
+| created_at TEXT | 创建时间 |
+| last_used_at TEXT | 最近一次 Bearer 鉴权时间（按分钟节流更新） |
+| revoked_at TEXT | 撤销时间；非空即失效，记录保留用于审计 |
+
+令牌格式为 `ofx_` + 64 位小写十六进制；每个用户最多保留 20 个有效令牌。
+`my_repositories` 仍以 `owner/repo` 为主键，同一实例内一个仓库只能归属一个用户，
+跨用户重复收藏由 `POST /api/extension/bookmark` 返回 `409 repo_owned_by_other_user`。
+
 ## 4. 索引策略
 
 | 表 | 索引 | 用途 |
