@@ -643,6 +643,45 @@ class SearchQueryResponse(BaseModel):
     items: list[SearchHitOut]
 
 
+class SimilarQuery(BaseModel):
+    """相似项目推荐请求（以仓库向量为种子）。"""
+
+    source: Literal["my", "trending"] = Field(description="种子仓库来源")
+    repoId: str = Field(min_length=1, max_length=255, description="种子仓库 id（owner/repo）")
+    topK: Optional[int] = Field(default=None, ge=1, le=50, description="返回条数（默认 10，最大 50）")
+    scope: Literal["my", "trending", "all"] = "all"
+    minScore: Optional[float] = Field(default=None, ge=-1.0, le=1.0, description="最低余弦相似度")
+    excludeSaved: bool = Field(default=False, description="是否排除收藏库（只推荐未收藏项目）")
+
+
+class SimilarSeedOut(BaseModel):
+    """种子仓库展示信息。"""
+
+    source: str
+    repoId: str
+    name: str = ""
+    description: str = ""
+    language: str = ""
+
+
+class SimilarQueryResponse(BaseModel):
+    """本地向量近邻响应（未水合，供 edge 按用户权限水合）。"""
+
+    source: str
+    repoId: str
+    scope: str
+    count: int
+    topK: int
+    minScore: float
+    excludeSaved: bool
+    model: str
+    backend: str
+    dim: int
+    scanned: int
+    seed: SimilarSeedOut
+    items: list[SearchHitOut]
+
+
 class SearchItem(BaseModel):
     """水合后的搜索结果条目。"""
 

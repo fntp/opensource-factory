@@ -390,6 +390,23 @@ VPS 端点同时提供 `GET /healthz/ready`（数据库 + 运行目录就绪探�
 `/api/monitoring/{status,check,history,alerts,logs}`（全部要求 `X-Internal-Token`）；
 edge 侧 `/api/monitoring/overview` 需登录，`/api/internal/analytics` 供内部工具读取 Workers 聚合。
 
+### 3.12 相似项目推荐流（M6-02「看了又看」）
+
+```
+admin 热榜详情页 GET /api/similar?source=trending&repoId=owner/name&topK=6
+→ edge 校验参数并从 D1 读取种子仓库（source=my 时校验归属当前用户）
+→ edge 调 VPS POST /api/search/similar（X-Internal-Token）
+   ↳ 读取种子仓库 repo_vectors 向量 → 同 model / dim 向量余弦近邻 → topK
+→ edge 按 source 水合 D1（my 仅当前用户；trending 全局）→ 返回匹配度 + 中文理由
+
+降级：
+VPS 不可达 / 种子未向量化 / 0 命中 → edge D1 同语言 + 共享技术栈打分
+（mode=keyword，理由明确为语言 / 技术栈匹配，不冒充语义相似度）
+```
+
+纯向量近邻复用 M3 `repo_vectors`，不新增表；`scope` 控制候选来源（`my` / `trending` / `all`），
+`excludeSaved` 可排除收藏库；`minScore` 可过滤低分近邻。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -429,6 +446,7 @@ edge 侧 `/api/monitoring/overview` 需登录，`/api/internal/analytics` 供内
 | `/api/monitoring/check` | POST | 触发一次 VPS 监控检查（登录态代理） |
 | `/api/monitoring/alerts/:id/ack` | POST | 确认监控告警（登录态代理） |
 | `/api/search/fulltext` | POST | README 全文检索（`query` / `topK` / `scope` / `offset`；VPS FTS → D1 关键词回退） |
+| `/api/similar` | GET | 相似项目推荐（`source=my\|trending` / `repoId` / `topK` / `scope` / `minScore` / `excludeSaved`；local → keyword 降级） |
 
 ### 4.2 edge ↔ vps（内部 API，`X-Internal-Token`）
 
@@ -485,6 +503,7 @@ edge 侧 `/api/monitoring/overview` 需登录，`/api/internal/analytics` 供内
 | `/api/search/fulltext` | POST | README 全文检索（FTS5 trigram，短词 LIKE 回退，返回 snippet） |
 | `/api/search/fulltext/status` | GET | README 全文索引覆盖率与来源分布 |
 | `/api/search/fulltext/rebuild` | POST | 全量重建 README 全文索引 |
+| `/api/search/similar` | POST | 相似项目向量近邻（`source` / `repoId` / `topK` / `scope` / `minScore` / `excludeSaved`；返回未水合 hits） |
 | `/api/search/status` | GET | 向量覆盖率、模型分布与最近向量化运行 |
 | `/api/vectors/stats` | GET | 向量覆盖率与最近运行 |
 | `/api/vectors/runs/{runId}` | GET | 向量化运行详情 |

@@ -381,6 +381,16 @@ export interface SearchResponse {
   terms?: string[];
 }
 
+/** GET /api/similar 响应（相似项目「看了又看」） */
+export interface SimilarResponse {
+  source: 'my' | 'trending';
+  repoId: string;
+  mode: 'local' | 'keyword';
+  count: number;
+  tookMs: number;
+  items: SearchResultItem[];
+}
+
 /** GitHub /user 接口返回（仅取所需字段） */
 export interface GithubUser {
   id: number;

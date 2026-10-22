@@ -54,6 +54,7 @@ vps/
 │   │   ├── query_understanding.py # 同义词 / 技术栈词表查询理解（离线、确定性）
 │   │   ├── semantic_search.py    # 查询向量化 + repo_vectors 余弦检索 + 结果水合
 │   │   ├── fulltext.py           # README 全文镜像 + FTS5 trigram 检索（短词 LIKE 回退）
+│   │   ├── similar_recommendations.py # 相似项目：种子向量近邻 + 水合（M6-02）
 │   │   └── degradation.py        # 降级路径自检（模型缺失 / 超预算，离线可跑）
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
@@ -64,7 +65,7 @@ vps/
 │   │   ├── push_policy.py        # /api/push/policy/*（状态 / 预演 / 事件）
 │   │   ├── vector_index.py       # /api/vector-index/*（同步入队、对账、状态、运行记录）
 │   │   ├── vectors.py            # GET /api/vectors/stats、runs、单条向量
-│   │   ├── search.py             # /api/search/*（understand / embed / query / semantic / fulltext / status）
+│   │   ├── search.py             # /api/search/*（understand / embed / query / semantic / fulltext / similar / status）
 │   │   ├── degradation.py        # GET /api/degradation/status（降级自检）
 │   │   └── tasks.py              # /api/tasks/*（与边缘 Worker 的集成契约，X-Internal-Token 鉴权）
 │   └── tasks/                # Celery 任务（薄封装，调用 services + 落库）
@@ -414,6 +415,7 @@ Celery beat 每日 04:37 自动增量同步、05:17 自动对账；也可通过�
 | POST | `/api/search/fulltext` | README 全文检索（`{query,topK?,scope?,offset?}`，FTS5 / LIKE 回退） | `200 {mode,terms,index,items:[{...snippet,matchedTerms}]}` |
 | GET | `/api/search/fulltext/status` | README 全文索引覆盖率与来源分布 | `200 {enabled,totalDocs,bySource,ftsDocs,...}` |
 | POST | `/api/search/fulltext/rebuild` | 全量重建 FTS 索引 | `200 {rebuilt}` |
+| POST | `/api/search/similar` | 相似项目向量近邻（未水合） | `200 {source,repoId,scope,count,topK,minScore,excludeSaved,model,backend,dim,scanned,seed,items:[{source,repoId,score}]}` |
 | GET | `/api/search/status` | 向量覆盖率、模型分布、最近运行与词表规模 | `200 {...}` |
 | POST | `/api/recommend/eval` | 推荐质量评估与调参（`sampleSize` / `topK` / `holdoutRatio` / `negativesPerPositive` / `seed` / `userId`） | `200 {status,metrics,thresholds,weights,recommended,...}` |
 | POST | `/api/tasks/sync-readmes` | 入队 README 全文索引补录（`source` / `repoId` / `limit` / `force`） | `202 {"taskId"}` |
@@ -531,8 +533,12 @@ curl -sS 'http://127.0.0.1:8000/api/vectors/runs/<runId>'
   维度不一致 / 非法向量自动跳过，`SEARCH_MAX_VECTORS` 限制扫描量；
 - **结果水合**：`POST /api/search/semantic` 按来源查 `my_repositories` / `trending_repositories`，
   返回名称、描述、语言、Star、链接与中文相似度说明；
+- **相似推荐（M6-02）**：`POST /api/search/similar` 读取种子仓库自身向量，对同 `model` / `dim`
+  的 `repo_vectors` 做余弦近邻（排除种子本身），支持 `scope=my|trending|all` / `topK` /
+  `minScore` / `excludeSaved`；返回未水合 hits，由 edge 按当前用户水合 D1 行；
 - **降级**：edge 侧优先 Vectorize，失败或无命中回落到本地检索，VPS 不可达时再用 D1 关键词检索
-  （使用 `understanding.keywordTerms` 做多词 OR LIKE 提升召回）。
+  （使用 `understanding.keywordTerms` 做多词 OR LIKE 提升召回）；相似推荐在 VPS 不可达 /
+  种子未向量化 / 0 命中时回退 D1 同语言 + 共享技术栈打分（`mode=keyword`）。
 
 ```bash
 # 查询向量（edge 用于 Vectorize）

@@ -8,6 +8,7 @@
 - `POST /api/search/fulltext`：README 全文检索（M6-01，FTS5 trigram + LIKE 回退）；
 - `GET  /api/search/fulltext/status`：README 全文索引覆盖率；
 - `POST /api/search/fulltext/rebuild`：全量重建 FTS 索引；
+- `POST /api/search/similar`：以仓库向量为种子的近邻检索（「看了又看」，未水合）；
 - `GET  /api/search/status`：向量覆盖率与最近向量化运行。
 """
 from __future__ import annotations
@@ -28,6 +29,8 @@ from app.schemas import (
     SearchSemanticResponse,
     SearchStatusResponse,
     SearchUnderstandingOut,
+    SimilarQuery,
+    SimilarQueryResponse,
 )
 from app.services.embedding import get_embedding_service
 from app.services.fulltext import (
@@ -44,6 +47,12 @@ from app.services.semantic_search import (
     normalize_query,
     search_local,
     search_semantic,
+)
+from app.services.similar_recommendations import (
+    SeedNotFound,
+    SeedVectorMissing,
+    SimilarError,
+    find_similar,
 )
 
 router = APIRouter(
@@ -169,6 +178,31 @@ def fulltext_rebuild(db: Session = Depends(get_db)) -> FulltextRebuildResponse:
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
     return FulltextRebuildResponse(**result)
+
+
+@router.post(
+    "/similar",
+    response_model=SimilarQueryResponse,
+    summary="相似项目推荐（向量近邻，未水合）",
+)
+def similar_search(payload: SimilarQuery, db: Session = Depends(get_db)) -> SimilarQueryResponse:
+    try:
+        result = find_similar(
+            db,
+            payload.source,
+            payload.repoId,
+            top_k=payload.topK,
+            scope=payload.scope,
+            min_score=payload.minScore,
+            exclude_saved=payload.excludeSaved,
+        )
+    except SeedNotFound as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except SeedVectorMissing as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except SimilarError as exc:
+        raise _bad_request(exc) from exc
+    return SimilarQueryResponse(**result)
 
 
 @router.get("/status", response_model=SearchStatusResponse, summary="语义搜索可用性")

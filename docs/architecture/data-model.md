@@ -479,6 +479,9 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | vector | TEXT | JSON 数组（保留 6 位小数） |
 | created_at / updated_at | DATETIME | 生成 / 更新时间 |
 
+M6-02 相似项目推荐直接复用该表：以种子仓库自身向量做余弦近邻（同 `model` / `dim`），
+不新增表；VPS 只返回 `{source, repoId, score}`，edge 再按当前用户水合 D1 行。
+
 `vectorization_runs`（运行记录，支持断点续跑）：
 
 | 字段 | 类型 | 说明 |

@@ -45,6 +45,10 @@ edge/
     ├── types.ts          # Env 绑定 + 数据库行 + API 响应实体
     ├── db.ts             # D1 查询辅助（first / all / run / count）
     ├── auth.ts           # 会话与 GitHub OAuth 辅助、cookie、redirect 校验
+    ├── search/
+    │   └── items.ts      # 搜索结果水合（语义搜索 / 相似推荐共用）
+    ├── similar/
+    │   └── helpers.ts    # 相似推荐参数归一化 + 关键词兜底打分（纯函数）
     └── routes/
         ├── auth.ts       # /api/auth/*（login / callback / me / logout）
         ├── repos.ts      # /api/repos
@@ -59,6 +63,7 @@ edge/
         ├── search.ts     # /api/search/semantic（查询理解 + Vectorize → 本地向量 → 关键词三级降级）
         ├── monitoring.ts # /api/monitoring/*（总览 / 检查 / 告警确认 + /api/internal/analytics）
         ├── search.ts     # /api/search/semantic（语义三级降级）· /api/search/fulltext（README FTS）
+        ├── similar.ts    # /api/similar（相似项目：VPS 向量近邻 → D1 关键词兜底）
         └── internal-vectors.ts # /api/internal/vectors/*（VPS → Vectorize，X-Internal-Token）
 ```
 
@@ -204,6 +209,7 @@ npm run test:m2 -- --strict \
 | `POST /api/monitoring/alerts/:id/ack` | 确认 VPS 告警（需登录） |
 | `GET /api/internal/analytics?days=7` | Workers 请求指标聚合（`X-Internal-Token`；`days` 1~30） |
 | `POST /api/search/fulltext` | `SearchResponse`：body `{query, topK?, scope?, offset?}`；mode 为 `fts` / `like`（VPS FTS5，短词 LIKE 回退）/ `keyword`（VPS 不可用降级）；`my` 结果按 D1 `user_id` 过滤；条目可带 `snippet` / `matchedTerms`（M6-01） |
+| `GET /api/similar` | `SimilarResponse`：query `source=my\|trending` / `repoId` / `topK` / `scope` / `minScore` / `excludeSaved`；mode 为 `local`（VPS 向量近邻）/ `keyword`（D1 同语言 + 技术栈兜底）；`source=my` 需登录且只返回当前用户仓库 |
 | `GET /healthz` | `{"status":"ok"}` |
 
 JSON 形状（前端契约，勿改字段名）：
