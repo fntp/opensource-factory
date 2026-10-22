@@ -75,6 +75,14 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 → 结果聚合排序 → 返回（含匹配度与理由）；每日推送任务见 M4
 ```
 
+每日推荐生成（M3-05）：
+
+```
+Celery beat 08:30 → 收藏库平均向量（复用 repo_vectors）→ 热榜候选
+→ 排除已收藏 → 相似度 × 0.8 + 热榜热度 × 0.2 → 阈值过滤 → top_k
+→ upsert recommendations（旧 new 未入选标记 expired）→ 09:00 推送准备
+```
+
 ### 3.5 向量化流（M3-02）
 
 ```

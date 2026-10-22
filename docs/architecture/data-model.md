@@ -93,10 +93,10 @@ recommendations              （user_id 可空 = 全局推荐）
 | id TEXT PK | 推荐 id |
 | user_id | 目标用户（NULL = 全局） |
 | owner / name / description / language / stars / url | 推荐项目快照 |
-| score REAL | 匹配度 0~1 |
+| score REAL | 综合得分 0~1（相似度 × 0.8 + 热榜热度 × 0.2） |
 | reason TEXT | 推荐理由（中文） |
 | based_on TEXT | 依据（JSON 数组，如 `["AI/LLM","Python"]`） |
-| status TEXT | `new` / `saved` / `dismissed` / `pushed` |
+| status TEXT | `new` / `saved` / `dismissed` / `pushed` / `expired`（VPS 每日任务未入选或已收藏） |
 | created_at | 生成时间 |
 
 ## 4. 索引策略
