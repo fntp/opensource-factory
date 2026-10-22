@@ -85,12 +85,20 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 | `/api/auth/github/callback` | GET | OAuth 回调（code → 会话） |
 | `/api/auth/me` | GET | 当前用户（未登录 401） |
 | `/api/auth/logout` | POST | 退出（204） |
-| `/api/repos` | GET | 仓库列表（`?q=` / `?categoryId=`） |
+| `/api/repos` | GET | 仓库列表组合筛选 / 排序（`q` / `categoryId` / `tags` / `tagIds` / `languages` / `starsMin` / `starsMax` / `updatedAfter` / `updatedBefore` / `sort` / `order`） |
 | `/api/trending` | GET | 热榜（`?limit=`） |
 | `/api/recommendations` | GET | 推荐列表 |
-| `/api/categories` | GET | 分类 + 标签 |
+| `/api/categories` | GET | 分类 + 标签（标签含 `id`，供筛选使用） |
 | `/api/dashboard/stats` | GET | 仪表盘统计 |
 | `/api/sync` | POST | 触发同步任务（202） |
+
+`/api/repos` 组合筛选约定：
+
+- `categoryId` 默认包含该分类的全部子孙分类（无限级分类树）；
+- `tags` / `tagIds` 多值为 **AND**（仓库需同时具备全部标签）；
+- `languages` 多值为 OR；`starsMin` / `starsMax` 含边界；
+- `updatedAfter` / `updatedBefore` 为 `YYYY-MM-DD`（UTC，含边界）；
+- `sort` 白名单：`stars` / `updated` / `created` / `name` / `forks`；`order` 为 `asc` / `desc`。
 
 ### 4.2 edge ↔ vps（内部 API，`X-Internal-Token`）
 

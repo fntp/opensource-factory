@@ -1,8 +1,11 @@
 /**
  * 我的仓库路由
- * GET /api/repos?q=&categoryId=  当前会话用户的仓库列表（RepoItem[]）
+ * GET /api/repos?q=&categoryId=&tags=&languages=&starsMin=&starsMax=&updatedAfter=&updatedBefore=&sort=&order=
+ * 当前会话用户的仓库列表（RepoItem[]），支持组合筛选与排序。
  */
 import { Hono } from 'hono';
+import type { CategoryNode } from '../repos-query';
+import { buildRepoOrderBy, buildRepoWhere, collectCategoryIds, parseRepoQuery } from '../repos-query';
 import type { Env, RepoItem, RepoRow, Variables } from '../types';
 import { all } from '../db';
 
@@ -24,8 +27,10 @@ export function toRepoItem(row: RepoRow): RepoItem {
     stars: row.stars ?? 0,
     forks: row.forks ?? 0,
     category: row.category_name ?? row.category_id ?? null,
+    categoryId: row.category_id ?? null,
     tags,
     updatedAt: row.updated_at ?? row.synced_at ?? row.created_at ?? null,
+    createdAt: row.created_at ?? null,
     url: row.html_url,
   };
 }
@@ -34,21 +39,23 @@ repos.get('/', async (c) => {
   const user = c.get('user');
   if (!user) return c.json({ error: 'unauthorized' }, 401);
 
-  const q = c.req.query('q')?.trim() ?? '';
-  const categoryId = c.req.query('categoryId')?.trim() ?? '';
-
-  const where: string[] = ['r.user_id = ?'];
-  const params: Array<string | number | null> = [user.id];
-
-  if (q) {
-    where.push('(r.name LIKE ? OR r.id LIKE ? OR r.description LIKE ?)');
-    const like = `%${q}%`;
-    params.push(like, like, like);
+  const parsed = parseRepoQuery(new URL(c.req.url).searchParams);
+  if (!parsed.ok) {
+    return c.json({ error: 'invalid_query', field: parsed.field, message: parsed.message }, 400);
   }
-  if (categoryId) {
-    where.push('r.category_id = ?');
-    params.push(categoryId);
+  const query = parsed.query;
+
+  // 分类过滤默认覆盖全部子孙分类（无限级分类树）。
+  let categoryIds: string[] = [];
+  if (query.categoryId) {
+    const categoryRows = await all<CategoryNode>(
+      c.env.DB,
+      'SELECT id, parent_id FROM categories'
+    );
+    categoryIds = collectCategoryIds(categoryRows, query.categoryId);
   }
+
+  const { where, params } = buildRepoWhere(query, user.id, categoryIds);
 
   const rows = await all<RepoRow>(
     c.env.DB,
@@ -60,7 +67,7 @@ repos.get('/', async (c) => {
        FROM my_repositories r
        LEFT JOIN categories cat ON cat.id = r.category_id
       WHERE ${where.join(' AND ')}
-      ORDER BY r.stars DESC, r.updated_at DESC`,
+      ORDER BY ${buildRepoOrderBy(query.sort, query.order)}`,
     params
   );
 
