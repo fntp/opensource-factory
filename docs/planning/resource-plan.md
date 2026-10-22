@@ -50,7 +50,7 @@
 | 仓库与依赖 | 2.0 GB | 源码 + admin/edge node_modules + vps venv（轻量，不含 torch） |
 | 数据（SQLite 镜像 / 缓存） | 2.0 GB | 定期 VACUUM / 归档；增长监控 |
 | 日志 | 1.0 GB | 轮转保留 14 天 |
-| 备份 | 3.0 GB | D1 导出 + SQLite 快照，保留最近 7 份 |
+| 备份 | 3.0 GB | D1 导出 + SQLite 快照，保留最近 7 份；M5-04 已按 `BACKUP_MAX_TOTAL_MB=3072` 强制清理 |
 | 余量 | 3.0 GB | 构建 / 临时文件 / 系统缓冲 |
 | **合计** | **15.0 GB** | 超限告警（M5-03） |
 

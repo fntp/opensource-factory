@@ -428,3 +428,16 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 - D1 为**主数据**；VPS 本地 SQLite 为算力镜像（允许重建）；
 - 表结构变更流程：修改 `edge/migrations/` 新增迁移文件 → 同步 `docs/assets/d1-schema.sql` → 更新本文件；
 - 字段命名一律 snake_case；时间统一 UTC 存储、展示时本地化。
+
+## 7. 备份产物（M5-04）
+
+备份不是数据库表，而是运行目录 `backups/` 下的文件 + JSON 清单：
+
+| 产物 | 内容 | 校验方式 |
+| --- | --- | --- |
+| `backups/sqlite/sqlite-*.sqlite3.gz` | SQLite 一致性快照（backup API） | SHA-256、`PRAGMA integrity_check`、`foreign_key_check`、表行数对比 |
+| `backups/d1/d1-*.sql.gz` | `wrangler d1 export` 的 SQL 文本 | 导入临时 SQLite 后完整性 / 表清单 / 行数 |
+| 同名 `.json` | 创建时间、大小、SHA-256、表行数、源库 / D1 名 | `verify` / `status` 读取 |
+
+备份产物不进入 D1、不参与表结构迁移；保留策略与恢复 SOP 见
+[backup-restore.md](../guides/backup-restore.md)。

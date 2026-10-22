@@ -16,7 +16,7 @@
 ├── data/                    700  SQLite / Celery beat schedule
 │   └── redis/               700  Redis 工作目录
 ├── logs/                    700  应用滚动日志
-├── backups/                 700  备份产物
+├── backups/                 700  备份产物（sqlite/ + d1/）
 └── run/                     700  运行态文件
 ```
 
@@ -86,6 +86,10 @@ journalctl -u openfactory-api -f         # 查看进程日志
 | `deploy-all.sh` | 三端顺序编排（edge → admin → vps → 冒烟） |
 | `smoke-test.sh` | 三端 HTTP 冒烟（支持 `--json` / `--dry-run`） |
 | `setup-https.sh` | 渲染并安装 Caddy HTTPS 反代 |
+| `backup-d1.sh` | `wrangler d1 export` + 校验 + gzip + 清单归档（M5-04） |
+| `backup-all.sh` | SQLite 快照 + D1 导出 + 恢复演练汇总入口（cron） |
+| `backup-drill.sh` | 最新 SQLite 快照 / D1 导出恢复演练 |
+| `restore-sqlite.sh` | 受保护的 SQLite 恢复（默认拒绝覆盖，可停 / 起 systemd） |
 
 部署控制配置模板：`deploy/env/deploy.env.example`（复制到 `/opt/openfactory/deploy.env`，600）。
 首次使用前务必阅读 [正式部署手册](../docs/guides/production-deployment.md) 的 Q3 资源清单。
@@ -96,7 +100,18 @@ deploy/scripts/deploy-all.sh --env-file /opt/openfactory/deploy.env
 deploy/scripts/smoke-test.sh --env-file /opt/openfactory/deploy.env --json
 ```
 
-## 7. 安全红线
+## 7. 备份与恢复（M5-04）
+
+```bash
+deploy/scripts/backup-all.sh --env-file /opt/openfactory/deploy.env   # SQLite + D1 + 演练
+deploy/scripts/backup-drill.sh --env-file /opt/openfactory/deploy.env # 只演练
+deploy/scripts/restore-sqlite.sh --name <snapshot> --target <db> --force --stop-services
+```
+
+产物在 `$OPENFACTORY_HOME/backups/{sqlite,d1}/`，每份带 `.json` 清单；默认保留 7 份、
+总量 3 GB。完整 SOP（含 D1 恢复）见 [backup-restore.md](../docs/guides/backup-restore.md)。
+
+## 8. 安全红线
 
 - `.env`、`redis.conf` 权限 600，运行目录 700；真实密钥不入库、不回显；
 - Redis 仅监听回环地址，禁止暴露公网；

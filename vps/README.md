@@ -66,7 +66,7 @@ vps/
 │   │   └── tasks.py              # /api/tasks/*（与边缘 Worker 的集成契约，X-Internal-Token 鉴权）
 │   └── tasks/                # Celery 任务（薄封装，调用 services + 落库）
 │       ├── celery_app.py         # Celery 应用与 beat 定时计划
-│       └── jobs.py               # sync / crawl / generate / daily_push / bark / telegram / vectorize / vector_index / cleanup_trending_data 任务
+│       └── jobs.py               # sync / crawl / generate / daily_push / bark / telegram / vectorize / vector_index / cleanup / backup 任务
 └── tests/                    # pytest（不访问网络）
 ```
 

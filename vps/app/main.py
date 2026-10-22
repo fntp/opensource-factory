@@ -14,6 +14,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import (
+    backup,
     degradation,
     notifications,
     push,
@@ -95,6 +96,7 @@ app.include_router(vector_index.router)
 app.include_router(search.router)
 app.include_router(degradation.router)
 app.include_router(push.router)
+app.include_router(backup.router)
 
 
 @app.get("/healthz", tags=["health"], summary="健康检查")

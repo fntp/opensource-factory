@@ -70,6 +70,7 @@
 | IT-0033 | M4-08 | 推送记录与回执（送达状态） | M4-03~05 | ✅ 已完成（2026-10-22） |
 | IT-0034 | M4-09 | M4 验收与回顾 | M4-01~08 | 🔄 进行中 |
 | IT-0035 | M5-01 | 正式部署（Pages / Workers + 本机节点 + 域名 HTTPS） | IT-0025；Q3 | 🟡 工具链就绪（待 Q3 凭据执行） |
+| IT-0038 | M5-04 | 备份与恢复（SQLite 快照 / D1 导出 / 恢复演练 / 保留策略） | IT-0035；M5-01 | ✅ 已完成（2026-10-22） |
 
 > 说明：IT-0004 / IT-0005 在人工资源（Cloudflare 账号、OAuth App）就绪前，可先以 `wrangler --local` + 本地回调完成开发与验证；其余按需求池顺序滚动排期。
 
@@ -111,3 +112,4 @@
 | 2026-10-22 | 交付 | IT-0032 / M4-07 完成：`push_events` 推送账本 + 静默时段 / 跨通道去重 / 每日上限 + `retry_deferred_push` + `/api/push/policy/*`；计划见 `plan-req-202610-0936-push-dedupe-silence.md` |
 | 2026-10-22 | 交付 | IT-0033 / M4-08 完成（REQ-202610-0937）：统一推送记录 `push_deliveries` + 回执流水 `push_receipts` + 列表 / 统计 / 详情 / 回执接口，接入 Bark / Telegram / Email；计划见 `plan-req-202610-0937-push-records.md` |
 | 2026-10-22 | 交付 | IT-0035 / M5-01 部署工具链（REQ-202610-0939）：新增三端预检 / 部署 / 冒烟脚本、Pages / Workers 生产模板、Caddy HTTPS 模板、GitHub Actions 部署工作流与正式部署手册；真实上线待 Q3 凭据；计划见 `plan-req-202610-0939-production-deploy.md` |
+| 2026-10-22 | 交付 | IT-0038 / M5-04 备份与恢复（REQ-202610-0942）：SQLite 一致性快照 + D1 导出校验 + 恢复演练 + 7 份 / 3 GB 保留策略 + 内部运维接口 + Celery 每日 / 每周调度 + 受保护恢复脚本；计划见 `plan-req-202610-0942-backup-restore.md`，SOP 见 `guides/backup-restore.md` |

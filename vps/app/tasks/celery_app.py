@@ -4,8 +4,8 @@
 - `CELERY_TASK_ALWAYS_EAGER=1` 时任务同步执行（本地调试 / 测试）；
 - beat 计划：每日抓取热榜（全局页 + 多语言页）、每日 08:30 生成推荐、08:45 评估推荐、
   每 10 分钟按用户偏好检查推送窗口（M4-06）、09:05 Bark 投递与 Telegram 摘要、
-  09:10 Email 每日精选、按 `PUSH_RETRY_INTERVAL_MINUTES` 重试静默期推迟的推送（M4-07），
-  以及每日向量索引同步与对账。
+  09:10 Email 每日精选、按 `PUSH_RETRY_INTERVAL_MINUTES` 重试静默期推迟的推送（M4-07）、
+  每日 SQLite 快照（默认 03:50）与每周日恢复演练（默认 04:20），以及每日向量索引同步与对账。
 """
 from __future__ import annotations
 
@@ -105,6 +105,19 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.jobs.reconcile_vector_index",
         "schedule": crontab(minute=17, hour=5),
         "kwargs": {"scope": "all", "repair": False},
+    },
+    # 备份与恢复（M5-04）：每日 SQLite 快照 + 每周日恢复演练
+    "backup-sqlite-daily": {
+        "task": "app.tasks.jobs.backup_sqlite",
+        "schedule": crontab(minute=settings.BACKUP_MINUTE, hour=settings.BACKUP_HOUR),
+    },
+    "backup-drill-weekly": {
+        "task": "app.tasks.jobs.backup_drill",
+        "schedule": crontab(
+            minute=settings.BACKUP_DRILL_MINUTE,
+            hour=settings.BACKUP_DRILL_HOUR,
+            day_of_week="sunday",
+        ),
     },
 }
 
