@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import (
     notifications,
+    push,
     recommend,
     repos,
     tasks,
@@ -85,6 +86,7 @@ app.include_router(trending.router)
 app.include_router(recommend.router)
 app.include_router(vector_sync.router)
 app.include_router(vectors.router)
+app.include_router(push.router)
 
 
 @app.get("/healthz", tags=["health"], summary="健康检查")

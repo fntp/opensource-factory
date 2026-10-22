@@ -54,6 +54,11 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.jobs.daily_push",
         "schedule": crontab(minute=0, hour=9),
     },
+    # Bark 通道（M4-03）：09:05 投递 09:00 推送准备产生的 pushed 推荐
+    "send-bark-notifications-daily": {
+        "task": "app.tasks.jobs.send_bark_notifications",
+        "schedule": crontab(minute=5, hour=9),
+    },
     # Email 每日精选（M4-05）：09:10 在推送准备后取 pushed 推荐发送摘要；
     # 未启用 / 未配置 / 无数据时任务自动跳过
     "send-email-digest-daily": {

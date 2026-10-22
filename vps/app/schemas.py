@@ -115,6 +115,39 @@ class QualifiedListResponse(BaseModel):
     items: list[QualifiedRecommendationOut]
 
 
+class BarkStatusOut(BaseModel):
+    """Bark 推送通道状态（不包含 device key）。"""
+
+    enabled: bool
+    configured: bool
+    serverUrl: str
+    group: str
+    level: str
+    maxPerRun: int
+    dryRun: bool
+    pending: int = 0
+    sent: int = 0
+    failed: int = 0
+    lastError: Optional[str] = None
+    lastSentAt: Optional[datetime] = None
+
+
+class BarkTestRequest(BaseModel):
+    """Bark 测试通知请求。"""
+
+    title: Optional[str] = Field(default=None, max_length=120)
+    body: Optional[str] = Field(default=None, max_length=2000)
+    url: Optional[str] = Field(default=None, max_length=2000)
+
+
+class BarkTestOut(BaseModel):
+    """Bark 测试通知结果。"""
+
+    ok: bool
+    statusCode: Optional[int] = None
+    error: Optional[str] = None
+
+
 class TaskEnqueued(BaseModel):
     """任务入队响应（与边缘 Worker 的契约，字段名保持 camelCase）。"""
 

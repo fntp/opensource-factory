@@ -25,6 +25,8 @@ _RECOMMENDATION_COLUMNS: dict[str, str] = {
     "quality_detail": "TEXT",
     "evaluation_run_id": "TEXT",
     "evaluated_at": "DATETIME",
+    "bark_sent_at": "DATETIME",
+    "bark_error": "TEXT",
 }
 
 
@@ -51,7 +53,7 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expi
 
 
 def _ensure_sqlite_columns() -> None:
-    """为旧 SQLite 库补齐推荐评估新增列（幂等，失败只告警）。"""
+    """为旧 SQLite 库补齐推荐评估 / Bark 投递新增列（幂等，失败只告警）。"""
     if not settings.DATABASE_URL.startswith("sqlite"):
         return
     from sqlalchemy import inspect, text
