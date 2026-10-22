@@ -1,0 +1,29 @@
+# OpenFactory Celery worker（同步 / 爬虫 / 摘要 / 向量化 / 推荐）
+# 并发 2：与 4G 内存预算匹配，AI 任务在队列内串行。
+[Unit]
+Description=OpenFactory Celery worker
+Documentation=file://@APP_DIR@/deploy/README.md
+After=network-online.target openfactory-redis.service
+Wants=network-online.target openfactory-redis.service
+
+[Service]
+Type=simple
+User=@SERVICE_USER@
+Group=@SERVICE_USER@
+WorkingDirectory=@APP_DIR@/vps
+EnvironmentFile=@RUNTIME_DIR@/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=@APP_DIR@/vps/.venv/bin/celery -A app.tasks.celery_app worker --loglevel=INFO --concurrency=2 --max-tasks-per-child=200
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+KillSignal=SIGTERM
+MemoryMax=768M
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=@RUNTIME_DIR@
+
+[Install]
+WantedBy=multi-user.target
