@@ -8,7 +8,7 @@
 - **本地优先、隐私安全**：LLM 与向量化优先使用本地模型（Ollama / BGE-M3），云端 API（DeepSeek）仅作可选降级。
 - **优雅降级**：LLM、重型模型、目标站点不可用时系统必须可用（降级返回，不抛错阻塞）。
 
-本节点负责：GitHub 数据同步、热榜抓取（GitHub Trending / Gitee）、README 清洗与摘要、向量生成与语义推荐、每日推送准备。
+本节点负责：GitHub 数据同步、热榜抓取（GitHub Trending；Gitee 为预留入口，Q2 本期不接入）、README 清洗与摘要、向量生成与语义推荐、每日推送准备。
 
 ## 目录结构
 
@@ -26,7 +26,7 @@ vps/
 │   ├── schemas.py            # Pydantic 出入参模型
 │   ├── services/             # 业务逻辑（单一职责，可独立单测）
 │   │   ├── github_service.py     # GitHub REST v3 异步客户端（分页、README base64 解码）
-│   │   ├── trending_crawler.py   # GitHub Trending 解析/抓取 + Gitee 探索页（尽力而为）
+│   │   ├── trending_crawler.py   # GitHub Trending 解析/抓取 + Gitee 探索页（预留入口，Q2 本期不接入）
 │   │   ├── readme.py             # README 清洗 + 技术栈启发式提取
 │   │   ├── embedding.py          # BGE-M3（懒加载）与确定性 hash 降级向量
 │   │   ├── summarizer.py         # Ollama → DeepSeek → 截断降级 的摘要生成
