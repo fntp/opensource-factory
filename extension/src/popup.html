@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenFactory 收藏助手</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="header">
+      <div class="brand">
+        <img src="../icons/icon32.png" alt="" width="28" height="28" />
+        <div class="brand-text">
+          <strong>OpenFactory</strong>
+          <span>收藏助手</span>
+        </div>
+      </div>
+      <button id="open-settings" class="icon-button" type="button" title="设置">⚙</button>
+    </header>
+
+    <main>
+      <section id="state-loading" class="state">
+        <div class="spinner" aria-hidden="true"></div>
+        <p>正在读取当前页面…</p>
+      </section>
+
+      <section id="state-setup" class="state hidden">
+        <div class="state-icon">🔗</div>
+        <h2>先连接你的 OpenFactory</h2>
+        <p>填写 API 地址和扩展令牌后，就能一键收藏当前仓库。</p>
+        <button id="setup-button" class="primary" type="button">打开设置</button>
+      </section>
+
+      <section id="state-not-repo" class="state hidden">
+        <div class="state-icon">🧭</div>
+        <h2>当前页面不是仓库页</h2>
+        <p>打开 GitHub 或 Gitee 的仓库页面，再点击扩展图标即可收藏。</p>
+        <p id="current-host" class="muted"></p>
+      </section>
+
+      <section id="state-repo" class="hidden">
+        <article class="repo-card">
+          <div class="repo-badges">
+            <span id="repo-platform" class="badge">GitHub</span>
+            <span id="repo-stars" class="badge">★ 0</span>
+          </div>
+          <h1 id="repo-name">owner/repo</h1>
+          <p id="repo-description" class="description">暂无简介</p>
+          <div class="repo-meta">
+            <span id="repo-language">未知语言</span>
+            <span id="repo-forks">Fork 0</span>
+          </div>
+        </article>
+
+        <button id="save-button" class="primary" type="button">收藏到 OpenFactory</button>
+        <p id="save-hint" class="hint" role="status"></p>
+      </section>
+    </main>
+
+    <footer>
+      <span>快捷键 <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>O</kbd> 一键收藏</span>
+      <span id="version">v1.0.0</span>
+    </footer>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

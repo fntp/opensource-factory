@@ -1,0 +1,91 @@
+# 开源项目工厂 · 前端控制台（admin）
+
+「开源项目工厂 / OpenFactory」的 Web 控制台：个人开源资产管理与智能推荐系统的管理界面。
+
+基于 [shadcn-admin](https://github.com/satnaing/shadcn-admin)（MIT © Sat Naing）模板定制，UI 风格延续原模板。
+
+## 功能页面
+
+| 路由 | 页面 | 说明 |
+| --- | --- | --- |
+| `/` | 仪表盘 | 收录统计、Star 趋势、今日热榜 |
+| `/repos` | 我的仓库 | 已收录资产列表、搜索、分类筛选；健康度汇总 / 筛选 / 徽章与手动刷新（M6-05） |
+| `/categories` | 分类与标签 | 无限级分类 + 标签云 |
+| `/trending` | 每日热榜 | GitHub Trending 抓取结果；详情页含「看了又看」相似项目推荐（M6-02） |
+| `/export` | 知识库导出 | Markdown / JSON / Obsidian 三种格式，支持摘要开关与分类分组（M6-08） |
+| `/import` | 数据导入 | 外部收藏迁移：JSON / CSV / 书签 HTML，预览后执行，冲突跳过并记录历史（M9-03） |
+| `/recommend` | 智能推荐 | 语义匹配推荐（含匹配度与理由） |
+| `/rerank` | 精排工作台 | 六路信号精排预览 / 应用、名次变化、信号贡献、MMR 多样性指标（M7-07） |
+| `/notifications` | 通知中心 | 站内通知（全部/未读/已读筛选、标记已读、忽略，侧边栏未读徽标） |
+| `/monitoring` | 系统监控 | 健康检查、内存 4G / 磁盘 15G 红线、请求量与错误率、告警确认、Workers 每日指标、日志治理 |
+| `/tech-stack` | 技术栈图谱 | 语言 / 框架聚合 KPI、语言 × 框架径向关系图、语言分布、框架排行、组合洞察 |
+| `/reports` | 精选报告 | 周报 / 月报归档、统计概览、新增收藏 / 收藏之星 / 推荐 / 热榜分节、Markdown 下载（M7-03） |
+| `/updates` | 更新提醒 | 收藏项目新版本 / 重大变更提醒：统计卡、状态 / 类型筛选、标记已读、忽略、立即扫描（M7-04） |
+| `/star-trends` | Star 趋势 | 每日快照 KPI、SVG 净增面积图、Top Movers、语言贡献、新上榜与确定性洞察（M7-05） |
+| `/model-routing` | 模型路由 | 6 个任务的路由策略 / 模型切换、预算占用、升级建议、Ollama / DeepSeek 健康状态（M7-06） |
+| `/settings/*` | 设置 | 账号、外观、推送偏好（时间 / 阈值 / 通道开关）、Telegram 查询 Bot 绑定 |
+| `/search` | 项目搜索 | 语义检索 / README 全文检索切换，展示命中片段（M6-01） |
+| `/duplicates` | 重复检测 | 重复 / 相似项目扫描、保留项与字段合并建议、按用户忽略（M6-03） |
+| `/dependencies` | 依赖分析 | 技术栈分布、热门依赖、生态构成与仓库覆盖（M6-07） |
+| `/tag-suggestions` | 打标建议 | 基于摘要的标签建议，按仓库分组，支持单条 / 整仓采纳与忽略（M7-01） |
+| `/category-suggestions` | 分类建议 | 按业务线自动生成可解释的分类建议，支持采纳写回分类 / 忽略（M7-02） |
+| `/sign-in` | 登录 | 仅 GitHub 授权登录（+ 演示模式） |
+
+## 技术栈
+
+- **构建**：Vite 8 + TypeScript 5
+- **UI**：React 19 · Tailwind CSS 4 · shadcn/ui（Radix UI）
+- **路由**：TanStack Router（文件式路由，`src/routes/`）
+- **数据**：TanStack Query
+- **状态**：zustand（`src/stores/`）
+- **测试**：Vitest 浏览器模式（Playwright / Chromium，无头）
+
+## 本地开发
+
+```bash
+npm install
+npm run dev        # 开发服务器（默认演示模式）
+```
+
+### 环境变量（`.env`）
+
+| 变量 | 说明 |
+| --- | --- |
+| `VITE_API_BASE_URL` | edge API 地址；**留空则自动进入演示模式**（使用内置演示数据） |
+| `VITE_DEMO_MODE` | `true` 强制演示模式（登录页显示「演示模式」按钮） |
+
+> 演示模式下登录页会提供「进入演示模式」按钮，数据由各 feature 的 mock 数据兜底，无需后端即可体验完整界面。
+
+## 常用命令
+
+```bash
+npm run lint       # ESLint 检查
+npm run build      # 类型检查 + 构建（tsc -b && vite build）
+npm run test       # Vitest（无头 Chromium，单次运行）
+npm run format     # Prettier 格式化
+```
+
+## 目录结构
+
+```
+src/
+├── components/        # 通用组件（layout / ui / ...）
+├── features/          # 业务模块（dashboard / repos / trending / recommend / notifications / categories / auth）
+├── routes/            # TanStack Router 文件式路由
+├── stores/            # zustand 状态（auth-store 等）
+└── lib/               # 工具（api.ts 等）
+```
+
+## 与后端的约定
+
+- 统一通过 `src/lib/api.ts` 访问 edge API（`credentials: 'include'`，Cookie 会话）；
+- 未登录（401）由会话守卫重定向到 `/sign-in`；
+- 接口契约见 [docs/architecture/overview.md](../docs/architecture/overview.md) 第 4 节。
+
+## 部署
+
+构建产物为 `dist/`（含 `public/_redirects`，SPA 回退），部署到 Cloudflare Pages；上线时必须配置 `VITE_API_BASE_URL` 且 `VITE_DEMO_MODE=false`。
+
+## 许可
+
+MIT。模板部分版权归 [@satnaing](https://github.com/satnaing) 所有，详见 [LICENSE](./LICENSE)。
