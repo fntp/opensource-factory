@@ -92,12 +92,28 @@ recommendations              （user_id 可空 = 全局推荐）
 | --- | --- |
 | id TEXT PK | 推荐 id |
 | user_id | 目标用户（NULL = 全局） |
+| repo_id TEXT | 稳定仓库 id（`owner/name`，M3-07 起） |
 | owner / name / description / language / stars / url | 推荐项目快照 |
 | score REAL | 综合得分 0~1（相似度 × 0.8 + 热榜热度 × 0.2） |
 | reason TEXT | 推荐理由（中文） |
 | based_on TEXT | 依据（JSON 数组，如 `["AI/LLM","Python"]`） |
 | status TEXT | `new` / `saved` / `dismissed` / `pushed` / `expired`（VPS 每日任务未入选或已收藏） |
-| created_at | 生成时间 |
+| created_at / updated_at | 生成 / 状态更新时间 |
+
+### 3.5 `recommendation_feedback` 推荐反馈（M3-07）
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | 反馈 id |
+| user_id | 反馈用户 |
+| recommendation_id | 关联推荐 id |
+| repo_id TEXT | 稳定仓库 id（`owner/name`） |
+| action TEXT | `saved` / `dismissed` / `clicked` |
+| reason TEXT | 忽略原因（仅 dismissed，≤200 字） |
+| created_at | 反馈时间 |
+
+唯一索引 `(user_id, recommendation_id, action)` 保证重复点击幂等；另按
+`(user_id, created_at)`、`(user_id, repo_id)` 建索引，供 VPS 拉取反馈与排除候选。
 
 ## 4. 索引策略
 
@@ -108,6 +124,7 @@ recommendations              （user_id 可空 = 全局推荐）
 | sessions | `(user_id)`、`(expires_at)` | 会话校验与清理 |
 | repo_tags | `(repo_id)`、`(tag_id)` | 反查 |
 | recommendations | `(user_id, score DESC)` | 推荐列表 |
+| recommendation_feedback | `(user_id, recommendation_id, action)` UNIQUE、`(user_id, created_at)`、`(user_id, repo_id)` | 反馈幂等 / 回流查询 |
 
 ## 5. 向量数据（M3）
 

@@ -203,3 +203,83 @@ class VectorDetail(BaseModel):
     textHash: str
     vector: list[float]
     updatedAt: Optional[datetime] = None
+
+
+class SearchQuery(BaseModel):
+    """语义搜索请求（内部接口共用）。"""
+
+    query: str = Field(min_length=1, max_length=200, description="自然语言查询")
+    topK: Optional[int] = Field(default=None, ge=1, le=50, description="返回条数（默认 10，最大 50）")
+    scope: Literal["my", "trending", "all"] = "all"
+    minScore: Optional[float] = Field(default=None, ge=-1.0, le=1.0, description="最低余弦相似度")
+
+
+class SearchEmbedResponse(BaseModel):
+    """查询向量：供 edge 调用 Vectorize.query 使用。"""
+
+    vector: list[float]
+    dim: int
+    model: str
+    backend: str
+
+
+class SearchHitOut(BaseModel):
+    """本地向量命中（未水合）。"""
+
+    source: str
+    repoId: str
+    score: float
+
+
+class SearchQueryResponse(BaseModel):
+    """本地向量检索响应。"""
+
+    query: str
+    scope: str
+    count: int
+    topK: int
+    minScore: float
+    model: str
+    backend: str
+    dim: int
+    scanned: int
+    items: list[SearchHitOut]
+
+
+class SearchItem(BaseModel):
+    """水合后的搜索结果条目。"""
+
+    id: str
+    source: str
+    fullName: str
+    name: str
+    description: str = ""
+    language: str = ""
+    stars: int = 0
+    starsToday: int = 0
+    url: str = ""
+    score: float = 0.0
+    reason: str = ""
+
+
+class SearchSemanticResponse(BaseModel):
+    """本地语义搜索完整结果（内部 / 调试 / CLI）。"""
+
+    query: str
+    scope: str
+    count: int
+    model: str
+    backend: str
+    dim: int
+    scanned: int
+    items: list[SearchItem]
+
+
+class SearchStatusResponse(BaseModel):
+    """语义搜索可用性：向量覆盖率与最近向量化运行。"""
+
+    totalVectors: int
+    bySource: dict[str, int]
+    byModel: list[VectorModelStats]
+    dimensions: list[int]
+    latestRuns: list[VectorRunOut]

@@ -239,8 +239,13 @@ def generate_for_user(
     min_score: Optional[float] = None,
     top_k: Optional[int] = None,
     candidate_limit: Optional[int] = None,
+    excluded_repo_ids: Optional[Iterable[str]] = None,
 ) -> dict[str, Any]:
-    """为单个用户生成一轮推荐（幂等，可重复执行）。"""
+    """为单个用户生成一轮推荐（幂等，可重复执行）。
+
+    `excluded_repo_ids` 用于合并 edge / 本地反馈中的已收藏与已忽略仓库，
+    避免已明确拒绝的项目再次进入候选。
+    """
     config = settings or get_settings()
     embedding = service or get_embedding_service()
     effective_top_k = max(1, int(top_k if top_k is not None else config.RECOMMEND_DAILY_TOP_K))
@@ -285,6 +290,12 @@ def generate_for_user(
         )
 
     collected_ids = set(db.execute(select(MyRepository.id)).scalars().all())
+    if excluded_repo_ids:
+        collected_ids |= {
+            str(repo_id).strip()
+            for repo_id in excluded_repo_ids
+            if str(repo_id).strip()
+        }
     candidates, excluded_collected = _load_candidates(
         db, collected_ids, effective_candidate_limit
     )
@@ -407,6 +418,7 @@ def generate_daily_recommendations(
     min_score: Optional[float] = None,
     top_k: Optional[int] = None,
     candidate_limit: Optional[int] = None,
+    excluded_repo_ids: Optional[Iterable[str]] = None,
 ) -> dict[str, Any]:
     """每日推荐入口：指定用户 → 全部用户 → 兜底创建 default 用户。"""
     config = settings or get_settings()
@@ -436,6 +448,7 @@ def generate_daily_recommendations(
                     min_score=min_score,
                     top_k=top_k,
                     candidate_limit=candidate_limit,
+                    excluded_repo_ids=excluded_repo_ids,
                 )
             )
         except Exception as exc:  # noqa: BLE001 - 单用户失败不拖垮整轮任务

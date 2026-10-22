@@ -72,6 +72,16 @@ class Settings(BaseSettings):
     RECOMMEND_SIMILARITY_WEIGHT: float = 0.8
     RECOMMEND_TRENDING_WEIGHT: float = 0.2
 
+    # 语义搜索（M3-04）
+    SEARCH_DEFAULT_TOP_K: int = 10
+    SEARCH_MAX_TOP_K: int = 50
+    SEARCH_MIN_SCORE: float = 0.0
+    # 本地全量余弦扫描的向量上限（超过后依赖 Vectorize）
+    SEARCH_MAX_VECTORS: int = 50000
+
+    # 推荐反馈回流（M3-07）：生成前拉取 edge 反馈、生成后回写 D1
+    RECOMMEND_FEEDBACK_SYNC: bool = True
+
     # 内部接口鉴权（设置后 /api/tasks/* 校验 X-Internal-Token）
     INTERNAL_TOKEN: str = ""
 

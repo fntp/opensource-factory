@@ -44,6 +44,7 @@ edge/
         ├── categories.ts # /api/categories
         ├── dashboard.ts  # /api/dashboard/stats
         ├── sync.ts       # /api/sync
+        ├── search.ts     # /api/search/semantic（Vectorize → 本地向量 → 关键词三级降级）
         └── internal-vectors.ts # /api/internal/vectors/*（VPS → Vectorize，X-Internal-Token）
 ```
 
@@ -142,6 +143,7 @@ npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FR
 | `GET /api/categories` | `CategoriesPayload` |
 | `GET /api/dashboard/stats` | `DashboardStats` |
 | `POST /api/sync` | 202 `{"status":"queued"}`（已配置 VPS）或 `{"status":"accepted","note":"vps node not configured"}` |
+| `POST /api/search/semantic` | `SearchResponse`：body `{query, topK?, scope?}`；mode 为 `vectorize` / `local` / `keyword`；`my` 结果仅当前用户 |
 | `GET /healthz` | `{"status":"ok"}` |
 
 JSON 形状（前端契约，勿改字段名）：
@@ -149,7 +151,7 @@ JSON 形状（前端契约，勿改字段名）：
 ```ts
 RepoItem        { id, fullName, description, language, stars, forks, category, tags: string[], updatedAt, url }
 TrendingRepo    { id, owner, name, description, language, stars, starsToday, url }
-Recommendation  { id, owner, name, description, language, stars, score, reason, basedOn: string[], url }
+Recommendation  { id, repoId, owner, name, description, language, stars, score, reason, basedOn: string[], url, status, createdAt }
 CategoriesPayload { categories: [{id, name, count, description}], tags: [{name, count}] }
 DashboardStats  { totalRepos, trendingToday, pendingRecommendations, categoryCount }
 ```
@@ -169,6 +171,15 @@ DashboardStats  { totalRepos, trendingToday, pendingRecommendations, categoryCou
 | `POST /api/internal/vectors/delete` | body `{ids: string[]}`，≤1000 个 |
 | `GET /api/internal/vectors/stats` | 索引统计 |
 | `GET /api/internal/vectors/list?count=&cursor=` | 分页列出 ID；绑定不支持时返回 501（VPS 对账自动降级） |
+
+### 内部推荐接口（VPS → D1，M3-07）
+
+同样要求 `X-Internal-Token`（未配置 503 / 不匹配 401）：
+
+| 方法/路径 | 说明 |
+| --- | --- |
+| `POST /api/internal/recommendations/upsert` | body `{userId, items: [...]}`，≤500 条；按 id upsert，`saved` / `dismissed` 状态不被生成任务覆盖 |
+| `GET /api/internal/recommendations/feedback?userId=` | 返回 `{savedRepoIds, dismissedRepoIds, clickedRepoIds}`，合并反馈表与推荐状态 |
 
 ### 会话与安全
 

@@ -142,7 +142,8 @@ def test_incremental_sync_only_upserts_changed(db, monkeypatch) -> None:
     db.execute(
         text(
             "INSERT INTO vector_sync_state "
-            "(source, repo_id, vector_id, text_hash, model, backend, dim, status, attempts, created_at, updated_at) "
+            "(source, repo_id, vector_id, text_hash, model, backend, dim, status, attempts, "
+            "created_at, updated_at) "
             "VALUES ('my', 'a/one', :vector_id, 'h1', 'BAAI/bge-m3', 'hash', 4, 'synced', 0, "
             "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
         ),

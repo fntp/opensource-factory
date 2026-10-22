@@ -163,33 +163,90 @@ def generate_recommendations(
     top_k: Optional[int] = None,
     min_score: Optional[float] = None,
 ) -> dict[str, Any]:
-    """每日推荐生成：画像 → 热榜候选 → 去重已收藏 → 阈值过滤 → 综合打分 → 落库。
+    """每日推荐生成：反馈排除 → 画像 / 候选 / 打分 → 落库 → 回写 edge。
 
-    参数为空时使用配置默认值（`RECOMMEND_DAILY_TOP_K` / `RECOMMEND_MIN_SCORE`）；
-    外部依赖异常由服务层降级为结构化结果，不向 Celery 抛错。
+    M3-05 提供画像、候选、阈值与打分；M3-07 在此之上先拉取用户反馈（saved /
+    dismissed）做排除，生成后再把推荐快照回写 D1。edge 未配置或不可达时只影响
+    回写，不影响本地生成。参数为空时使用配置默认值。
     """
+    from app.models import User
     from app.services.embedding import get_embedding_service
+    from app.services.recommendation_feedback import fetch_feedback, push_recommendations
     from app.services.recommendation_service import generate_daily_recommendations
 
     db = SessionLocal()
     try:
-        result = generate_daily_recommendations(
-            db,
-            user_id=user_id,
-            service=get_embedding_service(),
-            top_k=top_k,
-            min_score=min_score,
+        if user_id:
+            target_users = [str(user_id)]
+        else:
+            target_users = [
+                str(item) for item in db.execute(select(User.id)).scalars().all()
+            ]
+            if not target_users:
+                if db.get(User, "default") is None:
+                    db.add(User(id="default", username="default"))
+                    db.commit()
+                target_users = ["default"]
+
+        results: list[dict[str, Any]] = []
+        pushed: dict[str, int] = {}
+        feedback_excluded: dict[str, int] = {}
+        embedding = get_embedding_service()
+        for uid in target_users:
+            snapshot = fetch_feedback(db, uid)
+            feedback_excluded[uid] = len(snapshot.excluded_repo_ids)
+            summary = generate_daily_recommendations(
+                db,
+                user_id=uid,
+                service=embedding,
+                top_k=top_k,
+                min_score=min_score,
+                excluded_repo_ids=snapshot.excluded_repo_ids,
+            )
+            results.extend(summary.get("results", []))
+            pushed[uid] = push_recommendations(db, uid)
+
+        ok_results = [item for item in results if item.get("status") == "ok"]
+        error_results = [item for item in results if item.get("status") == "error"]
+        if ok_results:
+            status = "ok"
+        elif error_results:
+            status = "error"
+        else:
+            status = "skipped"
+
+        effective_top_k = max(
+            1, int(top_k if top_k is not None else get_settings().RECOMMEND_DAILY_TOP_K)
         )
+        effective_min_score = float(
+            get_settings().RECOMMEND_MIN_SCORE if min_score is None else min_score
+        )
+        result = {
+            "status": status,
+            "users": target_users,
+            "userCount": len(target_users),
+            "created": sum(int(item.get("created", 0)) for item in results),
+            "updated": sum(int(item.get("updated", 0)) for item in results),
+            "expired": sum(int(item.get("expired", 0)) for item in results),
+            "selected": sum(int(item.get("selected", 0)) for item in results),
+            "minScore": round(max(0.0, min(1.0, effective_min_score)), 4),
+            "topK": effective_top_k,
+            "feedbackExcluded": feedback_excluded,
+            "pushed": pushed,
+            "results": results,
+        }
     finally:
         db.close()
 
     logger.info(
-        "推荐生成任务完成: status=%s users=%s created=%d updated=%d expired=%d",
+        "推荐生成任务完成: status=%s users=%s created=%d updated=%d expired=%d 反馈排除=%s 回写=%s",
         result.get("status"),
         result.get("users"),
         result.get("created", 0),
         result.get("updated", 0),
         result.get("expired", 0),
+        feedback_excluded,
+        pushed,
     )
     return result
 
