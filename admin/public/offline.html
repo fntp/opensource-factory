@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0f172a" />
+    <title>离线 · 开源项目工厂</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family:
+          'Inter', 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+          sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100svh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background:
+          radial-gradient(circle at 20% 10%, #1d4ed833, transparent 45%),
+          linear-gradient(160deg, #0f172a, #111827);
+        color: #f8fafc;
+      }
+      main {
+        width: min(100%, 420px);
+        padding: 32px 24px;
+        border: 1px solid #ffffff1a;
+        border-radius: 20px;
+        background: #0f172acc;
+        box-shadow: 0 24px 80px #00000055;
+        text-align: center;
+      }
+      img {
+        width: 72px;
+        height: 72px;
+        border-radius: 18px;
+        margin-bottom: 20px;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 22px;
+        letter-spacing: 0.01em;
+      }
+      p {
+        margin: 0;
+        color: #cbd5e1;
+        font-size: 14px;
+        line-height: 1.7;
+      }
+      button {
+        margin-top: 24px;
+        width: 100%;
+        min-height: 44px;
+        border: 0;
+        border-radius: 12px;
+        background: #f8fafc;
+        color: #0f172a;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:active {
+        transform: scale(0.98);
+      }
+      .hint {
+        margin-top: 14px;
+        font-size: 12px;
+        color: #94a3b8;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/icons/icon-192.png" alt="" width="72" height="72" />
+      <h1>当前处于离线状态</h1>
+      <p>
+        网络连接似乎已断开。已缓存的页面仍可访问，恢复网络后会自动刷新。
+      </p>
+      <button type="button" onclick="window.location.reload()">重新连接</button>
+      <p class="hint">开源项目工厂 · 个人开源资产管理与智能推荐</p>
+    </main>
+    <script>
+      window.addEventListener('online', function () {
+        window.location.reload()
+      })
+    </script>
+  </body>
+</html>

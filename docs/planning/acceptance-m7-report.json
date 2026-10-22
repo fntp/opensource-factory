@@ -1,0 +1,123 @@
+{
+  "meta": {
+    "branch": "feat/req-202610-0969-m7-acceptance",
+    "commit": "b81c05c",
+    "finishedAt": "2026-10-22T12:54:42+0000",
+    "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3"
+  },
+  "results": [
+    {
+      "id": "M7-S01",
+      "title": "M7 迁移与 D1 schema",
+      "status": "PASS",
+      "detail": "5 个 M7 迁移；4 张新表 + rerank 字段",
+      "durationMs": 1.2
+    },
+    {
+      "id": "M7-S02",
+      "title": "edge 路由与纯函数资产",
+      "status": "PASS",
+      "detail": "6 个路由 + 4 组纯函数资产",
+      "durationMs": 1.8
+    },
+    {
+      "id": "M7-S03",
+      "title": "admin 页面齐全",
+      "status": "PASS",
+      "detail": "7 个 admin 页面 + 路由",
+      "durationMs": 1.7
+    },
+    {
+      "id": "M7-S04",
+      "title": "M7-03 精选报告 Cron",
+      "status": "PASS",
+      "detail": "双 Cron + 周/月报告纯函数 + 内部生成接口",
+      "durationMs": 0.3
+    },
+    {
+      "id": "M7-S05",
+      "title": "M7-05 Star 趋势资产",
+      "status": "PASS",
+      "detail": "edge 聚合 + admin 页面齐全",
+      "durationMs": 0.5
+    },
+    {
+      "id": "M7-08-GAP",
+      "title": "个人数据 LoRA 微调评估（平台 pending）",
+      "status": "GAP",
+      "detail": "feat/req-202610-0967-lora-evaluation 未合并，需该需求交付后补充验收",
+      "durationMs": 0.0
+    },
+    {
+      "id": "M7-09-GAP",
+      "title": "Agent 工作流（自动整理 / 草稿生成）（平台 pending）",
+      "status": "GAP",
+      "detail": "feat/req-202610-0968-agent-workflow 未合并，需该需求交付后补充验收",
+      "durationMs": 0.0
+    },
+    {
+      "id": "M7-A01",
+      "title": "M7-01 自动打标建议生成",
+      "status": "PASS",
+      "detail": "suggested=1 tags=['AI/LLM', 'FastAPI', 'Python', '搜索']",
+      "durationMs": 62.7
+    },
+    {
+      "id": "M7-A02",
+      "title": "M7-01 语言标签与阈值",
+      "status": "PASS",
+      "detail": "tags=['JavaScript']",
+      "durationMs": 7.7
+    },
+    {
+      "id": "M7-B01",
+      "title": "M7-02 自动分类建议",
+      "status": "PASS",
+      "detail": "ai=['AI / 大模型'] pay=['开发工具', '金融 / 支付']",
+      "durationMs": 38.6
+    },
+    {
+      "id": "M7-C01",
+      "title": "M7-04 更新判定纯函数",
+      "status": "PASS",
+      "detail": "版本解析 / 主版本跃迁 / breaking 判定 / 摘要截断",
+      "durationMs": 53.6
+    },
+    {
+      "id": "M7-D01",
+      "title": "M7-06 模型路由总览",
+      "status": "PASS",
+      "detail": "tasks=6 models=10",
+      "durationMs": 10.3
+    },
+    {
+      "id": "M7-D02",
+      "title": "M7-06 模型通道健康",
+      "status": "PASS",
+      "detail": "ollama=False rules=True",
+      "durationMs": 77.6
+    },
+    {
+      "id": "M7-D03",
+      "title": "M7-06 路由参数校验",
+      "status": "PASS",
+      "detail": "404 / 400 / 422 语义正确",
+      "durationMs": 16.7
+    },
+    {
+      "id": "M7-E01",
+      "title": "M7-07 Rerank 预览",
+      "status": "PASS",
+      "detail": "selected=4 top1=acme/ai-framework div=0.8317",
+      "durationMs": 8.3
+    },
+    {
+      "id": "M7-E02",
+      "title": "M7-07 Rerank 应用",
+      "status": "PASS",
+      "detail": "selected=3 mode=vps",
+      "durationMs": 6.5
+    }
+  ]
+}
