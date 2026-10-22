@@ -14,7 +14,7 @@ import pytest
 from sqlalchemy import delete
 
 from app.db import SessionLocal, init_db
-from app.models import Recommendation
+from app.models import PushEvent, Recommendation
 from app.services.push_preferences import (
     DEFAULT_MIN_QUALITY_SCORE,
     DEFAULT_MIN_SCORE,
@@ -49,6 +49,7 @@ def db():
 
 
 def _cleanup(session) -> None:
+    session.execute(delete(PushEvent).where(PushEvent.user_id.like("pref-test%")))
     session.execute(delete(Recommendation).where(Recommendation.user_id.like("pref-test%")))
     session.commit()
 
