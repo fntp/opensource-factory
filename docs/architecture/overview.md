@@ -75,6 +75,19 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 → 结果聚合排序 → 返回（含匹配度与理由）；每日推送任务见 M4
 ```
 
+### 3.5 向量索引同步流（M3-03）
+
+```
+Celery beat（每 30 分钟）或 POST /api/vector-index/sync
+→ VPS 读取本地 repo_vectors（仅 text_hash 变更 / 上次失败项；force 可全量）
+→ 按批 POST {EDGE_BASE_URL}/api/internal/vectors/upsert（X-Internal-Token）
+→ edge Worker 通过 Vectorize 绑定批量 upsert
+→ VPS 写 vector_sync_state（逐条状态）/ vector_sync_runs（运行统计）
+
+对账（kind=reconcile）：POST /api/internal/vectors/check 比对缺失 / 过期向量并修复；
+可选 list + delete 清理孤儿（默认关闭）。
+```
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -101,7 +114,21 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 | `/api/tasks/generate-recommendations` | POST | 入队推荐生成 |
 | `/api/tasks/daily-push` | POST | 入队每日推送 |
 | `/api/tasks/{taskId}` | GET | 任务状态 |
+| `/api/vector-index/sync` | POST | 入队 Vectorize 同步 / 对账（`kind` / `scope` / `force`） |
+| `/api/vector-index/status` | GET | 本地向量覆盖率与同步状态分布 |
+| `/api/vector-index/runs` | GET | 最近同步运行记录 |
+| `/api/vector-index/runs/{runId}` | GET | 单次运行详情 |
 | `/healthz` | GET | 健康检查 |
+
+### 4.3 vps → edge（Vectorize 内部接口，`X-Internal-Token`）
+
+| 端点 | 方法 | 说明 |
+| --- | --- | --- |
+| `/api/internal/vectors/upsert` | POST | 批量写入向量（1~1000 条/批） |
+| `/api/internal/vectors/check` | POST | 按 ID 批量查询元数据（≤100 条/批） |
+| `/api/internal/vectors/delete` | POST | 批量删除向量（≤1000 条/批） |
+| `/api/internal/vectors/stats` | GET | 索引统计 |
+| `/api/internal/vectors/list` | GET | 分页列出 ID（孤儿对账；不支持时返回 501） |
 
 ## 5. 安全边界
 

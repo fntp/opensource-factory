@@ -114,10 +114,22 @@ recommendations              （user_id 可空 = 全局推荐）
 | 项 | 值 |
 | --- | --- |
 | 模型 | BGE-M3（本地推理） |
-| 维度 | 1024 |
+| 维度 | 1024（与 `VECTORIZE_INDEX_DIM` 一致） |
 | 指标 | cosine |
-| 元数据 | `repo_id`、`source`（`my` / `trending`）、`language` |
+| 向量 ID | `v1_ + sha256("{source}:{repo_id}")[:32]`（固定 35 字符） |
+| 元数据 | `source`（`my` / `trending`）、`repo_id`、`text_hash`、`model`、`dim` |
 | 同步方向 | VPS 生成 → edge 写入 Vectorize（批量 upsert） |
+| 增量依据 | `repo_vectors.text_hash` 与 `vector_sync_state.text_hash` 比对 |
+
+### 5.1 本地向量与同步表（VPS SQLite）
+
+| 表 | 关键字段 | 说明 |
+| --- | --- | --- |
+| `repo_vectors` | `source, repo_id, model, backend, dim, text_hash, vector` | M3-02 向量化产物；主键 `(source, repo_id)` |
+| `vector_sync_state` | `source, repo_id, vector_id, text_hash, status, attempts, last_error, synced_at, checked_at` | 逐条同步状态；`status` 为 `pending/synced/failed/dim_mismatch` |
+| `vector_sync_runs` | `id, kind, scope, status, total, processed, synced, skipped, failed, deleted, checked, missing, repaired, orphan_scan` | 每次同步 / 对账运行统计与游标 |
+
+`vector_sync_runs.status`：`running/completed/partial/failed`；`kind`：`sync/reconcile`。
 
 ## 6. 一致性约定
 

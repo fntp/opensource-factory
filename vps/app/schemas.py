@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -81,3 +81,55 @@ class TaskStatus(BaseModel):
     status: str  # pending | started | success | failure
     result: Any = None
     error: Optional[str] = None
+
+
+class VectorSyncRequest(BaseModel):
+    """Vectorize 索引同步请求。"""
+
+    kind: Literal["sync", "reconcile"] = "sync"
+    scope: Literal["my", "trending", "all"] = "all"
+    limit: Optional[int] = Field(default=None, ge=1, le=100000, description="本次最多处理的向量数")
+    batchSize: Optional[int] = Field(default=None, ge=1, le=1000, description="单批 upsert 条数")
+    force: bool = Field(default=False, description="忽略增量状态，全量重传")
+
+
+class VectorSyncRunOut(BaseModel):
+    """一次同步运行的统计输出。"""
+
+    runId: str
+    kind: str
+    scope: str
+    status: str
+    batchSize: int
+    maxRetries: int
+    force: bool
+    limit: int
+    total: int
+    processed: int
+    synced: int
+    skipped: int
+    failed: int
+    deleted: int
+    checked: int
+    missing: int
+    repaired: int
+    orphanScan: str = ""
+    cursorSource: str = ""
+    cursorRepoId: str = ""
+    error: Optional[str] = None
+    createdAt: Optional[datetime] = None
+    updatedAt: Optional[datetime] = None
+    finishedAt: Optional[datetime] = None
+
+
+class VectorSyncStatusOut(BaseModel):
+    """索引同步状态：本地覆盖率、状态分布与最近运行。"""
+
+    enabled: bool
+    configured: bool
+    indexName: str
+    dim: int
+    localVectors: int
+    states: dict[str, int]
+    pending: int
+    lastRuns: list[VectorSyncRunOut]

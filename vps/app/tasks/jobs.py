@@ -253,3 +253,50 @@ def daily_push(limit: int = 50) -> dict[str, Any]:
 
     logger.info("每日推送准备完成: %d 条", pushed)
     return {"status": "ok", "pushed": pushed}
+
+
+@celery_app.task(bind=True, name="app.tasks.jobs.sync_vector_index")
+def sync_vector_index(
+    self,
+    kind: str = "sync",
+    scope: str = "all",
+    limit: Optional[int] = None,
+    batch_size: Optional[int] = None,
+    force: bool = False,
+) -> dict[str, Any]:
+    """Vectorize 索引同步任务：批量 upsert / 对账。
+
+    - `kind=sync`：增量（默认）或 `force=True` 全量；
+    - `kind=reconcile`：先对账，仅修复缺失 / 过期向量；
+    - 未配置 edge 地址 / 内部令牌时返回 `disabled`，不抛异常。
+    """
+    from app.services.vector_sync import (
+        VectorIndexDisabled,
+        VectorIndexError,
+        sync_vector_index as run_sync,
+    )
+
+    def progress(meta: dict[str, Any]) -> None:
+        try:
+            self.update_state(state="PROGRESS", meta=meta)
+        except Exception:  # noqa: BLE001 - 进度上报失败不影响同步
+            logger.debug("索引同步进度上报失败", exc_info=True)
+
+    try:
+        return run_sync(
+            kind=kind,
+            scope=scope,
+            limit=limit,
+            batch_size=batch_size,
+            force=force,
+            progress=progress,
+        )
+    except VectorIndexDisabled as exc:
+        logger.info("Vectorize 索引同步跳过：%s", exc)
+        return {"status": "disabled", "error": str(exc)}
+    except VectorIndexError as exc:
+        logger.warning("Vectorize 索引同步失败：%s", exc)
+        return {"status": "error", "error": str(exc)[:500]}
+    except Exception as exc:  # noqa: BLE001 - 任务失败降级为结构化结果
+        logger.exception("Vectorize 索引同步异常")
+        return {"status": "error", "error": str(exc)[:500]}

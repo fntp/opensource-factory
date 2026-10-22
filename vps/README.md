@@ -30,15 +30,17 @@ vps/
 │   │   ├── readme.py             # README 清洗 + 技术栈启发式提取
 │   │   ├── embedding.py          # BGE-M3（懒加载）与确定性 hash 降级向量
 │   │   ├── summarizer.py         # Ollama → DeepSeek → 截断降级 的摘要生成
-│   │   └── recommender.py        # 余弦排序 + 中文推荐理由模板
+│   │   ├── recommender.py        # 余弦排序 + 中文推荐理由模板
+│   │   └── vector_sync.py        # Vectorize 批量 upsert / 重试 / 对账 / 孤儿清理
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
 │   │   ├── trending.py           # GET /api/trending、POST /api/trending/crawl
 │   │   ├── recommend.py          # POST /api/recommend/query、POST /api/recommend/generate
+│   │   ├── vector_sync.py        # /api/vector-index/*（同步入队、状态、运行记录）
 │   │   └── tasks.py              # /api/tasks/*（与边缘 Worker 的集成契约，X-Internal-Token 鉴权）
 │   └── tasks/                # Celery 任务（薄封装，调用 services + 落库）
 │       ├── celery_app.py         # Celery 应用与 beat 定时计划
-│       └── jobs.py               # sync / crawl / generate / daily_push 四个任务
+│       └── jobs.py               # sync / crawl / generate / daily_push / vector_index 任务
 └── tests/                    # pytest（不访问网络）
 ```
 
@@ -99,7 +101,18 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | `OLLAMA_MODEL` | `qwen2.5:7b` | Ollama 摘要模型 |
 | `DEEPSEEK_API_KEY` | 空 | 可选；配置后作为 LLM 云端降级（OpenAI 兼容） |
 | `EMBEDDING_MODEL` | `BAAI/bge-m3` | 向量模型名（sentence-transformers / FlagEmbedding） |
-| `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
+| `EDGE_BASE_URL` | 空 | edge Worker 地址；与 `INTERNAL_TOKEN` 同时配置后启用 Vectorize 同步 |
+| `VECTORIZE_SYNC_ENABLED` | `true` | 是否启用 Vectorize 索引同步 |
+| `VECTORIZE_INDEX_NAME` | `opensource-factory-vectors` | Cloudflare Vectorize 索引名（需与 edge 绑定一致） |
+| `VECTORIZE_INDEX_DIM` | `1024` | 索引维度；与本地向量维度不一致的条目会标记 `dim_mismatch` 跳过 |
+| `VECTORIZE_SYNC_BATCH_SIZE` | `100` | 单批 upsert 条数（上限 1000） |
+| `VECTORIZE_SYNC_MAX_PER_RUN` | `1000` | 单次运行最多处理条数 |
+| `VECTORIZE_SYNC_MAX_RETRIES` | `3` | 网络错误 / 429 / 5xx 的最大重试次数 |
+| `VECTORIZE_SYNC_RETRY_BASE_MS` | `500` | 指数退避基数（毫秒） |
+| `VECTORIZE_SYNC_TIMEOUT_SECONDS` | `30` | edge 请求超时 |
+| `VECTORIZE_SYNC_DELETE_ORPHANS` | `false` | 对账时是否清理孤儿向量（确认索引独占后开启） |
+| `VECTORIZE_SYNC_MAX_ORPHANS` | `100` | 单次最多删除的孤儿向量数 |
+| `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/vector-index/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
 | `CELERY_TASK_ALWAYS_EAGER` | `0` | 置 `1` 时任务同步执行（本地调试 / 测试用） |
 | `GITHUB_TOKEN` | 空 | GitHub PAT（仅需 read 权限）；为空时同步任务跳过 |
 
@@ -116,6 +129,12 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | POST | `/api/tasks/generate-recommendations` | 入队推荐生成（可选 `user_id`、`top_k`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/daily-push` | 入队每日推送准备（将 `new` 推荐标记为 `pushed`） | `202 {"taskId": "..."}` |
 | GET | `/api/tasks/{task_id}` | 查询任务状态（`pending/started/success/failure`） | `200 {"taskId","status","result"}` |
+| POST | `/api/vector-index/sync` | 入队 Vectorize 同步 / 对账（`kind=sync\|reconcile`、`scope=my\|trending\|all`、`force`、`limit`、`batchSize`） | `202 {"taskId": "..."}` |
+| GET | `/api/vector-index/status` | 本地向量覆盖率、状态分布与最近运行 | `200 {...}` |
+| GET | `/api/vector-index/runs?limit=20` | 最近同步运行记录 | `200 [...]` |
+| GET | `/api/vector-index/runs/{run_id}` | 单次运行详情 | `200 {...}` |
+
+Celery beat 每 30 分钟（`7,37` 分）自动执行一次增量同步；对账建议在低峰期手动触发。
 
 约定：
 
