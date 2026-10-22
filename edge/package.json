@@ -7,7 +7,7 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "test:trending": "node --experimental-strip-types --test scripts/trending-query.test.mjs",
+    "test:trending": "node --experimental-strip-types --test scripts/trending-query.test.mjs scripts/trending-detail.test.mjs",
     "db:migrate:local": "wrangler d1 migrations apply opensource-factory --local"
   },
   "dependencies": {

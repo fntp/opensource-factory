@@ -32,7 +32,8 @@ edge/
 ├── migrations/
 │   ├── 0001_init.sql     # 初始 D1 schema（表 + 索引）
 │   ├── 0002_trending_snapshots.sql  # 热榜按日快照（M2-05）
-│   └── 0007_trending_summary.sql  # 热榜摘要列（M2-04）
+│   ├── 0007_trending_summary.sql  # 热榜摘要列（M2-04）
+│   └── 0008_trending_detail.sql  # 热榜详情：readme_summary + 平台/Star 索引
 └── src/
     ├── index.ts          # Hono 入口：CORS、日志、/healthz、路由挂载、404/500
     ├── types.ts          # Env 绑定 + 数据库行 + API 响应实体
@@ -137,6 +138,9 @@ npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FR
 | `GET /api/trending/dates?limit=30` | `[{date, count}]`（可用快照日期，倒序） |
 | `GET /api/trending/languages?date=` | `{date, languages: [{language, count}]}`（指定日期的语言分布） |
 | `GET /api/trending/history?repoId=&days=30` | `TrendingRepo[]`（单仓库 Star / 排名历史） |
+| `GET /api/trending/:owner/:name` | `TrendingRepoDetail`（公开；登录时回显 `isFavorited`；不存在 404） |
+| `POST /api/trending/:owner/:name/favorite` | `{favorited:true, created, repoId}`（需登录；幂等，他人同 id 资产返回 409） |
+| `DELETE /api/trending/:owner/:name/favorite` | `{favorited:false, removed, repoId}`（需登录） |
 | `POST /api/trending/summaries` | 内部接口：VPS 批量回写热榜摘要，body `{items:[{repoId,summary}]}`，返回 `{total,updated,skipped}` |
 | `POST /api/internal/trending/snapshots` | 内部：VPS 批量 upsert 快照（`X-Internal-Token`，单批 ≤ 500） |
 | `GET /api/recommendations` | `Recommendation[]`（用户私有 + 全局，按 `score` 降序；需登录） |
@@ -152,6 +156,7 @@ RepoItem        { id, fullName, description, summary, language, stars, forks, ca
 TrendingRepo    { id, owner, name, description, summary, language, stars, starsToday, url,
                   snapshotDate, rank, rankChange, trend,
                   languageRank?, starDelta?, rankDelta?, appearances?, isNew? }
+TrendingRepoDetail { ...TrendingRepo, platform, techStack: string[], summary, summarySource, crawledAt, isFavorited }
 Recommendation  { id, owner, name, description, language, stars, score, reason, basedOn: string[], url }
 CategoriesPayload { categories: [{id, name, count, description}], tags: [{name, count}] }
 DashboardStats  { totalRepos, trendingToday, pendingRecommendations, categoryCount }

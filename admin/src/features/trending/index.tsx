@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Flame, RefreshCw } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { ChevronRight, Flame, RefreshCw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -235,6 +236,15 @@ export function Trending() {
                         总 Star
                       </div>
                     </div>
+                    <Button variant='ghost' size='sm' asChild>
+                      <Link
+                        to='/trending/$owner/$name'
+                        params={{ owner: item.owner, name: item.name }}
+                      >
+                        详情
+                        <ChevronRight />
+                      </Link>
+                    </Button>
                   </div>
                 )
               })

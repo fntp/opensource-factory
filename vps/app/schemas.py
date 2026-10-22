@@ -49,6 +49,13 @@ class TrendingRepoOut(ORMModel):
     trend: Optional[str] = None
 
 
+class TrendingRepoDetail(TrendingRepoOut):
+    """热榜详情输出：摘要 + 元信息。"""
+
+    summary: Optional[str] = None
+    summary_source: str = "empty"  # readme | description | tech | empty
+
+
 class TrendingSnapshotOut(ORMModel):
     """热榜按日快照输出（含趋势字段）。"""
 
@@ -95,6 +102,13 @@ class CrawlAlertOut(ORMModel):
     first_seen_at: Optional[datetime] = None
     last_seen_at: Optional[datetime] = None
     acknowledged_at: Optional[datetime] = None
+
+
+class TrendingRepoDetail(TrendingRepoOut):
+    """热榜详情输出：摘要 + 元信息。"""
+
+    summary: Optional[str] = None
+    summary_source: str = "empty"  # readme | description | tech | empty
 
 
 class RecommendQuery(BaseModel):

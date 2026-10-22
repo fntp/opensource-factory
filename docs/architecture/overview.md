@@ -75,6 +75,9 @@ Celery beat 每日 → 抓取 GitHub Trending（全局页 + 多语言页，超�
 → 变化仓库入队 summarize_readmes（source=trending）→ 摘要 / 质量抽检
 → 配置 EDGE_BASE_URL 时批量回写 D1（快照 + 摘要）→ （M3）向量化 → 同步 Vectorize
 → admin 热榜页按日期 / 语言筛选，展示趋势徽标（↑ / ↓ / 新上榜 / —）
+
+admin 热榜列表 → 详情页 GET /api/trending/{owner}/{name}（摘要 + 元信息 + 收藏态）
+→「一键收藏」POST /api/trending/{owner}/{name}/favorite → upsert my_repositories
 ```
 
 > 快照以 `(snapshot_date, repo_id)` 为主键，重复执行同一日任务幂等；趋势基线最多回看 7 天（M2-05）。
@@ -105,6 +108,8 @@ Celery beat 每日 → 抓取 GitHub Trending（全局页 + 多语言页，超�
 | `/api/trending/dates` | GET | 可用快照日期（倒序） |
 | `/api/trending/languages` | GET | 指定日期的语言分布（`?date=`） |
 | `/api/trending/history` | GET | 单仓库历史（`?repoId=` / `?days=`） |
+| `/api/trending/{owner}/{name}` | GET | 热榜详情（摘要 + 元信息 + 收藏态，登录可选） |
+| `/api/trending/{owner}/{name}/favorite` | POST / DELETE | 一键收藏 / 取消收藏（需登录） |
 | `/api/trending/alerts` | GET | 抓取告警（`?status=open\|acknowledged\|all`） |
 | `/api/trending/alerts/{id}/ack` | POST | 确认抓取告警 |
 | `/api/recommendations` | GET | 推荐列表 |

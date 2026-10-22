@@ -135,6 +135,7 @@ CREATE INDEX idx_trending_repositories_stars_today ON trending_repositories (sta
 CREATE INDEX idx_trending_snapshots_date_rank ON trending_snapshots (snapshot_date, rank);
 CREATE INDEX idx_trending_snapshots_repo_date ON trending_snapshots (repo_id, snapshot_date);
 CREATE INDEX idx_trending_snapshots_date_language ON trending_snapshots (snapshot_date, language);
+CREATE INDEX idx_trending_repositories_platform_stars_today ON trending_repositories (platform, stars_today DESC);
 CREATE INDEX idx_sessions_user_id ON sessions (user_id);
 CREATE INDEX idx_sessions_expires_at ON sessions (expires_at);
 CREATE INDEX idx_recommendations_user_id ON recommendations (user_id);
