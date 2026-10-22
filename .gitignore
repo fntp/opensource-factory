@@ -1,0 +1,50 @@
+# ── 依赖 ─────────────────────────────────────────────
+node_modules/
+**/node_modules/
+
+# ── 构建产物 ──────────────────────────────────────────
+dist/
+**/dist/
+*.tsbuildinfo
+
+# ── Python ───────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# ── 环境变量与本地数据（禁止提交任何密钥）──────────────
+.env
+.env.local
+.env.*.local
+**/.env
+!**/.env.example
+*.db
+*.sqlite3
+**/data/
+# 例外：admin 布局的静态数据目录（sidebar-data.ts 属于源码而非运行时数据，必须入库）
+!admin/src/components/layout/data/
+!admin/src/components/layout/data/**
+
+# ── 测试产物 ──────────────────────────────────────────
+coverage/
+**/__screenshots__/
+.vitest-attachments/
+
+# ── Cloudflare ───────────────────────────────────────
+.wrangler/
+.dev.vars
+
+# ── 编辑器与系统 ──────────────────────────────────────
+.DS_Store
+.idea/
+*.swp
+
+# ── 日志 ─────────────────────────────────────────────
+*.log
+logs/
+npm-debug.log*
