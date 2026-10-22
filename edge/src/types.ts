@@ -321,9 +321,19 @@ export interface NotificationsPayload {
   hasMore: boolean;
 }
 
+/** GET /api/categories 列表项（扁平结构，前端按 parentId 组树） */
+export interface CategoryItem {
+  id: string;
+  name: string;
+  parentId: string | null;
+  description: string | null;
+  sortOrder: number;
+  count: number;
+}
+
 /** GET /api/categories */
 export interface CategoriesPayload {
-  categories: Array<{ id: string; name: string; count: number; description: string | null }>;
+  categories: CategoryItem[];
   tags: Array<{ name: string; count: number }>;
 }
 

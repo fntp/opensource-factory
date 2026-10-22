@@ -96,10 +96,13 @@ duplicate_dismissals         （重复检测：按用户忽略的簇）
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | id | TEXT PK | 分类 id |
-| name | TEXT | 名称（如：支付系统 / 脚手架） |
-| parent_id | TEXT | 父分类（NULL = 顶级），无限级 |
+| name | TEXT | 名称（如：支付系统 / 脚手架）；同一父级下不重名（大小写不敏感） |
+| parent_id | TEXT | 父分类（NULL = 顶级），自关联，无限级 |
+| description | TEXT | 描述（可选，最长 500 字符） |
+| sort_order | INTEGER | 同级排序位置（0 起，写入时归一化为 0..n-1） |
 
-> 扩展列：`description`、`sort_order`。
+> 索引：`idx_categories_parent_sort (parent_id, sort_order, name)`，覆盖同级排序与树构建查询。
+> 删除策略：存在子分类或仍被 `my_repositories.category_id` 引用时拒绝删除，不做级联。
 
 ## 3. 扩展表
 

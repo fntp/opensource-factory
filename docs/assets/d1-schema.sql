@@ -202,6 +202,7 @@ CREATE TABLE worker_metrics (
 -- ── 索引 ────────────────────────────────────────────────────────
 CREATE INDEX idx_my_repositories_user_id ON my_repositories (user_id);
 CREATE INDEX idx_my_repositories_category_id ON my_repositories (category_id);
+CREATE INDEX idx_categories_parent_sort ON categories (parent_id, sort_order, name);
 CREATE INDEX idx_trending_repositories_stars_today ON trending_repositories (stars_today DESC);
 CREATE INDEX idx_trending_snapshots_date_rank ON trending_snapshots (snapshot_date, rank);
 CREATE INDEX idx_trending_snapshots_repo_date ON trending_snapshots (repo_id, snapshot_date);
