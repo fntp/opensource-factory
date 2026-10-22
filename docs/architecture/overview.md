@@ -149,17 +149,20 @@ Celery beat（每日 04:37）或 POST /api/vector-index/sync
 可选修复并按开关清理孤儿（默认关闭）。
 ```
 
-### 3.8 语义搜索流（M3-04）
+### 3.8 语义搜索流（M3-04 / M3-10）
 
 ```
 admin 搜索页 POST /api/search/semantic（登录态）
-→ edge 调 VPS POST /api/search/embed 生成查询向量（X-Internal-Token）
+→ edge 调 VPS POST /api/search/embed（X-Internal-Token）
+   ↳ VPS 先做查询理解：同义词 / 技术栈词表扩展（expand=false 可关闭），返回 understanding
 → edge 通过 Vectorize 绑定做近邻检索（topK 放大后按 source / user 过滤）
 → edge 从 D1 水合（my 仅当前用户；trending 全局）→ 返回匹配度 + 项目元信息
 
 降级链：
 Vectorize 未绑定 / 查询失败 / 水合 0 条 → VPS POST /api/search/query（本地 repo_vectors 余弦）
-→ VPS 不可达 → edge D1 关键词 LIKE 检索（mode=keyword，页面仍可用）
+→ VPS 不可达 → edge D1 关键词 LIKE 检索（mode=keyword，使用 understanding.keywordTerms 多词 OR 召回）
+```
+
 ### 3.9 推荐理由生成流（M3-06）
 
 ```
@@ -196,6 +199,9 @@ summarize() → Ollama（超预算则跳过请求）→ DeepSeek → 截断原�
 - 降级自检 `python -m app.degradation check [--json]` 五项全部离线执行，PASS 退出码 0；
 - `GET /api/degradation/status` 返回当前配置的预期后端、LLM 降级标记与五项检查结果；
 - 测试不依赖模型与网络，覆盖「模型缺失 / 超预算 → hash 向量 / 截断摘要」两条主路径。
+
+查询理解结果（`query` / `rewritten` / `techStack` / `concepts` / `terms` / `keywordTerms`）随搜索响应返回：
+admin 搜索页展示「查询理解」标签，edge 关键词兜底使用扩展词提升召回。
 
 ## 4. 接口边界
 
@@ -264,6 +270,7 @@ summarize() → Ollama（超预算则跳过请求）→ DeepSeek → 截断原�
 | `/api/vectors/stats` | GET | 向量覆盖率与最近运行 |
 | `/api/vectors/runs/{runId}` | GET | 向量化运行详情 |
 | `/api/vectors/{source}/{repoId}` | GET | 单条仓库向量 |
+| `/api/search/understand` | POST | 查询理解：同义词 / 技术栈词表扩展（`query` / `expand`） |
 | `/api/recommend/eval` | POST | 推荐质量评估与阈值 / 权重调参建议（抽样评估集） |
 | `/api/degradation/status` | GET | 降级路径自检（模型缺失 / 超预算） |
 | `/healthz` | GET | 健康检查 |

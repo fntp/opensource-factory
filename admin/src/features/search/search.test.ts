@@ -5,6 +5,7 @@ import {
   modeLabel,
   normalizeQuery,
   scopeLabel,
+  understandingLabels,
 } from './utils'
 
 describe('语义搜索工具函数', () => {
@@ -34,5 +35,21 @@ describe('语义搜索工具函数', () => {
     expect(modeLabel('vectorize')).toContain('Vectorize')
     expect(modeLabel('local')).toContain('本地')
     expect(modeLabel('keyword')).toContain('关键词')
+  })
+
+  it('查询理解标签：技术栈在前、概念在后并去重', () => {
+    const understanding = {
+      query: 'k8s 部署',
+      rewritten: 'k8s 部署 Kubernetes deployment',
+      expanded: true,
+      techStack: ['Kubernetes'],
+      concepts: ['部署', 'Kubernetes'],
+      terms: ['Kubernetes', 'deployment'],
+      keywordTerms: ['k8s 部署', 'Kubernetes'],
+      maxTerms: 12,
+    }
+    expect(understandingLabels(understanding)).toEqual(['Kubernetes', '部署'])
+    expect(understandingLabels({ ...understanding, expanded: false })).toEqual([])
+    expect(understandingLabels(undefined)).toEqual([])
   })
 })

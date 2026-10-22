@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.models import MyRepository, RepoVector, TrendingRepository
 from app.services.embedding import EmbeddingService, get_embedding_service
+from app.services.query_understanding import understand_query, vocabulary_stats
 from app.services.vector_pipeline import list_runs, run_to_dict
 
 logger = logging.getLogger(__name__)
@@ -124,8 +125,9 @@ def search_local(
     scope: str = "all",
     min_score: Optional[float] = None,
     service: Optional[EmbeddingService] = None,
+    expand: bool = True,
 ) -> dict[str, Any]:
-    """本地语义检索：查询向量化 + `repo_vectors` 余弦排序。"""
+    """本地语义检索：查询理解 + 查询向量化 + `repo_vectors` 余弦排序。"""
     settings = get_settings()
     normalized_query = normalize_query(query)
     normalized_scope = normalize_scope(scope)
@@ -134,8 +136,9 @@ def search_local(
         float(settings.SEARCH_MIN_SCORE) if min_score is None else float(min_score)
     )
 
+    understanding = understand_query(normalized_query, enabled=expand)
     embedder = service or get_embedding_service()
-    query_vec = embedder.encode_one(normalized_query)
+    query_vec = embedder.encode_one(understanding.rewritten)
     rows = load_vectors(db, normalized_scope)
     hits = search_vectors(
         query_vec,
@@ -154,6 +157,7 @@ def search_local(
         "backend": embedder.backend,
         "dim": len(query_vec),
         "scanned": len(rows),
+        "understanding": understanding.to_dict(),
         "items": [
             {"source": hit.source, "repoId": hit.repo_id, "score": round(hit.score, 6)}
             for hit in hits
@@ -228,6 +232,7 @@ def search_semantic(
     top_k: Optional[int] = None,
     scope: str = "all",
     min_score: Optional[float] = None,
+    expand: bool = True,
 ) -> dict[str, Any]:
     """本地语义搜索并直接返回水合结果（内部 / 调试 / CLI）。"""
     result = search_local(
@@ -236,6 +241,7 @@ def search_semantic(
         top_k=top_k,
         scope=scope,
         min_score=min_score,
+        expand=expand,
     )
     hits = [
         SearchHit(source=item["source"], repo_id=item["repoId"], score=float(item["score"]))
@@ -250,6 +256,7 @@ def search_semantic(
         "backend": result["backend"],
         "dim": result["dim"],
         "scanned": result["scanned"],
+        "understanding": result["understanding"],
         "items": items,
     }
 
@@ -283,5 +290,6 @@ def get_status(db: Session) -> dict[str, Any]:
         "bySource": by_source,
         "byModel": by_model,
         "dimensions": dimensions,
+        "vocabulary": vocabulary_stats(),
         "latestRuns": [run_to_dict(run) for run in list_runs(db, limit=5)],
     }

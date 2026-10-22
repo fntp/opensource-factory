@@ -3,6 +3,18 @@
 export type SearchScope = 'my' | 'trending' | 'all'
 export type SearchMode = 'vectorize' | 'local' | 'keyword'
 
+/** 查询理解结果（edge 透传 VPS 的同义词 / 技术栈词表）。 */
+export interface SearchUnderstanding {
+  query: string
+  rewritten: string
+  expanded: boolean
+  techStack: string[]
+  concepts: string[]
+  terms: string[]
+  keywordTerms: string[]
+  maxTerms: number
+}
+
 export const MAX_QUERY_LENGTH = 200
 
 /** 去首尾空白并把连续空白压成一个空格。 */
@@ -34,4 +46,13 @@ export function modeLabel(mode: SearchMode): string {
   if (mode === 'vectorize') return 'Vectorize 向量检索'
   if (mode === 'local') return '本地向量检索'
   return '关键词降级检索'
+}
+
+/** 查询理解标签：技术栈在前、概念在后，去重并保持顺序。 */
+export function understandingLabels(
+  understanding?: SearchUnderstanding
+): string[] {
+  if (!understanding?.expanded) return []
+  const labels = [...understanding.techStack, ...understanding.concepts]
+  return [...new Set(labels.filter(Boolean))]
 }

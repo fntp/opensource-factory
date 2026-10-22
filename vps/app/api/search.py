@@ -20,8 +20,10 @@ from app.schemas import (
     SearchQueryResponse,
     SearchSemanticResponse,
     SearchStatusResponse,
+    SearchUnderstandingOut,
 )
 from app.services.embedding import get_embedding_service
+from app.services.query_understanding import QueryUnderstandingError, understand_query
 from app.services.semantic_search import (
     SearchError,
     get_status,
@@ -41,19 +43,30 @@ def _bad_request(exc: SearchError) -> HTTPException:
     return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
 
+@router.post("/understand", response_model=SearchUnderstandingOut, summary="查询理解（同义词 / 技术栈）")
+def understand(payload: SearchQuery) -> SearchUnderstandingOut:
+    try:
+        result = understand_query(payload.query, enabled=payload.expand)
+    except QueryUnderstandingError as exc:
+        raise _bad_request(exc) from exc
+    return SearchUnderstandingOut(**result.to_dict())
+
+
 @router.post("/embed", response_model=SearchEmbedResponse, summary="生成查询向量")
 def embed_query(payload: SearchQuery) -> SearchEmbedResponse:
     try:
         query = normalize_query(payload.query)
-    except SearchError as exc:
+        understanding = understand_query(query, enabled=payload.expand)
+    except (SearchError, QueryUnderstandingError) as exc:
         raise _bad_request(exc) from exc
     service = get_embedding_service()
-    vector = service.encode_one(query)
+    vector = service.encode_one(understanding.rewritten)
     return SearchEmbedResponse(
         vector=vector,
         dim=len(vector),
         model=service.model_name,
         backend=service.backend,
+        understanding=SearchUnderstandingOut(**understanding.to_dict()),
     )
 
 
@@ -66,6 +79,7 @@ def query_vectors(payload: SearchQuery, db: Session = Depends(get_db)) -> Search
             top_k=payload.topK,
             scope=payload.scope,
             min_score=payload.minScore,
+            expand=payload.expand,
         )
     except SearchError as exc:
         raise _bad_request(exc) from exc
@@ -81,6 +95,7 @@ def semantic_search(payload: SearchQuery, db: Session = Depends(get_db)) -> Sear
             top_k=payload.topK,
             scope=payload.scope,
             min_score=payload.minScore,
+            expand=payload.expand,
         )
     except SearchError as exc:
         raise _bad_request(exc) from exc

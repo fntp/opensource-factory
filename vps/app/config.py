@@ -89,6 +89,9 @@ class Settings(BaseSettings):
     SEARCH_MIN_SCORE: float = 0.0
     # 本地全量余弦扫描的向量上限（超过后依赖 Vectorize）
     SEARCH_MAX_VECTORS: int = 50000
+    # 查询理解（M3-10）：同义词 / 技术栈词表扩展
+    SEARCH_QUERY_EXPANSION_ENABLED: bool = True
+    SEARCH_QUERY_EXPANSION_MAX_TERMS: int = 12
 
     # 推荐生成（M3-05）
     # 最终得分最低阈值（0~1）：相似度 × 权重 + 热榜热度 × 权重
@@ -118,13 +121,6 @@ class Settings(BaseSettings):
     RECOMMEND_EVAL_WEIGHT_GRID: str = "0.6,0.7,0.8,0.9,1.0"
     # 单次评估的折叠数上限
     RECOMMEND_EVAL_MAX_SAMPLES: int = 20
-
-    # 语义搜索（M3-04）
-    SEARCH_DEFAULT_TOP_K: int = 10
-    SEARCH_MAX_TOP_K: int = 50
-    SEARCH_MIN_SCORE: float = 0.0
-    # 本地全量余弦扫描的向量上限（超过后依赖 Vectorize）
-    SEARCH_MAX_VECTORS: int = 50000
 
     # 推荐反馈回流（M3-07）：生成前拉取 edge 反馈、生成后回写 D1
     RECOMMEND_FEEDBACK_SYNC: bool = True

@@ -262,6 +262,18 @@ export interface DashboardStats {
 }
 
 /** POST /api/search/semantic 结果条目 */
+/** 查询理解（同义词 / 技术栈词表，M3-10） */
+export interface SearchUnderstanding {
+  query: string;
+  rewritten: string;
+  expanded: boolean;
+  techStack: string[];
+  concepts: string[];
+  terms: string[];
+  keywordTerms: string[];
+  maxTerms: number;
+}
+
 export interface SearchResultItem {
   id: string;
   source: 'my' | 'trending';
@@ -287,6 +299,7 @@ export interface SearchResponse {
   dim: number;
   items: SearchResultItem[];
   scope: 'my' | 'trending' | 'all';
+  understanding?: SearchUnderstanding;
 }
 
 /** GitHub /user 接口返回（仅取所需字段） */
