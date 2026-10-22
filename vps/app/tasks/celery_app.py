@@ -3,8 +3,8 @@
 - broker / backend：`REDIS_URL`（默认 `redis://localhost:6379/0`）；
 - `CELERY_TASK_ALWAYS_EAGER=1` 时任务同步执行（本地调试 / 测试）；
 - beat 计划：每日抓取热榜（全局页 + 多语言页）、每日 08:30 生成推荐、08:45 评估推荐、
-  09:00 推送准备、09:05 Bark 投递与 Telegram 摘要、09:10 Email 每日精选，
-  以及每日向量索引同步与对账。
+  每 10 分钟按用户偏好检查推送窗口（M4-06）、09:05 Bark 投递与 Telegram 摘要、
+  09:10 Email 每日精选，以及每日向量索引同步与对账。
 """
 from __future__ import annotations
 
@@ -62,9 +62,12 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.jobs.evaluate_recommendations",
         "schedule": crontab(minute=45, hour=8),
     },
-    "daily-push-at-9am": {
+    # 推送偏好（M4-06）：每 10 分钟检查一次，按用户时区与推送窗口筛选；
+    # 窗口默认 10 分钟，与调度间隔一致，避免漏推或重复推送。
+    "daily-push-preferences": {
         "task": "app.tasks.jobs.daily_push",
-        "schedule": crontab(minute=0, hour=9),
+        "schedule": crontab(minute="*/10"),
+        "kwargs": {"respect_schedule": True},
     },
     # Bark 通道（M4-03）：09:05 投递 09:00 推送准备产生的 pushed 推荐
     "send-bark-notifications-daily": {

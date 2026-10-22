@@ -174,10 +174,17 @@ async def enqueue_evaluate_recommendations(
     status_code=status.HTTP_202_ACCEPTED,
     response_model=TaskEnqueued,
     dependencies=[Depends(require_internal_token)],
-    summary="入队：每日推送准备",
+    summary="入队：每日推送准备（按用户偏好筛选）",
 )
-async def enqueue_daily_push() -> TaskEnqueued:
-    task = daily_push.delay()
+async def enqueue_daily_push(
+    user_id: str | None = Query(default=None),
+    respect_schedule: bool = Query(
+        default=False, description="是否按用户推送时间窗口筛选（定时任务使用）"
+    ),
+) -> TaskEnqueued:
+    task = daily_push.delay(
+        user_id=user_id, respect_schedule=respect_schedule
+    )
     return TaskEnqueued(taskId=task.id)
 
 

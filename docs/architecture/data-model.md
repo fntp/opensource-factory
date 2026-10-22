@@ -273,6 +273,21 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | error TEXT | 失败原因（已替换密码 / 用户名，截断 300 字符） |
 | created_at / finished_at | 创建 / 完成时间 |
 
+### 3.12 `push_preferences` 推送偏好（M4-06）
+
+| 字段 | 说明 |
+| --- | --- |
+| user_id TEXT PK | 用户 id |
+| enabled INTEGER | 是否启用每日推送（0 / 1） |
+| time_of_day TEXT | 推送时间 `HH:MM`（用户本地时区） |
+| timezone TEXT | IANA 时区，默认 `Asia/Shanghai` |
+| min_score REAL | 匹配度阈值（0~1，默认 0.35） |
+| min_quality_score REAL | 质量分阈值（0~1，默认 0.55） |
+| channel_inapp / channel_bark / channel_telegram / channel_email INTEGER | 通道开关（0 / 1） |
+| updated_at TEXT | 最近保存时间（ISO 8601） |
+
+**默认值**：未保存过偏好的用户按默认值处理（启用、09:00、Asia/Shanghai、匹配度 0.35、质量分 0.55、仅站内通知开启）。VPS 推送任务通过内部接口读取偏好，读取失败时回退默认值，不阻塞推送。
+
 ## 4. 索引策略
 
 | 表 | 索引 | 用途 |

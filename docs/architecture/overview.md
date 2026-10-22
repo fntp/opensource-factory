@@ -116,7 +116,7 @@ Celery beat 08:30 → 收藏库平均向量（复用 repo_vectors）→ 热榜�
 08:45 每日评估 → 质量分 = 仓库质量 × 0.7 + 理由质量 × 0.3
 → 双重门槛：match_score ≥ EVAL_MATCH_THRESHOLD 且 quality_score ≥ EVAL_QUALITY_THRESHOLD
 → qualified / filtered，写 recommendation_evaluation_runs
-→ 09:00 推送准备只把 qualified 标记为 pushed
+→ 推送准备按用户偏好（时间 / 阈值 / 通道）把 qualified 标记为 pushed
 ```
 
 ### 3.5 模型选型与推理预算（M3-01）
@@ -260,6 +260,19 @@ Celery beat 09:10 或 POST /api/tasks/send-email-digest
 未启用 / 未配置 / 无数据 / SMTP 失败分别返回 `disabled` / `not_configured` / `empty` / `failed`，
 不阻塞每日推送主流程；站内通知中心（M4-02）与本通道互不影响。
 
+### 3.16 推送偏好流（M4-06）
+
+```
+admin「设置 → 通知设置」→ GET/PUT /api/push-preferences（edge，登录态）
+→ D1 push_preferences（按用户保存时间 / 阈值 / 通道开关）
+→ VPS 推送任务通过 GET /api/internal/push-preferences（X-Internal-Token）拉取
+→ 仅对到达推送时间、至少开启一个通道的用户，按阈值筛选 qualified 推荐
+→ 标记 pushed（站内通知中心惰性物化；Bark / Telegram / Email 通道按开关下发）
+```
+
+未保存偏好的用户使用默认值（启用、09:00、Asia/Shanghai、匹配度 0.35、质量分 0.55、仅站内通知）；edge 不可达时 VPS 回退默认值，不阻塞推送。
+
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -291,6 +304,8 @@ Celery beat 09:10 或 POST /api/tasks/send-email-digest
 | `/api/notifications/:id/read` | POST | 单条标记已读（幂等） |
 | `/api/notifications/read-all` | POST | 全部标记已读 |
 | `/api/notifications/:id/dismiss` | POST | 忽略通知（同步推荐状态） |
+| `/api/push-preferences` | GET | 当前用户推送偏好（未保存时返回默认值） |
+| `/api/push-preferences` | PUT | 保存推送偏好（时间 / 时区 / 阈值 / 通道开关） |
 | `/api/sync` | POST | 触发同步任务（202） |
 | `/api/search/semantic` | POST | 语义搜索（`query` / `topK` / `scope`；vectorize → local → keyword 三级降级） |
 
@@ -311,7 +326,7 @@ Celery beat 09:10 或 POST /api/tasks/send-email-digest
 | `/api/tasks/generate-recommendations` | POST | 入队推荐生成 |
 | `/api/tasks/regenerate-recommendation-reasons` | POST | 入队重算存量推荐理由与依据字段 |
 | `/api/tasks/evaluate-recommendations` | POST | 入队每日评估（质量分 + 匹配度阈值） |
-| `/api/tasks/daily-push` | POST | 入队每日推送（仅 `qualified`） |
+| `/api/tasks/daily-push` | POST | 入队每日推送（按用户偏好筛选 `qualified`，可 `respect_schedule`） |
 | `/api/tasks/send-telegram-digest` | POST | 入队 Telegram 每日摘要（M4-04，可选 `user_id` / `limit` / `force`） |
 | `/api/tasks/send-email-digest` | POST | 入队 Email 每日摘要（`user_id` / `limit` / `force`） |
 | `/api/recommend/query` | POST | 语义查询（返回 `reason` + `based_on`） |
@@ -358,6 +373,7 @@ Celery beat 09:10 或 POST /api/tasks/send-email-digest
 | `/api/internal/vectors/delete` | POST | 批量删除向量（≤1000 条/批） |
 | `/api/internal/vectors/stats` | GET | 索引统计 |
 | `/api/internal/vectors/list` | GET | 分页列出 ID（孤儿对账；不支持时返回 501） |
+| `/api/internal/push-preferences` | GET | 读取全部推送偏好（VPS 推送任务使用；`?userId=` 可查单个） |
 
 ## 5. 安全边界
 

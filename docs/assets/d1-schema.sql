@@ -162,6 +162,21 @@ CREATE TABLE notifications (
     read_at DATETIME
 );
 
+-- ── 推送偏好（M4-06）──────────────────────────────────────────
+CREATE TABLE push_preferences (
+    user_id TEXT PRIMARY KEY,
+    enabled INTEGER NOT NULL DEFAULT 1,              -- 0 / 1
+    time_of_day TEXT NOT NULL DEFAULT '09:00',       -- HH:MM（用户本地时区）
+    timezone TEXT NOT NULL DEFAULT 'Asia/Shanghai',  -- IANA 时区
+    min_score REAL NOT NULL DEFAULT 0.35,            -- 匹配度阈值 0~1
+    min_quality_score REAL NOT NULL DEFAULT 0.55,    -- 质量分阈值 0~1
+    channel_inapp INTEGER NOT NULL DEFAULT 1,        -- 站内通知
+    channel_bark INTEGER NOT NULL DEFAULT 0,
+    channel_telegram INTEGER NOT NULL DEFAULT 0,
+    channel_email INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL
+);
+
 -- ── 索引 ────────────────────────────────────────────────────────
 CREATE INDEX idx_my_repositories_user_id ON my_repositories (user_id);
 CREATE INDEX idx_my_repositories_category_id ON my_repositories (category_id);

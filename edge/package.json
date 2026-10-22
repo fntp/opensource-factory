@@ -11,6 +11,7 @@
     "test:m2": "node scripts/m2-acceptance.mjs",
     "test:vectorize": "node --test scripts/vectorize-route.test.mjs",
     "test:notifications": "node --test scripts/notification-route.test.mjs",
+    "test:push-preferences": "node --test scripts/push-preferences-route.test.mjs",
     "test": "node --test scripts/*.test.mjs",
     "db:migrate:local": "wrangler d1 migrations apply opensource-factory --local"
   },
