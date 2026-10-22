@@ -1,5 +1,10 @@
 import { apiFetch } from '@/lib/api'
-import type { SearchMode, SearchScope, SearchUnderstanding } from './utils'
+import type {
+  SearchEngine,
+  SearchMode,
+  SearchScope,
+  SearchUnderstanding,
+} from './utils'
 
 export interface SearchResultItem {
   id: string
@@ -13,6 +18,9 @@ export interface SearchResultItem {
   url: string
   score: number
   reason: string
+  /** README 全文命中片段（M6-01） */
+  snippet?: string
+  matchedTerms?: string[]
 }
 
 export interface SearchResponse {
@@ -25,12 +33,14 @@ export interface SearchResponse {
   dim: number
   items: SearchResultItem[]
   understanding?: SearchUnderstanding
+  terms?: string[]
 }
 
 export interface SearchRequest {
   query: string
   topK?: number
   scope?: SearchScope
+  offset?: number
 }
 
 export const MOCK_SEARCH_ITEMS: SearchResultItem[] = [
@@ -46,6 +56,8 @@ export const MOCK_SEARCH_ITEMS: SearchResultItem[] = [
     url: 'https://github.com/nestjs/awesome-nestjs',
     score: 0.91,
     reason: '与查询语义相似度 91%。主要使用 TypeScript 开发；项目简介：NestJS 生态资源与最佳实践合集。',
+    snippet: 'README 全文命中：NestJS 生态资源与最佳实践合集，包含模块、守卫与拦截器示例。',
+    matchedTerms: ['NestJS'],
   },
   {
     id: 'demo/tenant-admin',
@@ -75,26 +87,31 @@ export const MOCK_SEARCH_ITEMS: SearchResultItem[] = [
   },
 ]
 
-/** 调用边缘语义搜索接口；失败时回退演示数据，保证页面可用。 */
+/** 调用边缘搜索接口（语义 / 全文）；失败时回退演示数据，保证页面可用。 */
 export async function searchRepositories(
-  input: SearchRequest
+  input: SearchRequest,
+  engine: SearchEngine = 'semantic'
 ): Promise<SearchResponse> {
+  const path = engine === 'fulltext' ? '/api/search/fulltext' : '/api/search/semantic'
   try {
-    return await apiFetch<SearchResponse>('/api/search/semantic', {
+    return await apiFetch<SearchResponse>(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         query: input.query,
         topK: input.topK ?? 10,
         scope: input.scope ?? 'all',
+        ...(engine === 'fulltext' ? { offset: input.offset ?? 0 } : {}),
       }),
     })
   } catch {
     // eslint-disable-next-line no-console
-    console.info('[opensource-factory] 语义搜索接口不可用，使用演示数据')
+    console.info(
+      `[opensource-factory] ${engine === 'fulltext' ? '全文' : '语义'}搜索接口不可用，使用演示数据`
+    )
     return {
       query: input.query,
-      mode: 'keyword',
+      mode: engine === 'fulltext' ? 'like' : 'keyword',
       count: MOCK_SEARCH_ITEMS.length,
       tookMs: 0,
       backend: '',

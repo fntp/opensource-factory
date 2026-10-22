@@ -360,12 +360,15 @@ export interface SearchResultItem {
   url: string;
   score: number;
   reason: string;
+  /** README 全文命中片段（M6-01） */
+  snippet?: string;
+  matchedTerms?: string[];
 }
 
-/** POST /api/search/semantic 响应 */
+/** POST /api/search/semantic、/api/search/fulltext 响应 */
 export interface SearchResponse {
   query: string;
-  mode: 'vectorize' | 'local' | 'keyword';
+  mode: 'vectorize' | 'local' | 'keyword' | 'fts' | 'like';
   count: number;
   tookMs: number;
   backend: string;
@@ -374,6 +377,8 @@ export interface SearchResponse {
   items: SearchResultItem[];
   scope: 'my' | 'trending' | 'all';
   understanding?: SearchUnderstanding;
+  /** 全文检索分词结果（M6-01） */
+  terms?: string[];
 }
 
 /** GitHub /user 接口返回（仅取所需字段） */

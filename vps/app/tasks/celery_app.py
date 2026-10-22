@@ -129,6 +129,15 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.jobs.cleanup_monitoring_logs",
         "schedule": crontab(minute=23, hour=4),
     },
+    # README 全文索引补录（M6-01）：默认 04:47，为历史 / 新增仓库补齐 FTS 镜像
+    "readme-fts-sync-daily": {
+        "task": "app.tasks.jobs.sync_readmes",
+        "schedule": crontab(
+            minute=settings.FTS_SYNC_MINUTE,
+            hour=settings.FTS_SYNC_HOUR,
+        ),
+        "kwargs": {"source": "all"},
+    },
 }
 
 # 兼容 `celery -A app.tasks.celery_app`（默认按属性名 app/celery 查找）

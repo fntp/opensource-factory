@@ -437,7 +437,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 
 | 表 | 索引 | 用途 |
 | --- | --- | --- |
-| my_repositories | `(user_id)`、`(category_id)`、`(platform)` | 列表与筛选 |
+| my_repositories | `(user_id)`、`(category_id)`、`(platform)`；VPS 本地另有 `(stars)`、`(category_id, stars)` | 列表与筛选 / 检索排序（M1-12） |
 | trending_repositories | `(stars_today DESC)`、`(crawled_at)` | 榜单查询 |
 | trending_snapshots | `(snapshot_date, rank)`、`(snapshot_date, language)` | 按日榜单、日期/语言筛选 |
 | sessions | `(user_id)`、`(expires_at)` | 会话校验与清理 |
@@ -512,6 +512,36 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | `vector_index_runs` | `id`、`mode`、`scope`、`status`、`total/processed/upserted/deleted/skipped/failed/dim_skipped/checked/missing/stale/repaired`、`batches`、`cursor_source`、`cursor_repo_id`、`error` | 每次同步 / 对账的可观测记录与断点续跑游标 |
 
 增量判定：`text_hash + model + backend + dim` 任一变化或上次状态非 `synced` 时重新 upsert；`full` 模式忽略状态全量重传。
+
+### 5.3 README 全文镜像与 FTS（M6-01）
+
+全文数据只存在 VPS 本地 SQLite，D1 不新增全文表（本地镜像先行）：
+
+`repo_readmes`（联合主键 `source + repo_id`）：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| source | TEXT PK | `my` / `trending` |
+| repo_id | TEXT PK | 仓库 id（`owner/repo`） |
+| content | TEXT | `clean_readme` 清洗后的纯文本，上限 `FTS_MAX_README_CHARS` |
+| content_hash | TEXT | 内容 SHA-256（增量判断） |
+| char_count | INTEGER | 字符数 |
+| fetched_at / updated_at | DATETIME | 首次抓取 / 最近更新时间 |
+
+`repo_readme_fts`（FTS5 虚表）：
+
+```sql
+CREATE VIRTUAL TABLE repo_readme_fts USING fts5(
+  source UNINDEXED,
+  repo_id UNINDEXED,
+  content,
+  tokenize='trigram'
+);
+```
+
+- `repo_readmes` 的 INSERT / UPDATE / DELETE 由 `repo_readmes_ai/au/ad` 触发器同步到 FTS 表；
+- trigram 支持中英文子串检索，但要求查询词 ≥3 字符；1~2 字短词由应用层回退 `LIKE`；
+- 检索使用 `bm25()` 排序，返回 `snippet` 命中片段；`POST /api/search/fulltext/rebuild` 可全量重建。
 
 ## 6. 一致性约定
 

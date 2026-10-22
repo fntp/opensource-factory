@@ -683,6 +683,64 @@ class SearchStatusResponse(BaseModel):
     vocabulary: dict[str, int]
     latestRuns: list[VectorRunOut]
 
+
+class SearchFulltextRequest(BaseModel):
+    """README 全文检索请求（M6-01）。"""
+
+    query: str = Field(min_length=1, max_length=200, description="关键词 / 短语")
+    scope: Literal["my", "trending", "all"] = "all"
+    topK: Optional[int] = Field(default=None, ge=1, le=50, description="返回条数（默认 10，最大 50）")
+    offset: int = Field(default=0, ge=0, le=10000)
+
+
+class SearchFulltextItem(SearchItem):
+    """全文检索命中条目：附带 README 片段与命中词。"""
+
+    snippet: str = ""
+    matchedTerms: list[str] = []
+
+
+class FulltextIndexStats(BaseModel):
+    """README 全文索引覆盖率。"""
+
+    enabled: bool
+    totalDocs: int
+    bySource: dict[str, int]
+    totalChars: int
+    ftsDocs: Optional[int] = None
+    latestUpdatedAt: Optional[str] = None
+
+
+class SearchFulltextResponse(BaseModel):
+    """README 全文检索完整结果。"""
+
+    query: str
+    scope: str
+    mode: Literal["fts", "like"]
+    count: int
+    topK: int
+    offset: int
+    tookMs: int
+    terms: list[str]
+    index: FulltextIndexStats
+    items: list[SearchFulltextItem]
+
+
+class FulltextRebuildResponse(BaseModel):
+    """索引重建结果。"""
+
+    rebuilt: int
+
+
+class SyncReadmesRequest(BaseModel):
+    """README 镜像补索引任务入参。"""
+
+    source: Literal["my", "trending", "all"] = "all"
+    repoIds: Optional[list[str]] = Field(default=None, max_length=200)
+    limit: Optional[int] = Field(default=None, ge=1, le=5000)
+    force: bool = False
+
+
 class DegradationCheckOut(BaseModel):
     """单项降级检查结果。"""
 

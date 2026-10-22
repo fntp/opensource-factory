@@ -26,12 +26,14 @@ import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { searchRepositories, type SearchResponse } from './api'
 import {
+  engineLabel,
   formatScore,
   isQueryValid,
   modeLabel,
   normalizeQuery,
   scopeLabel,
   understandingLabels,
+  type SearchEngine,
   type SearchScope,
 } from './utils'
 
@@ -42,16 +44,22 @@ const EXAMPLES = [
 ]
 
 const SCOPES: SearchScope[] = ['all', 'my', 'trending']
+const ENGINES: SearchEngine[] = ['semantic', 'fulltext']
 
 export function SemanticSearch() {
   const [query, setQuery] = useState('')
   const [scope, setScope] = useState<SearchScope>('all')
+  const [engine, setEngine] = useState<SearchEngine>('semantic')
   const [result, setResult] = useState<SearchResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const understood = result ? understandingLabels(result.understanding) : []
 
-  async function runSearch(rawQuery: string, nextScope: SearchScope = scope) {
+  async function runSearch(
+    rawQuery: string,
+    nextScope: SearchScope = scope,
+    nextEngine: SearchEngine = engine
+  ) {
     const normalized = normalizeQuery(rawQuery)
     if (!isQueryValid(normalized)) {
       setError('请输入 1~200 个字符的检索内容')
@@ -61,11 +69,14 @@ export function SemanticSearch() {
     setLoading(true)
     setError('')
     try {
-      const response = await searchRepositories({
-        query: normalized,
-        topK: 10,
-        scope: nextScope,
-      })
+      const response = await searchRepositories(
+        {
+          query: normalized,
+          topK: 10,
+          scope: nextScope,
+        },
+        nextEngine
+      )
       setResult(response)
     } catch {
       setError('检索失败，请稍后重试')
@@ -88,10 +99,10 @@ export function SemanticSearch() {
         <div className='mb-6 space-y-1'>
           <h2 className='flex items-center gap-2 text-2xl font-bold tracking-tight'>
             <Sparkles className='size-6 text-violet-500' />
-            语义搜索
+            项目搜索
           </h2>
           <p className='text-sm text-muted-foreground'>
-            用自然语言描述你需要的项目，跨「我的仓库」与「每日热榜」做语义匹配。
+            用自然语言做语义匹配，或用关键词检索 README 全文，覆盖「我的仓库」与「每日热榜」。
           </p>
         </div>
 
@@ -107,9 +118,13 @@ export function SemanticSearch() {
               <Input
                 value={query}
                 maxLength={200}
-                placeholder='例如：支持多租户的 NestJS 管理后台模板'
+                placeholder={
+                  engine === 'fulltext'
+                    ? '例如：分布式事务 支付网关'
+                    : '例如：支持多租户的 NestJS 管理后台模板'
+                }
                 onChange={(event) => setQuery(event.target.value)}
-                aria-label='语义搜索查询'
+                aria-label={engine === 'fulltext' ? '全文检索查询' : '语义搜索查询'}
               />
               <Button type='submit' disabled={loading}>
                 {loading ? (
@@ -120,6 +135,24 @@ export function SemanticSearch() {
                 搜索
               </Button>
             </form>
+
+            <div className='flex flex-wrap items-center gap-2'>
+              <span className='text-xs text-muted-foreground'>方式：</span>
+              {ENGINES.map((item) => (
+                <Button
+                  key={item}
+                  type='button'
+                  size='sm'
+                  variant={engine === item ? 'default' : 'outline'}
+                  onClick={() => {
+                    setEngine(item)
+                    if (result) void runSearch(query, scope, item)
+                  }}
+                >
+                  {engineLabel(item)}
+                </Button>
+              ))}
+            </div>
 
             <div className='flex flex-wrap items-center gap-2'>
               <span className='text-xs text-muted-foreground'>范围：</span>
@@ -203,6 +236,11 @@ export function SemanticSearch() {
                 </div>
               </CardHeader>
               <CardContent className='flex flex-1 flex-col justify-between gap-4'>
+                {item.snippet && (
+                  <p className='rounded-md bg-muted/60 p-2 text-xs leading-relaxed text-muted-foreground'>
+                    {item.snippet}
+                  </p>
+                )}
                 <p className='text-sm text-muted-foreground'>{item.reason}</p>
                 <div className='space-y-3'>
                   <div className='flex flex-wrap items-center gap-2 text-xs text-muted-foreground'>
@@ -242,7 +280,7 @@ export function SemanticSearch() {
           {result && result.items.length === 0 && (
             <Card className='md:col-span-2 xl:col-span-3'>
               <CardContent className='flex h-40 items-center justify-center text-muted-foreground'>
-                没有找到语义相近的项目，换个描述试试吧。
+                没有找到匹配的项目，换个关键词或描述试试吧。
               </CardContent>
             </Card>
           )}
@@ -252,7 +290,7 @@ export function SemanticSearch() {
           <Card>
             <CardContent className='flex h-40 flex-col items-center justify-center gap-2 text-muted-foreground'>
               <SearchIcon className='size-6' />
-              <p>输入自然语言描述开始检索，支持中文与英文。</p>
+              <p>输入自然语言描述或关键词开始检索，支持中文与英文。</p>
             </CardContent>
           </Card>
         )}

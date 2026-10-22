@@ -99,12 +99,29 @@ def _ensure_sqlite_columns() -> None:
                 logger.warning("推荐表补列失败（可手工迁移后重试）", exc_info=True)
 
 
+def _ensure_sqlite_indexes() -> None:
+    """为既有 SQLite 库幂等补建检索索引（M1-12 / M6-01）。"""
+    if not settings.DATABASE_URL.startswith("sqlite"):
+        return
+    statements = (
+        "CREATE INDEX IF NOT EXISTS idx_my_repositories_stars ON my_repositories (stars)",
+        "CREATE INDEX IF NOT EXISTS idx_my_repositories_category_stars "
+        "ON my_repositories (category_id, stars)",
+    )
+    with engine.begin() as conn:
+        for statement in statements:
+            conn.exec_driver_sql(statement)
+
+
 def init_db() -> None:
     """建表（幂等）。在应用启动与任务执行前调用。"""
     from app import models  # noqa: F401  确保所有模型已注册到 Base.metadata
+    from app.services.fulltext import ensure_fts_schema
 
     Base.metadata.create_all(bind=engine)
     _ensure_sqlite_columns()
+    _ensure_sqlite_indexes()
+    ensure_fts_schema(engine)
     logger.info("数据库已就绪: %s", settings.DATABASE_URL)
 
 

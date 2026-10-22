@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import SessionLocal
 from app.models import MyRepository, TrendingRepository
+from app.services.fulltext import save_readme
 from app.services.github_service import get_readme
 from app.services.readme import clean_readme
 from app.services.summarizer import SummaryResult, summarize_with_source
@@ -52,6 +53,7 @@ class RepoSummaryOutcome:
     source: str = "empty"  # ollama | deepseek | truncated | empty | error
     model: str = ""
     error: str = ""
+    readme: str = ""  # 清洗后的 README 全文（M6-01 落全文镜像）
 
 
 def _run_async(coro: Any) -> Any:
@@ -82,6 +84,7 @@ def summarize_one(repo_id: str, *, token: str = "", max_chars: int = 800) -> Rep
         summary=result.text,
         source=result.source,
         model=result.model,
+        readme=cleaned,
     )
 
 
@@ -165,6 +168,7 @@ def _empty_stats(source: str, batch_id: str) -> dict[str, Any]:
         "summarized": 0,
         "skipped": 0,
         "failed": 0,
+        "readmeIndexed": 0,
         "sources": {},
         "sampled": 0,
         "samples": [],
@@ -211,6 +215,20 @@ def _summarize_source(
         for index, row in enumerate(rows, start=1):
             outcome = summarize_one(row.id, token=token, max_chars=max_chars_value)
             stats["processed"] += 1
+
+            # M6-01：摘要管线已抓到 README，顺带落全文镜像，避免二次请求 GitHub
+            if settings.FTS_AUTO_INDEX and outcome.readme:
+                try:
+                    save_readme(
+                        db,
+                        source=source,
+                        repo_id=row.id,
+                        content=outcome.readme,
+                        commit=False,
+                    )
+                    stats["readmeIndexed"] += 1
+                except Exception:  # noqa: BLE001 - 索引失败不影响摘要主流程
+                    logger.warning("README 全文镜像写入失败：%s", row.id, exc_info=True)
 
             if outcome.summary:
                 row.readme_summary = outcome.summary
@@ -308,9 +326,26 @@ def _merge_stats(parts: dict[str, dict[str, Any]], batch_id: str) -> dict[str, A
         statuses.append(stats.get("status", "ok"))
         merged["bySource"][source] = {
             key: stats.get(key)
-            for key in ("total", "processed", "summarized", "skipped", "failed", "sampled", "writeback")
+            for key in (
+                "total",
+                "processed",
+                "summarized",
+                "skipped",
+                "failed",
+                "readmeIndexed",
+                "sampled",
+                "writeback",
+            )
         }
-        for key in ("total", "processed", "summarized", "skipped", "failed", "sampled"):
+        for key in (
+            "total",
+            "processed",
+            "summarized",
+            "skipped",
+            "failed",
+            "readmeIndexed",
+            "sampled",
+        ):
             merged[key] += int(stats.get(key) or 0)
         merged["samples"].extend(stats.get("samples") or [])
         for src, count in (stats.get("sources") or {}).items():

@@ -93,6 +93,18 @@ class Settings(BaseSettings):
     SEARCH_QUERY_EXPANSION_ENABLED: bool = True
     SEARCH_QUERY_EXPANSION_MAX_TERMS: int = 12
 
+    # README 全文检索（M6-01，本地镜像先行）
+    FTS_ENABLED: bool = True
+    FTS_DEFAULT_TOP_K: int = 10
+    FTS_MAX_TOP_K: int = 50
+    FTS_SNIPPET_TOKENS: int = 32
+    FTS_MAX_README_CHARS: int = 50000
+    FTS_SYNC_BATCH_SIZE: int = 10
+    FTS_SYNC_MAX_PER_RUN: int = 200
+    FTS_AUTO_INDEX: bool = True  # 摘要 / 抓取后自动落 README 镜像
+    FTS_SYNC_HOUR: int = 4  # 每日补索引时刻（Asia/Shanghai）
+    FTS_SYNC_MINUTE: int = 47
+
     # 推荐生成（M3-05）
     # 最终得分最低阈值（0~1）：相似度 × 权重 + 热榜热度 × 权重
     RECOMMEND_MIN_SCORE: float = 0.30

@@ -58,6 +58,7 @@ edge/
         ├── sync.ts       # /api/sync
         ├── search.ts     # /api/search/semantic（查询理解 + Vectorize → 本地向量 → 关键词三级降级）
         ├── monitoring.ts # /api/monitoring/*（总览 / 检查 / 告警确认 + /api/internal/analytics）
+        ├── search.ts     # /api/search/semantic（语义三级降级）· /api/search/fulltext（README FTS）
         └── internal-vectors.ts # /api/internal/vectors/*（VPS → Vectorize，X-Internal-Token）
 ```
 
@@ -202,6 +203,7 @@ npm run test:m2 -- --strict \
 | `POST /api/monitoring/check` | 触发 VPS 一次检查（需登录；VPS 未配置返回 503） |
 | `POST /api/monitoring/alerts/:id/ack` | 确认 VPS 告警（需登录） |
 | `GET /api/internal/analytics?days=7` | Workers 请求指标聚合（`X-Internal-Token`；`days` 1~30） |
+| `POST /api/search/fulltext` | `SearchResponse`：body `{query, topK?, scope?, offset?}`；mode 为 `fts` / `like`（VPS FTS5，短词 LIKE 回退）/ `keyword`（VPS 不可用降级）；`my` 结果按 D1 `user_id` 过滤；条目可带 `snippet` / `matchedTerms`（M6-01） |
 | `GET /healthz` | `{"status":"ok"}` |
 
 JSON 形状（前端契约，勿改字段名）：
