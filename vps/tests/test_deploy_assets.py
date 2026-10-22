@@ -118,6 +118,157 @@ def test_bootstrap_creates_runtime_layout_and_is_idempotent(tmp_path: Path) -> N
     assert all(item.ok for item in results), results
 
 
+DEPLOY_CONTROL_KEYS = {
+    "CLOUDFLARE_ACCOUNT_ID",
+    "CLOUDFLARE_API_TOKEN",
+    "D1_DATABASE_NAME",
+    "D1_DATABASE_ID",
+    "WORKER_NAME",
+    "VECTORIZE_INDEX_NAME",
+    "PAGES_PROJECT_NAME",
+    "ADMIN_ORIGIN",
+    "API_ORIGIN",
+    "VPS_NODE_URL",
+    "CADDY_EMAIL",
+    "GITHUB_CLIENT_ID",
+    "GITHUB_CLIENT_SECRET",
+    "SESSION_SECRET",
+    "OPENFACTORY_HOME",
+}
+
+PRODUCTION_SCRIPTS = (
+    "preflight.sh",
+    "render-config.sh",
+    "deploy-edge.sh",
+    "deploy-admin.sh",
+    "deploy-vps.sh",
+    "deploy-all.sh",
+    "smoke-test.sh",
+    "setup-https.sh",
+)
+
+
+def test_deploy_control_template_covers_required_keys() -> None:
+    env = parse_env_file(DEPLOY / "env" / "deploy.env.example")
+    missing = DEPLOY_CONTROL_KEYS - set(env)
+    assert not missing, f"deploy.env.example 缺少字段：{sorted(missing)}"
+    # 模板只允许占位符，不能带真实凭据
+    assert env["CLOUDFLARE_API_TOKEN"].startswith("REPLACE_WITH_")
+    assert env["D1_DATABASE_ID"].startswith("REPLACE_WITH_")
+    assert env["GITHUB_CLIENT_SECRET"].startswith("REPLACE_WITH_")
+    assert env["SESSION_SECRET"].startswith("REPLACE_WITH_")
+
+
+def test_wrangler_production_template_is_safe() -> None:
+    text = (DEPLOY / "templates" / "wrangler.production.toml.tmpl").read_text(encoding="utf-8")
+    assert 'binding = "DB"' in text
+    assert 'database_id = "@D1_DATABASE_ID@"' in text
+    assert 'binding = "VECTORIZE"' in text
+    assert "custom_domain = true" in text
+    assert "@API_ORIGIN_HOST@" in text
+    # 机密只能走 wrangler secret put，不得作为配置项写入模板
+    for secret in ("GITHUB_CLIENT_SECRET", "SESSION_SECRET", "INTERNAL_TOKEN"):
+        assert not re.search(rf"^\s*{secret}\s*=", text, re.MULTILINE), secret
+
+
+def test_caddy_template_terminates_tls_and_proxies_local_api() -> None:
+    text = (DEPLOY / "templates" / "Caddyfile.tmpl").read_text(encoding="utf-8")
+    assert "@VPS_DOMAIN@" in text
+    assert "@CADDY_EMAIL@" in text
+    assert "reverse_proxy 127.0.0.1:8000" in text
+    assert "Strict-Transport-Security" in text
+
+
+def test_deploy_workflow_is_guarded_and_serialized() -> None:
+    text = (ROOT / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8")
+    assert "workflow_dispatch:" in text
+    assert "environment: production" in text
+    assert "cancel-in-progress: true" in text
+    assert "vars.DEPLOY_ENABLED == 'true'" in text
+    assert "deploy/scripts/deploy-edge.sh" in text
+    assert "deploy/scripts/deploy-admin.sh" in text
+    assert "deploy/scripts/smoke-test.sh" in text
+
+
+def test_production_scripts_support_help() -> None:
+    for name in PRODUCTION_SCRIPTS:
+        proc = subprocess.run(
+            ["bash", str(DEPLOY / "scripts" / name), "--help"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        assert "用法" in proc.stdout, name
+
+
+def test_preflight_and_smoke_dry_run_pass_with_example(tmp_path: Path) -> None:
+    env = os.environ.copy()
+    env["OPENFACTORY_HOME"] = str(tmp_path / "runtime")
+    example = str(DEPLOY / "env" / "deploy.env.example")
+    for args in (
+        ["preflight.sh", "--env-file", example, "--target", "all", "--dry-run"],
+        ["smoke-test.sh", "--env-file", example, "--dry-run"],
+    ):
+        proc = subprocess.run(
+            ["bash", str(DEPLOY / "scripts" / args[0]), *args[1:]],
+            env=env,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        assert "DRY-RUN" in proc.stdout or "dry-run" in proc.stdout, proc.stdout
+
+
+def test_render_config_replaces_placeholders(tmp_path: Path) -> None:
+    env_file = tmp_path / "deploy.env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "WORKER_NAME=opensource-factory-api",
+                "D1_DATABASE_NAME=opensource-factory",
+                "D1_DATABASE_ID=11111111-2222-3333-4444-555555555555",
+                "VECTORIZE_INDEX_NAME=opensource-factory-vectors",
+                "ADMIN_ORIGIN=https://admin.example.com",
+                "API_ORIGIN=https://api.example.com",
+                "VPS_NODE_URL=https://node.example.com",
+                "GITHUB_CLIENT_ID=Iv1abcdef",
+                "CADDY_EMAIL=ops@example.com",
+                f"OPENFACTORY_HOME={tmp_path / 'runtime'}",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    wrangler_out = tmp_path / "wrangler.production.toml"
+    caddy_out = tmp_path / "Caddyfile"
+    subprocess.run(
+        [
+            "bash",
+            str(DEPLOY / "scripts" / "render-config.sh"),
+            "--env-file",
+            str(env_file),
+            "--wrangler-out",
+            str(wrangler_out),
+            "--caddy-out",
+            str(caddy_out),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    wrangler = wrangler_out.read_text(encoding="utf-8")
+    caddy = caddy_out.read_text(encoding="utf-8")
+    assert "11111111-2222-3333-4444-555555555555" in wrangler
+    assert 'pattern = "api.example.com"' in wrangler
+    assert "admin.example.com" in wrangler
+    assert "node.example.com {" in caddy
+    assert "ops@example.com" in caddy
+    assert not re.search(r"@[A-Z][A-Z0-9_]*@", wrangler)
+    assert not re.search(r"@[A-Z][A-Z0-9_]*@", caddy)
+    assert _mode(wrangler_out) == 0o600
+    assert _mode(caddy_out) == 0o600
+
+
 def test_doctor_script_reports_green_runtime(tmp_path: Path) -> None:
     home = tmp_path / "runtime"
     env = os.environ.copy()

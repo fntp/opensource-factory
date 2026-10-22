@@ -22,6 +22,7 @@
 - **所需**：账号 ID、D1 数据库 `database_id`、Vectorize 索引名与维度（BGE-M3 为 1024 维）、目标域名；
 - **现状**：`edge/wrangler.toml` 中为占位符 `REPLACE_WITH_D1_DATABASE_ID`；Vectorize 绑定已按默认值预置（索引名 `opensource-factory-vectors`、1024 维、cosine）；
 - **默认处理**：本地开发用 `--local` 模拟；正式部署前替换 D1 id，并执行 `npx wrangler vectorize create opensource-factory-vectors --dimensions=1024 --metric=cosine`。若实际维度不同，同步调整 `vps/.env` 的 `VECTORIZE_INDEX_DIM`，否则同步任务会跳过维度不一致的向量并计数 `dimSkipped`。
+- **补充（2026-10-22，REQ-202610-0939 / M5-01）**：正式部署工具链已就绪——`deploy/scripts/{preflight,render-config,deploy-edge,deploy-admin,deploy-vps,deploy-all,smoke-test,setup-https}.sh`、`deploy/env/deploy.env.example`、`deploy/templates/*`、`.github/workflows/deploy.yml`，操作手册见 `docs/guides/production-deployment.md`。仍需人工提供：Cloudflare 账号 ID + API Token、D1 `database_id`、Vectorize 索引、Pages 项目名、三端域名、GitHub OAuth App、VPS SSH 目标。填好 `deploy/env/deploy.env` 后执行 `deploy/scripts/deploy-all.sh` 即可上线。
 
 ## Q4. LLM 与 Embedding 的默认配置
 

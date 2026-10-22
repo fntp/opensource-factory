@@ -1,0 +1,40 @@
+# OpenFactory 生产 Worker 配置模板（REQ-202610-0939 / M5-01）
+#
+# 由 deploy/scripts/render-config.sh 渲染为 edge/wrangler.production.toml（权限 600，
+# 已被 .gitignore 忽略）。占位符（@ 包裹的大写键名）与 deploy/env/deploy.env.example 的键对应。
+#
+# 注意：机密（GITHUB_CLIENT_SECRET / SESSION_SECRET / INTERNAL_TOKEN）不写进本文件，
+# 由 deploy/scripts/deploy-edge.sh 通过 `wrangler secret put` 写入。
+
+name = "@WORKER_NAME@"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+
+# ── D1 数据库绑定 ───────────────────────────────────────────────
+[[d1_databases]]
+binding = "DB"
+database_name = "@D1_DATABASE_NAME@"
+database_id = "@D1_DATABASE_ID@"
+
+# ── Vectorize 向量索引绑定 ──────────────────────────────────────
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "@VECTORIZE_INDEX_NAME@"
+
+# ── 明文变量（非机密）────────────────────────────────────────────
+[vars]
+# 管理后台地址：CORS 精确回显该 origin（带 credentials）
+ALLOWED_ORIGIN = "@ADMIN_ORIGIN@"
+# GitHub OAuth App Client ID（非机密）
+GITHUB_CLIENT_ID = "@GITHUB_CLIENT_ID@"
+# 本机 VPS 节点公网地址（边缘 → 节点内部调用）
+VPS_NODE_URL = "@VPS_NODE_URL@"
+
+# ── 自定义域（HTTPS 由 Cloudflare 自动签发）─────────────────────
+[[routes]]
+pattern = "@API_ORIGIN_HOST@"
+custom_domain = true
+
+# ── 可观测性 ───────────────────────────────────────────────────
+[observability]
+enabled = true

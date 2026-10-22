@@ -185,7 +185,9 @@ def test_generate_is_idempotent_and_expires_stale_new(db) -> None:
         db, "rec-test-user", service=_service(), min_score=0.3, top_k=5
     )
     assert second["created"] == 0
-    assert second["updated"] >= 1
+    # M3-07 反馈闭环会把 dismissed 仓库排除出候选，因此本轮不会刷新该行；
+    # 旧 new 推荐（含已收藏仓库）仍应被过期。
+    assert second["updated"] == 0
     assert second["expired"] == 2
 
     rows = _recommendations(db, "rec-test-user")

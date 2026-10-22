@@ -38,6 +38,9 @@ coverage/
 # ── Cloudflare ───────────────────────────────────────
 .wrangler/
 .dev.vars
+# 生产配置由 deploy/scripts/render-config.sh 生成（含真实 D1 / 域名），禁止入库
+edge/wrangler.production.toml
+deploy/env/deploy.env
 
 # ── 编辑器与系统 ──────────────────────────────────────
 .DS_Store

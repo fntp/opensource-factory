@@ -284,6 +284,21 @@ cd vps
 部署后也可调用 `GET /api/degradation/status`（配置 `INTERNAL_TOKEN` 时需携带 `X-Internal-Token`）
 核对当前配置的预期后端与五项自检结果。
 
+## M3 端到端验收（M3-11）
+
+`scripts/m3_acceptance.py` 覆盖 M3-01~M3-10 的跨分支链路：真实 HTTP + 临时 SQLite +
+mock edge（Vectorize / 推荐反馈契约）+ Celery eager 模式，不加载真实模型、不访问外网：
+
+```bash
+cd vps
+.venv/bin/python scripts/m3_acceptance.py --strict \
+  --report-md ../docs/planning/acceptance-m3-report.md \
+  --report-json ../docs/planning/acceptance-m3-report.json
+```
+
+退出码 0 表示全部 PASS；`--strict` 下任何 GAP / FAIL / SKIP 均返回非 0。结论与回顾见
+[docs/planning/acceptance-m3.md](../docs/planning/acceptance-m3.md)。
+
 ## 与 Cloudflare 边缘的接口约定
 
 边缘 Worker 通过内部 API 调度本节点，任务接口位于 `/api/tasks/*`；热榜保留策略接口位于 `/api/trending/retention*`：

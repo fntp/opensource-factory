@@ -518,6 +518,11 @@ def generate_daily_recommendations(
         "selected": sum(int(item.get("selected", 0)) for item in results),
         "minScore": round(max(0.0, min(1.0, effective_min_score)), 4),
         "topK": effective_top_k,
+        "feedbackExcluded": {
+            str(item.get("userId")): int(item.get("feedbackExcluded", 0))
+            for item in results
+            if item.get("userId")
+        },
         "results": results,
     }
     logger.info(
