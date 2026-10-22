@@ -97,6 +97,8 @@ async def get_task_status(task_id: str) -> TaskStatus:
         result = celery_app.AsyncResult(task_id)
         state = str(result.state).lower()
         payload = TaskStatus(taskId=task_id, status=state)
+        if state == "progress" and isinstance(result.info, dict):
+            payload.progress = result.info
         if result.successful():
             payload.result = result.result
         elif result.failed():

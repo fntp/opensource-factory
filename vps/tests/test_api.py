@@ -42,6 +42,39 @@ def test_trending_list_returns_200() -> None:
     assert isinstance(resp.json(), list)
 
 
+def test_task_status_exposes_progress_snapshot(monkeypatch) -> None:
+    import app.api.tasks as tasks_api
+
+    class _FakeResult:
+        state = "PROGRESS"
+        info = {
+            "phase": "fetch",
+            "page": 2,
+            "pagesTotal": 5,
+            "fetched": 200,
+            "total": None,
+            "percent": 40,
+            "done": False,
+        }
+        result = None
+
+        def successful(self) -> bool:
+            return False
+
+        def failed(self) -> bool:
+            return False
+
+    monkeypatch.setattr(tasks_api.celery_app, "AsyncResult", lambda task_id: _FakeResult())
+    with TestClient(app) as client:
+        resp = client.get("/api/tasks/fake-task-id")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["taskId"] == "fake-task-id"
+    assert body["status"] == "progress"
+    assert body["progress"]["percent"] == 40
+    assert body["progress"]["pagesTotal"] == 5
+
+
 def test_internal_token_enforced_when_configured(monkeypatch) -> None:
     import app.api.tasks as tasks_api
 

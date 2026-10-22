@@ -100,6 +100,20 @@ CREATE TABLE recommendations (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- ── 同步任务（REQ-202610-0900 / M1-08）──────────────────────────
+CREATE TABLE sync_tasks (
+    id TEXT PRIMARY KEY,             -- VPS / Celery 返回的 taskId
+    user_id TEXT,                    -- 触发用户
+    task_type TEXT NOT NULL DEFAULT 'sync',  -- sync / sync-starred / ...
+    status TEXT NOT NULL DEFAULT 'pending',  -- pending / started / progress / success / failure / unknown
+    progress TEXT,                   -- 进度快照 JSON（camelCase）
+    result TEXT,                     -- 结果 JSON
+    error TEXT,                      -- 错误摘要
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    finished_at DATETIME
+);
+
 -- ── 索引 ────────────────────────────────────────────────────────
 CREATE INDEX idx_my_repositories_user_id ON my_repositories (user_id);
 CREATE INDEX idx_my_repositories_category_id ON my_repositories (category_id);
@@ -109,3 +123,5 @@ CREATE INDEX idx_sessions_expires_at ON sessions (expires_at);
 CREATE INDEX idx_recommendations_user_id ON recommendations (user_id);
 CREATE INDEX idx_recommendations_score ON recommendations (score DESC);
 CREATE INDEX idx_repo_tags_tag_id ON repo_tags (tag_id);
+CREATE INDEX idx_sync_tasks_user_created ON sync_tasks (user_id, created_at DESC);
+CREATE INDEX idx_sync_tasks_status ON sync_tasks (status);

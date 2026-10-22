@@ -30,12 +30,14 @@ edge/
 ├── tsconfig.json         # strict TypeScript 配置（@cloudflare/workers-types）
 ├── wrangler.toml         # Worker 名称、D1 绑定、vars（机密不在此处）
 ├── migrations/
-│   └── 0001_init.sql     # 初始 D1 schema（表 + 索引）
+│   ├── 0001_init.sql     # 初始 D1 schema（表 + 索引）
+│   └── 0002_sync_tasks.sql  # 同步任务表（REQ-202610-0900）
 └── src/
     ├── index.ts          # Hono 入口：CORS、日志、/healthz、路由挂载、404/500
     ├── types.ts          # Env 绑定 + 数据库行 + API 响应实体
     ├── db.ts             # D1 查询辅助（first / all / run / count）
     ├── auth.ts           # 会话与 GitHub OAuth 辅助、cookie、redirect 校验
+    ├── lib/tasks.ts      # 任务状态归一化 / VPS 查询 / D1 回写
     └── routes/
         ├── auth.ts       # /api/auth/*（login / callback / me / logout）
         ├── repos.ts      # /api/repos
@@ -43,7 +45,8 @@ edge/
         ├── recommend.ts  # /api/recommendations
         ├── categories.ts # /api/categories
         ├── dashboard.ts  # /api/dashboard/stats
-        └── sync.ts       # /api/sync
+        ├── sync.ts       # /api/sync
+        └── tasks.ts      # /api/tasks、/api/tasks/{taskId}
 ```
 
 ## 本地开发
@@ -133,7 +136,9 @@ npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FR
 | `GET /api/recommendations` | `Recommendation[]`（用户私有 + 全局，按 `score` 降序；需登录） |
 | `GET /api/categories` | `CategoriesPayload` |
 | `GET /api/dashboard/stats` | `DashboardStats` |
-| `POST /api/sync` | 202 `{"status":"queued"}`（已配置 VPS）或 `{"status":"accepted","note":"vps node not configured"}` |
+| `POST /api/sync` | 202 `{"status":"queued","taskId":"..."}`（已配置 VPS）或 `{"status":"accepted","note":"vps node not configured"}` |
+| `GET /api/tasks?limit=20` | `{"tasks": SyncTask[]}`（当前用户最近任务，limit 上限 100） |
+| `GET /api/tasks/{taskId}` | `SyncTask`（非终态任务会向 VPS 拉取最新状态并回写 D1；VPS 不可达时返回最后快照并带 `stale: true`） |
 | `GET /healthz` | `{"status":"ok"}` |
 
 JSON 形状（前端契约，勿改字段名）：
@@ -144,11 +149,12 @@ TrendingRepo    { id, owner, name, description, language, stars, starsToday, url
 Recommendation  { id, owner, name, description, language, stars, score, reason, basedOn: string[], url }
 CategoriesPayload { categories: [{id, name, count, description}], tags: [{name, count}] }
 DashboardStats  { totalRepos, trendingToday, pendingRecommendations, categoryCount }
+SyncTask        { taskId, type, status, progress, result, error, createdAt, updatedAt, finishedAt, stale? }
 ```
 
 ### 与 VPS 节点的约定
 
-`POST /api/sync` 转发到 `${VPS_NODE_URL}/api/tasks/sync`，请求头 `X-Internal-Token: <INTERNAL_TOKEN>`，body 为 `{requestedBy, requestedAt}`；VPS 侧应校验内部令牌并以 2xx 表示已入队。
+`POST /api/sync` 转发到 `${VPS_NODE_URL}/api/tasks/sync`，请求头 `X-Internal-Token: <INTERNAL_TOKEN>`，body 为 `{requestedBy, requestedAt}`；VPS 侧应校验内部令牌并以 2xx 表示已入队，返回 `{"taskId":"..."}`。edge 将 taskId 写入 D1 `sync_tasks`，之后通过 `GET ${VPS_NODE_URL}/api/tasks/{taskId}` 拉取状态（`pending / started / progress / success / failure`，`progress` 为可选的进度快照）。
 
 ### 会话与安全
 
