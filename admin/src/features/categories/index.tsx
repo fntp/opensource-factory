@@ -14,6 +14,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { DEMO_MODE } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -37,7 +38,6 @@ import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
-import { DEMO_MODE } from '@/lib/api'
 import {
   categoryErrorMessage,
   createCategory,
@@ -148,7 +148,10 @@ export function Categories() {
         )
         return previousParentId === input.parentId
           ? updated
-          : applyCategoryMove(updated, id, { parentId: input.parentId, beforeId: null })
+          : applyCategoryMove(updated, id, {
+              parentId: input.parentId,
+              beforeId: null,
+            })
       })
       toast.success('已保存分类（演示模式）')
       return
@@ -159,7 +162,10 @@ export function Categories() {
     toast.success('已保存分类')
   }
 
-  async function handleMove(id: string, direction: 'up' | 'down'): Promise<void> {
+  async function handleMove(
+    id: string,
+    direction: 'up' | 'down'
+  ): Promise<void> {
     const target = getReorderTarget(categories, id, direction)
     if (!target) return
 
@@ -193,7 +199,9 @@ export function Categories() {
         toast.error('该分类仍被仓库引用，请先调整仓库分类')
         return
       }
-      updateDemo((list) => list.filter((category) => category.id !== deleteTarget.id))
+      updateDemo((list) =>
+        list.filter((category) => category.id !== deleteTarget.id)
+      )
       setDeleteTarget(null)
       toast.success('已删除分类（演示模式）')
       return
@@ -223,7 +231,7 @@ export function Categories() {
       </Header>
 
       <Main>
-        <div className='mb-2 flex items-center justify-between space-y-2'>
+        <div className='mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
           <div>
             <h2 className='flex items-center gap-2 text-2xl font-bold tracking-tight'>
               <FolderTree className='size-6 text-emerald-600' />
@@ -233,7 +241,9 @@ export function Categories() {
               用分类树与标签体系组织你的开源资产，支持无限层级、排序与移动。
             </p>
           </div>
-          <Button onClick={() => setDialogState({ mode: 'create', parentId: null })}>
+          <Button
+            onClick={() => setDialogState({ mode: 'create', parentId: null })}
+          >
             <Plus />
             新建分类
           </Button>
@@ -287,7 +297,9 @@ export function Categories() {
                     <FolderTree className='size-4 shrink-0 text-emerald-600' />
 
                     <div className='min-w-0 flex-1'>
-                      <div className='truncate text-sm font-medium'>{node.name}</div>
+                      <div className='truncate text-sm font-medium'>
+                        {node.name}
+                      </div>
                       {node.description && (
                         <div className='truncate text-xs text-muted-foreground'>
                           {node.description}
@@ -311,14 +323,19 @@ export function Categories() {
                       <DropdownMenuContent align='end'>
                         <DropdownMenuItem
                           onClick={() =>
-                            setDialogState({ mode: 'create', parentId: node.id })
+                            setDialogState({
+                              mode: 'create',
+                              parentId: node.id,
+                            })
                           }
                         >
                           <FolderPlus />
                           新建子分类
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() => setDialogState({ mode: 'edit', category: node })}
+                          onClick={() =>
+                            setDialogState({ mode: 'edit', category: node })
+                          }
                         >
                           <Pencil />
                           编辑
@@ -333,7 +350,8 @@ export function Categories() {
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           disabled={
-                            position.index < 0 || position.index >= position.total - 1
+                            position.index < 0 ||
+                            position.index >= position.total - 1
                           }
                           onClick={() => handleMove(node.id, 'down')}
                         >
@@ -386,7 +404,9 @@ export function Categories() {
           mode={dialogState.mode}
           categories={categories}
           category={dialogState.mode === 'edit' ? dialogState.category : null}
-          defaultParentId={dialogState.mode === 'create' ? dialogState.parentId : null}
+          defaultParentId={
+            dialogState.mode === 'create' ? dialogState.parentId : null
+          }
           onSubmit={(input) =>
             dialogState.mode === 'edit'
               ? handleUpdate(dialogState.category.id, input)

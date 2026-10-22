@@ -57,11 +57,19 @@
 - 写操作、通知、OAuth 等仍由 edge 承担；本机模式首版只覆盖仪表盘 / 仓库 / 热榜 / 推荐 / 分类；
 - 部署、资源与安全细则见 [local-allinone-deployment.md](../guides/local-allinone-deployment.md)。
 
+### 1.2 PWA 与移动端（REQ-202610-0970 / M8-01）
+
+- admin 是可安装的 PWA：`admin/public/manifest.webmanifest`、`sw.js`、`offline.html` 与 `icons/` 随 `dist/` 一起部署到 Cloudflare Pages；
+- Service Worker 预缓存 App Shell（`/`、离线页、manifest、图标），导航请求网络优先并回退缓存 / 离线页，同源静态资源缓存优先；`/api/*`、非 GET 与跨域请求一律不拦截，避免缓存鉴权数据；
+- 仅生产构建注册 Service Worker（`src/lib/service-worker.ts`）；更新静态资源时需同步提升 `sw.js` 的 `CACHE_VERSION`，页面会提示「立即刷新」；
+- 移动端（`< md`）显示底部主导航（仪表盘 / 仓库 / 热榜 / 推荐），使用 `env(safe-area-inset-*)` 适配刘海与底部安全区；仓库页切换为卡片列表，热榜隐藏次要信息，搜索与配置入口按断点收窄；
+- 安装引导由 `src/components/pwa/pwa-provider.tsx` 统一处理：Android / 桌面使用 `beforeinstallprompt`，iOS Safari 展示「分享 → 添加到主屏幕」说明，关闭后 7 天冷却。
+
 ## 2. 组件职责
 
 | 组件 | 目录 | 职责 | 不该做的事 |
 | --- | --- | --- | --- |
-| 前端控制台 | `admin/` | 展示、交互、调用 edge API | 不存密钥、不做业务计算 |
+| 前端控制台 | `admin/` | 展示、交互、调用 edge API；PWA 离线壳与移动端底部导航 | 不存密钥、不做业务计算 |
 | 边缘 API | `edge/` | 鉴权、调度、D1 读写、Vectorize 检索、Workers 请求指标聚合 | 不跑长任务、不跑模型 |
 | 算力节点 | `vps/` | 爬虫、清洗、摘要、向量化、推荐、推送、健康检查与资源监控 | 不对外暴露（仅内网/内部 token） |
 | 数据资产 | `docs/assets/` | Schema、样例数据 | — |
@@ -746,7 +754,7 @@ admin 分类建议页 POST /api/category-suggestions/generate {limit?, perRepo?,
 
 | 组件 | 部署位置 | 说明 |
 | --- | --- | --- |
-| admin | Cloudflare Pages | `npm run build` 产物（`admin/dist`），SPA 回退 `_redirects` |
+| admin | Cloudflare Pages | `npm run build` 产物（`admin/dist`），SPA 回退 `_redirects`；含 PWA manifest / `sw.js` / `offline.html` / 图标静态资源 |
 | edge | Cloudflare Workers | `wrangler deploy`；绑定 D1 / Vectorize |
 | vps | 本地服务器 | uvicorn + celery worker + celery beat + redis + ollama |
 | 数据 | D1 + VPS 本地 SQLite | D1 为主数据；VPS 侧为算力缓存/镜像 |

@@ -39,7 +39,7 @@ export function Dashboard() {
 
       {/* ===== 主内容 ===== */}
       <Main>
-        <div className='mb-2 flex items-center justify-between space-y-2'>
+        <div className='mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
           <div>
             <h2 className='text-2xl font-bold tracking-tight'>仪表盘</h2>
             <p className='text-sm text-muted-foreground'>
@@ -117,7 +117,9 @@ export function Dashboard() {
           <Card className='col-span-1 lg:col-span-3'>
             <CardHeader>
               <CardTitle>今日热榜</CardTitle>
-              <CardDescription>来自 GitHub Trending 的最新项目。</CardDescription>
+              <CardDescription>
+                来自 GitHub Trending 的最新项目。
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <RecentTrending />
