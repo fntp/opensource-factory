@@ -18,7 +18,9 @@ import { Route as errors500RouteImport } from './routes/(errors)/500'
 import { Route as errors503RouteImport } from './routes/(errors)/503'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings/route'
+import { Route as AuthenticatedAgentIndexRouteImport } from './routes/_authenticated/agent/index'
 import { Route as AuthenticatedCategoriesIndexRouteImport } from './routes/_authenticated/categories/index'
+import { Route as AuthenticatedCategorySuggestionsIndexRouteImport } from './routes/_authenticated/category-suggestions/index'
 import { Route as AuthenticatedDuplicatesIndexRouteImport } from './routes/_authenticated/duplicates/index'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
 import { Route as AuthenticatedMonitoringIndexRouteImport } from './routes/_authenticated/monitoring/index'
@@ -32,6 +34,7 @@ import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_auth
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
 import { Route as AuthenticatedSettingsDisplayRouteImport } from './routes/_authenticated/settings/display'
 import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings/notifications'
+import { Route as AuthenticatedTagSuggestionsIndexRouteImport } from './routes/_authenticated/tag-suggestions/index'
 import { Route as AuthenticatedTechStackIndexRouteImport } from './routes/_authenticated/tech-stack/index'
 import { Route as AuthenticatedTrendingIndexRouteImport } from './routes/_authenticated/trending/index'
 import { Route as AuthenticatedTrendingOwnerNameRouteImport } from './routes/_authenticated/trending/$owner/$name'
@@ -81,10 +84,21 @@ const AuthenticatedSettingsRouteRoute =
     path: '/settings',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAgentIndexRoute = AuthenticatedAgentIndexRouteImport.update({
+  id: '/agent/',
+  path: '/agent/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedCategoriesIndexRoute =
   AuthenticatedCategoriesIndexRouteImport.update({
     id: '/categories/',
     path: '/categories/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedCategorySuggestionsIndexRoute =
+  AuthenticatedCategorySuggestionsIndexRouteImport.update({
+    id: '/category-suggestions/',
+    path: '/category-suggestions/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedDuplicatesIndexRoute =
@@ -164,6 +178,12 @@ const AuthenticatedSettingsNotificationsRoute =
     path: '/notifications',
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
+const AuthenticatedTagSuggestionsIndexRoute =
+  AuthenticatedTagSuggestionsIndexRouteImport.update({
+    id: '/tag-suggestions/',
+    path: '/tag-suggestions/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedTechStackIndexRoute =
   AuthenticatedTechStackIndexRouteImport.update({
     id: '/tech-stack/',
@@ -197,7 +217,9 @@ export interface FileRoutesByFullPath {
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
+  '/agent/': typeof AuthenticatedAgentIndexRoute
   '/categories/': typeof AuthenticatedCategoriesIndexRoute
+  '/category-suggestions/': typeof AuthenticatedCategorySuggestionsIndexRoute
   '/duplicates/': typeof AuthenticatedDuplicatesIndexRoute
   '/monitoring/': typeof AuthenticatedMonitoringIndexRoute
   '/notifications/': typeof AuthenticatedNotificationsIndexRoute
@@ -206,6 +228,7 @@ export interface FileRoutesByFullPath {
   '/repos/': typeof AuthenticatedReposIndexRoute
   '/search/': typeof AuthenticatedSearchIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
+  '/tag-suggestions/': typeof AuthenticatedTagSuggestionsIndexRoute
   '/tech-stack/': typeof AuthenticatedTechStackIndexRoute
   '/trending/': typeof AuthenticatedTrendingIndexRoute
   '/trending/$owner/$name': typeof AuthenticatedTrendingOwnerNameRoute
@@ -223,7 +246,9 @@ export interface FileRoutesByTo {
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
+  '/agent': typeof AuthenticatedAgentIndexRoute
   '/categories': typeof AuthenticatedCategoriesIndexRoute
+  '/category-suggestions': typeof AuthenticatedCategorySuggestionsIndexRoute
   '/duplicates': typeof AuthenticatedDuplicatesIndexRoute
   '/monitoring': typeof AuthenticatedMonitoringIndexRoute
   '/notifications': typeof AuthenticatedNotificationsIndexRoute
@@ -232,6 +257,7 @@ export interface FileRoutesByTo {
   '/repos': typeof AuthenticatedReposIndexRoute
   '/search': typeof AuthenticatedSearchIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
+  '/tag-suggestions': typeof AuthenticatedTagSuggestionsIndexRoute
   '/tech-stack': typeof AuthenticatedTechStackIndexRoute
   '/trending': typeof AuthenticatedTrendingIndexRoute
   '/trending/$owner/$name': typeof AuthenticatedTrendingOwnerNameRoute
@@ -252,7 +278,9 @@ export interface FileRoutesById {
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/_authenticated/settings/display': typeof AuthenticatedSettingsDisplayRoute
   '/_authenticated/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
+  '/_authenticated/agent/': typeof AuthenticatedAgentIndexRoute
   '/_authenticated/categories/': typeof AuthenticatedCategoriesIndexRoute
+  '/_authenticated/category-suggestions/': typeof AuthenticatedCategorySuggestionsIndexRoute
   '/_authenticated/duplicates/': typeof AuthenticatedDuplicatesIndexRoute
   '/_authenticated/monitoring/': typeof AuthenticatedMonitoringIndexRoute
   '/_authenticated/notifications/': typeof AuthenticatedNotificationsIndexRoute
@@ -261,6 +289,7 @@ export interface FileRoutesById {
   '/_authenticated/repos/': typeof AuthenticatedReposIndexRoute
   '/_authenticated/search/': typeof AuthenticatedSearchIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
+  '/_authenticated/tag-suggestions/': typeof AuthenticatedTagSuggestionsIndexRoute
   '/_authenticated/tech-stack/': typeof AuthenticatedTechStackIndexRoute
   '/_authenticated/trending/': typeof AuthenticatedTrendingIndexRoute
   '/_authenticated/trending/$owner/$name': typeof AuthenticatedTrendingOwnerNameRoute
@@ -281,7 +310,9 @@ export interface FileRouteTypes {
     | '/settings/appearance'
     | '/settings/display'
     | '/settings/notifications'
+    | '/agent/'
     | '/categories/'
+    | '/category-suggestions/'
     | '/duplicates/'
     | '/monitoring/'
     | '/notifications/'
@@ -290,6 +321,7 @@ export interface FileRouteTypes {
     | '/repos/'
     | '/search/'
     | '/settings/'
+    | '/tag-suggestions/'
     | '/tech-stack/'
     | '/trending/'
     | '/trending/$owner/$name'
@@ -307,7 +339,9 @@ export interface FileRouteTypes {
     | '/settings/appearance'
     | '/settings/display'
     | '/settings/notifications'
+    | '/agent'
     | '/categories'
+    | '/category-suggestions'
     | '/duplicates'
     | '/monitoring'
     | '/notifications'
@@ -316,6 +350,7 @@ export interface FileRouteTypes {
     | '/repos'
     | '/search'
     | '/settings'
+    | '/tag-suggestions'
     | '/tech-stack'
     | '/trending'
     | '/trending/$owner/$name'
@@ -335,7 +370,9 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/appearance'
     | '/_authenticated/settings/display'
     | '/_authenticated/settings/notifications'
+    | '/_authenticated/agent/'
     | '/_authenticated/categories/'
+    | '/_authenticated/category-suggestions/'
     | '/_authenticated/duplicates/'
     | '/_authenticated/monitoring/'
     | '/_authenticated/notifications/'
@@ -344,6 +381,7 @@ export interface FileRouteTypes {
     | '/_authenticated/repos/'
     | '/_authenticated/search/'
     | '/_authenticated/settings/'
+    | '/_authenticated/tag-suggestions/'
     | '/_authenticated/tech-stack/'
     | '/_authenticated/trending/'
     | '/_authenticated/trending/$owner/$name'
@@ -424,11 +462,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsRouteRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/agent/': {
+      id: '/_authenticated/agent/'
+      path: '/agent'
+      fullPath: '/agent/'
+      preLoaderRoute: typeof AuthenticatedAgentIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/categories/': {
       id: '/_authenticated/categories/'
       path: '/categories'
       fullPath: '/categories/'
       preLoaderRoute: typeof AuthenticatedCategoriesIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/category-suggestions/': {
+      id: '/_authenticated/category-suggestions/'
+      path: '/category-suggestions'
+      fullPath: '/category-suggestions/'
+      preLoaderRoute: typeof AuthenticatedCategorySuggestionsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/duplicates/': {
@@ -522,6 +574,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsNotificationsRouteImport
       parentRoute: typeof AuthenticatedSettingsRouteRoute
     }
+    '/_authenticated/tag-suggestions/': {
+      id: '/_authenticated/tag-suggestions/'
+      path: '/tag-suggestions'
+      fullPath: '/tag-suggestions/'
+      preLoaderRoute: typeof AuthenticatedTagSuggestionsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/tech-stack/': {
       id: '/_authenticated/tech-stack/'
       path: '/tech-stack'
@@ -573,7 +632,9 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRouteRoute: typeof AuthenticatedSettingsRouteRouteWithChildren
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
+  AuthenticatedAgentIndexRoute: typeof AuthenticatedAgentIndexRoute
   AuthenticatedCategoriesIndexRoute: typeof AuthenticatedCategoriesIndexRoute
+  AuthenticatedCategorySuggestionsIndexRoute: typeof AuthenticatedCategorySuggestionsIndexRoute
   AuthenticatedDuplicatesIndexRoute: typeof AuthenticatedDuplicatesIndexRoute
   AuthenticatedMonitoringIndexRoute: typeof AuthenticatedMonitoringIndexRoute
   AuthenticatedNotificationsIndexRoute: typeof AuthenticatedNotificationsIndexRoute
@@ -581,6 +642,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedReportsIndexRoute: typeof AuthenticatedReportsIndexRoute
   AuthenticatedReposIndexRoute: typeof AuthenticatedReposIndexRoute
   AuthenticatedSearchIndexRoute: typeof AuthenticatedSearchIndexRoute
+  AuthenticatedTagSuggestionsIndexRoute: typeof AuthenticatedTagSuggestionsIndexRoute
   AuthenticatedTechStackIndexRoute: typeof AuthenticatedTechStackIndexRoute
   AuthenticatedTrendingIndexRoute: typeof AuthenticatedTrendingIndexRoute
   AuthenticatedTrendingOwnerNameRoute: typeof AuthenticatedTrendingOwnerNameRoute
@@ -590,7 +652,10 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsRouteRoute: AuthenticatedSettingsRouteRouteWithChildren,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
+  AuthenticatedAgentIndexRoute: AuthenticatedAgentIndexRoute,
   AuthenticatedCategoriesIndexRoute: AuthenticatedCategoriesIndexRoute,
+  AuthenticatedCategorySuggestionsIndexRoute:
+    AuthenticatedCategorySuggestionsIndexRoute,
   AuthenticatedDuplicatesIndexRoute: AuthenticatedDuplicatesIndexRoute,
   AuthenticatedMonitoringIndexRoute: AuthenticatedMonitoringIndexRoute,
   AuthenticatedNotificationsIndexRoute: AuthenticatedNotificationsIndexRoute,
@@ -598,6 +663,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedReportsIndexRoute: AuthenticatedReportsIndexRoute,
   AuthenticatedReposIndexRoute: AuthenticatedReposIndexRoute,
   AuthenticatedSearchIndexRoute: AuthenticatedSearchIndexRoute,
+  AuthenticatedTagSuggestionsIndexRoute: AuthenticatedTagSuggestionsIndexRoute,
   AuthenticatedTechStackIndexRoute: AuthenticatedTechStackIndexRoute,
   AuthenticatedTrendingIndexRoute: AuthenticatedTrendingIndexRoute,
   AuthenticatedTrendingOwnerNameRoute: AuthenticatedTrendingOwnerNameRoute,

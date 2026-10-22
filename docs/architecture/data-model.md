@@ -511,7 +511,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 唯一索引 `(user_id, kind, period_start)` 保证同一用户同一周期只有一份报告；重复生成走
 `ON CONFLICT ... DO UPDATE`，`id` 不变。列表索引 `(user_id, generated_at DESC)` 供报告归档倒序查询。
 
-### 3.19 `tag_suggestions` 自动打标建议（D1，迁移 `0013`）
+### 3.20 `tag_suggestions` 自动打标建议（D1，迁移 `0013`）
 
 > 建议与执行分离：生成只写本表，用户采纳后才写 `tags` / `repo_tags`。
 
@@ -530,6 +530,44 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 
 唯一索引 `(user_id, repo_id, normalized_name)` 保证重复生成幂等；列表索引
 `(user_id, status, updated_at DESC)`；仓库筛选索引 `(user_id, repo_id, status)`。
+
+### 3.21 `agent_runs` / `agent_drafts` Agent 工作流（D1，迁移 `0015`）
+
+> M7-09：每次执行落一条 `agent_runs`（计划 / 结果 JSON 可回放），生成的草稿落
+> `agent_drafts`；两者都按 `user_id` 隔离。
+
+`agent_runs`：
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | 执行 id：`run_<时间戳>_<哈希>` |
+| user_id TEXT | 所属用户 |
+| template TEXT | `organize` / `draft` / `full` |
+| mode TEXT | `preview` / `apply` |
+| status TEXT | `completed` / `failed` |
+| threshold REAL | 本次使用的置信度阈值（0.5~1.0） |
+| repo_count INTEGER | 本次扫描的收藏数 |
+| plan TEXT | 计划步骤 JSON（`inventory` / `tags` / `categories` / `draft`） |
+| result TEXT | 结果 JSON（已应用 / 待处理动作、统计、来源） |
+| draft_id TEXT | 关联草稿 id |
+| error TEXT | 失败原因（`status=failed` 时） |
+| created_at / finished_at TEXT | 创建 / 完成时间 |
+
+`agent_drafts`：
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | 草稿 id：`draft_<时间戳>_<哈希>` |
+| user_id TEXT | 所属用户 |
+| run_id TEXT | 来源执行 id |
+| kind TEXT | 固定 `collection_digest` |
+| title / content TEXT | 草稿标题与 Markdown 正文 |
+| status TEXT | `draft` / `applied` / `discarded` |
+| metadata TEXT | 高亮、统计、模板、模式、关注主题 JSON |
+| created_at / updated_at TEXT | 创建 / 更新时间 |
+
+索引：`agent_runs (user_id, created_at DESC)`、`(user_id, template, created_at DESC)`；
+`agent_drafts (user_id, created_at DESC)`、`(user_id, status, updated_at DESC)`、`(user_id, run_id)`。
 
 ## 4. 索引策略
 
@@ -563,6 +601,8 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | tag_suggestions | `(user_id, repo_id, normalized_name)` UNIQUE、`(user_id, status, updated_at DESC)`、`(user_id, repo_id, status)` | 建议幂等 / 列表筛选 |
 
 | category_suggestions | `(user_id, repo_id, category_name)` UNIQUE、`(user_id, status, score DESC)`、`(user_id, repo_id)` | 建议生成幂等 / 列表 / 单仓库查询 |
+| agent_runs | `(user_id, created_at DESC)`、`(user_id, template, created_at DESC)` | 执行记录列表 / 模板筛选 |
+| agent_drafts | `(user_id, created_at DESC)`、`(user_id, status, updated_at DESC)`、`(user_id, run_id)` | 草稿箱 / 状态筛选 / 按执行回查 |
 
 ## 5. 向量数据（M3）
 

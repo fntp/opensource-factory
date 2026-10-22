@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api import (
+    agent,
     backup,
     category_suggestions,
     duplicates,
@@ -98,6 +99,7 @@ app.add_middleware(
 # M5-08 安全审计：补充浏览器侧基线响应头
 app.add_middleware(SecurityHeadersMiddleware)
 
+app.include_router(agent.router)
 app.include_router(tasks.router)
 app.include_router(notifications.router)
 app.include_router(repos.router)

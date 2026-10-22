@@ -480,6 +480,27 @@ admin /reports → GET /api/reports（首次访问惰性补齐当前周期）
 - 报告完全由 D1 数据确定性生成，不调用 LLM / VPS；同一用户同一周期重复生成走幂等 upsert；
 - `curated_reports` 保存 stats / sections JSON 与预渲染 Markdown，列表接口不返回大字段。
 
+### 3.17 Agent 工作流（M7-09）
+
+```
+admin /agent → GET /api/agent/templates（模板与默认参数）
+→ POST /api/agent/runs {template, mode, threshold, focus?, repoIds?}
+   ├─ edge 读取当前用户收藏快照（上限 200）+ 达到阈值的待处理标签 / 分类建议
+   ├─ template=organize|full 且 mode=apply：写 tags / repo_tags、回写分类并标记建议 accepted
+   ├─ POST {vps}/api/agent/draft（X-Internal-Token）生成计划 + Markdown 草稿
+   │   └─ VPS 不可达 → edge 本地规则生成同构计划 / 草稿（source=local）
+   ├─ 写 agent_runs（plan / result JSON 可回放）
+   └─ 写 agent_drafts（title / content / metadata）
+→ GET /api/agent/runs · GET /api/agent/runs/:id（详情含计划 / 结果 / 草稿）
+→ GET /api/agent/drafts · GET /api/agent/drafts/:id
+→ POST /api/agent/drafts/:id/status（applied / discarded）
+```
+
+- 模板：`organize`（自动整理）、`draft`（收藏草稿）、`full`（整理 + 草稿）；
+- `preview` 只生成计划与草稿，`apply` 才会写入标签 / 分类；阈值 0.5~1.0，默认 0.75；
+- 执行与草稿均按 `user_id` 隔离；计划 / 结果 / 元数据以 JSON 保存，便于回放和审计；
+- VPS 规划只接收当前用户的仓库快照，不接收用户身份；本地兜底保证 VPS 不可用时页面仍可用。
+
 ### 3.22 自动打标建议流（M7-01）
 
 ```
@@ -577,6 +598,13 @@ admin 分类建议页 POST /api/category-suggestions/generate {limit?, perRepo?,
 | `/api/reports/:id` | GET | 报告详情（统计 + 分节 + Markdown；仅本人可见） |
 | `/api/reports/:id/markdown` | GET | 下载报告 Markdown（`text/markdown` 附件） |
 | `/api/reports/generate` | POST | 立即生成当前周期报告（`kind=weekly\|monthly`） |
+| `/api/agent/templates` | GET | Agent 工作流模板与默认参数（`mode` / `threshold` / `limit`） |
+| `/api/agent/runs` | GET | 执行记录列表（`limit` / `offset` / `status`；按用户隔离） |
+| `/api/agent/runs` | POST | 执行一次工作流（`template` / `mode` / `threshold` / `focus?` / `repoIds?`；返回计划 / 结果 / 草稿） |
+| `/api/agent/runs/:id` | GET | 执行详情（计划 / 结果 / 关联草稿；仅本人可见） |
+| `/api/agent/drafts` | GET | 草稿列表（`status=draft\|applied\|discarded` / `limit` / `offset`） |
+| `/api/agent/drafts/:id` | GET | 草稿详情（仅本人可见） |
+| `/api/agent/drafts/:id/status` | POST | 标记草稿 `applied` / `discarded` |
 
 | `/api/tag-suggestions` | GET | 打标建议列表（`status=pending\|accepted\|dismissed\|all`、`repoId`、`limit`、`offset`；返回汇总） |
 | `/api/tag-suggestions/generate` | POST | 基于摘要生成建议（`repoIds?` / `limit?` / `perRepo?`；VPS 优先、本地规则兜底） |
@@ -651,6 +679,7 @@ admin 分类建议页 POST /api/category-suggestions/generate {limit?, perRepo?,
 | `/api/search/similar` | POST | 相似项目向量近邻（`source` / `repoId` / `topK` / `scope` / `minScore` / `excludeSaved`；返回未水合 hits） |
 | `/api/duplicates/scan` | POST | 重复 / 相似项目检测（`scope` / `myRepoIds` / `maxRepos` / `maxClusters`；返回未水合簇，只读不落库） |
 | `/api/category-suggestions/generate` | POST | 自动分类建议（`repos[]` 内联快照 / `perRepo` / `minScore`；返回业务线建议，无状态不落库） |
+| `/api/agent/draft` | POST | Agent 工作流规划与草稿（`template` / `mode` / `threshold` / `focus?` / `repos[]` / 待处理与已应用动作；返回计划 + Markdown，无状态） |
 | `/api/search/status` | GET | 向量覆盖率、模型分布与最近向量化运行 |
 | `/api/vectors/stats` | GET | 向量覆盖率与最近运行 |
 | `/api/vectors/runs/{runId}` | GET | 向量化运行详情 |

@@ -1563,6 +1563,26 @@ class TagSuggestionItem(BaseModel):
 
     name: str
     category: str
+    score: float
+    reason: str
+    evidence: str
+
+
+class RepoTagSuggestions(BaseModel):
+    """单个仓库的建议集合。"""
+
+    repoId: str
+    tags: list[TagSuggestionItem]
+
+
+class TagSuggestionGenerateOut(BaseModel):
+    """批量生成结果。"""
+
+    generatedAt: str
+    scanned: int
+    suggested: int
+    skipped: int
+    items: list[RepoTagSuggestions]
 
 
 class CategorySuggestionRepoIn(BaseModel):
@@ -1594,17 +1614,6 @@ class CategorySuggestionItemOut(BaseModel):
     evidence: str
 
 
-class RepoTagSuggestions(BaseModel):
-    """单个仓库的建议集合。"""
-
-    repoId: str
-    tags: list[TagSuggestionItem]
-
-
-class TagSuggestionGenerateOut(BaseModel):
-    """批量生成结果。"""
-
-
 class CategorySuggestionRepoOut(BaseModel):
     """一个仓库的分类建议集合。"""
 
@@ -1619,7 +1628,75 @@ class CategorySuggestionGenerateResponse(BaseModel):
     scanned: int
     suggested: int
     skipped: int
-    items: list[RepoTagSuggestions]
-
-
     items: list[CategorySuggestionRepoOut] = Field(default_factory=list)
+
+
+# ── Agent 工作流（REQ-202610-0968 / M7-09）─────────────────────
+
+
+class AgentRepoIn(BaseModel):
+    """Agent 工作流使用的仓库快照。"""
+
+    repoId: str = Field(min_length=1, max_length=255)
+    name: str = Field(default="", max_length=255)
+    description: str = Field(default="", max_length=4000)
+    language: str = Field(default="", max_length=64)
+    stars: int = Field(default=0, ge=0)
+    category: str = Field(default="", max_length=255)
+    tags: list[str] = Field(default_factory=list, max_length=30)
+    summary: str = Field(default="", max_length=4000)
+
+
+class AgentActionIn(BaseModel):
+    """一条待处理 / 已应用的标签或分类建议。"""
+
+    kind: Literal["tag", "category"]
+    repoId: str = Field(min_length=1, max_length=255)
+    value: str = Field(min_length=1, max_length=255)
+    score: float = Field(default=0.0, ge=0.0, le=1.0)
+    reason: str = Field(default="", max_length=1000)
+
+
+class AgentDraftIn(BaseModel):
+    """生成计划与草稿的请求。"""
+
+    template: Literal["organize", "draft", "full"] = "draft"
+    mode: Literal["preview", "apply"] = "preview"
+    threshold: float = Field(default=0.75, ge=0.5, le=1.0)
+    focus: Optional[str] = Field(default=None, max_length=120)
+    repos: list[AgentRepoIn] = Field(default_factory=list, max_length=200)
+    pendingTags: list[AgentActionIn] = Field(default_factory=list, max_length=500)
+    pendingCategories: list[AgentActionIn] = Field(default_factory=list, max_length=200)
+    appliedTags: list[AgentActionIn] = Field(default_factory=list, max_length=500)
+    appliedCategories: list[AgentActionIn] = Field(default_factory=list, max_length=200)
+
+
+class AgentPlanStepOut(BaseModel):
+    """一个计划步骤。"""
+
+    key: str
+    title: str
+    detail: str
+    count: int = 0
+    status: Literal["ready", "skipped"] = "ready"
+
+
+class AgentDraftContentOut(BaseModel):
+    """草稿正文与亮点。"""
+
+    title: str
+    markdown: str
+    highlights: list[str] = Field(default_factory=list)
+    stats: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentDraftOut(BaseModel):
+    """Agent 工作流内部响应。"""
+
+    template: Literal["organize", "draft", "full"]
+    mode: Literal["preview", "apply"]
+    threshold: float
+    plan: list[AgentPlanStepOut]
+    draft: AgentDraftContentOut
+    stats: dict[str, Any] = Field(default_factory=dict)
+    generatedAt: str

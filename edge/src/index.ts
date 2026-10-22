@@ -35,6 +35,7 @@ import techStackRoutes from './routes/tech-stack';
 import tagSuggestionRoutes from './routes/tag-suggestions';
 
 import categorySuggestionsRoutes from './routes/category-suggestions';
+import agentRoutes from './routes/agent';
 import internalVectorsRoutes from './routes/internal-vectors';
 import internalRecommendationsRoutes from './routes/internal-recommendations';
 import internalSecurityRoutes from './routes/internal-security';
@@ -178,6 +179,7 @@ app.route('/api/tech-stack', techStackRoutes);
 app.route('/api/tag-suggestions', tagSuggestionRoutes);
 
 app.route('/api/category-suggestions', categorySuggestionsRoutes);
+app.route('/api/agent', agentRoutes);
 app.route('/api/internal/vectors', internalVectorsRoutes);
 app.route('/api/internal/recommendations', internalRecommendationsRoutes);
 app.route('/api/internal/security', internalSecurityRoutes);

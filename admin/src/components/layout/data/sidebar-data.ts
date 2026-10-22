@@ -1,6 +1,7 @@
 import {
   Activity,
   Bell,
+  Bot,
   FileText,
   Flame,
   FolderGit2,
@@ -47,6 +48,7 @@ export const sidebarData: SidebarData = {
         { title: '重复检测', url: '/duplicates', icon: GitMerge },
         { title: '技术栈图谱', url: '/tech-stack', icon: Network },
         { title: '精选报告', url: '/reports', icon: FileText },
+        { title: 'Agent 工作流', url: '/agent', icon: Bot },
         { title: '打标建议', url: '/tag-suggestions', icon: Tags },
       ],
     },

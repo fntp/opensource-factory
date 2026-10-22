@@ -684,6 +684,123 @@ export interface CuratedReport extends ReportSummary {
   markdown: string;
 }
 
+// ── Agent 工作流（REQ-202610-0968 / M7-09）──────────────────────
+
+export type AgentTemplate = 'organize' | 'draft' | 'full';
+export type AgentMode = 'preview' | 'apply';
+export type AgentRunStatus = 'completed' | 'failed';
+export type AgentDraftStatus = 'draft' | 'applied' | 'discarded';
+
+/** 计划步骤（与 VPS 响应同构） */
+export interface AgentPlanStep {
+  key: string;
+  title: string;
+  detail: string;
+  count: number;
+  status: 'ready' | 'skipped';
+}
+
+/** 一条标签 / 分类建议动作 */
+export interface AgentAction {
+  kind: 'tag' | 'category';
+  repoId: string;
+  value: string;
+  score: number;
+  reason: string;
+}
+
+/** agent_runs 数据库行 */
+export interface AgentRunRow {
+  id: string;
+  user_id: string;
+  template: string;
+  mode: string;
+  status: string;
+  threshold: number;
+  repo_count: number;
+  plan: string;
+  result: string;
+  draft_id: string | null;
+  error: string | null;
+  created_at: string;
+  finished_at: string | null;
+}
+
+/** agent_drafts 数据库行 */
+export interface AgentDraftRow {
+  id: string;
+  user_id: string;
+  run_id: string | null;
+  kind: string;
+  title: string;
+  content: string;
+  status: string;
+  metadata: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Agent 执行结果（写入 result JSON） */
+export interface AgentRunResult {
+  appliedTags: AgentAction[];
+  appliedCategories: AgentAction[];
+  pendingTags: number;
+  pendingCategories: number;
+  stats: {
+    totalRepos: number;
+    totalStars: number;
+    categoryCount: number;
+    languageCount: number;
+    tagCount: number;
+    topLanguage: string | null;
+    topCategory: string | null;
+  };
+  source: 'vps' | 'local';
+}
+
+/** 草稿元数据 */
+export interface AgentDraftMetadata {
+  highlights: string[];
+  stats: AgentRunResult['stats'];
+  template: AgentTemplate;
+  mode: AgentMode;
+  focus: string | null;
+}
+
+/** 草稿 DTO */
+export interface AgentDraft {
+  id: string;
+  runId: string | null;
+  kind: string;
+  title: string;
+  content: string;
+  status: AgentDraftStatus;
+  metadata: AgentDraftMetadata;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 执行记录列表项 */
+export interface AgentRunSummary {
+  id: string;
+  template: AgentTemplate;
+  mode: AgentMode;
+  status: AgentRunStatus;
+  threshold: number;
+  repoCount: number;
+  draftId: string | null;
+  createdAt: string;
+  finishedAt: string | null;
+  error: string | null;
+}
+
+/** 执行记录详情 */
+export interface AgentRunDetail extends AgentRunSummary {
+  plan: AgentPlanStep[];
+  result: AgentRunResult;
+  draft: AgentDraft | null;
+}
+
 /** Hono 上下文变量（挂载当前用户） */
 export interface Variables {
   user: UserRow | null;

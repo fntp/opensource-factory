@@ -42,14 +42,10 @@ edge/
 │   ├── 0011_security_hardening.sql  # 限流 / 登录尝试 / 安全事件（M5-05）
 │   ├── 0012_worker_metrics.sql  # Workers 请求指标按日聚合（M5-03）
 │   ├── 0013_duplicate_dismissals.sql  # 重复检测按用户忽略（M6-03）
-│   └── 0014_curated_reports.sql  # 每周 / 月度精选报告（M7-03）
-
-│   └── 0013_tag_suggestions.sql  # 自动打标建议表 + 幂等/列表索引（M7-01）
-
-│   └── 0012_worker_metrics.sql  # Workers 请求指标按日聚合（M5-03）
-│   ├── 0009_recommendation_feedback.sql # 推荐反馈明细（M3-07）
-│   ├── 0013_duplicate_dismissals.sql    # 重复检测按用户忽略（M6-03）
-│   └── 0014_category_suggestions.sql    # 自动分类建议（M7-02）
+│   ├── 0013_tag_suggestions.sql  # 自动打标建议表 + 幂等/列表索引（M7-01）
+│   ├── 0014_curated_reports.sql  # 每周 / 月度精选报告（M7-03）
+│   ├── 0014_category_suggestions.sql  # 自动分类建议（M7-02）
+│   └── 0015_agent_workflows.sql  # Agent 执行记录 + 草稿箱（M7-09）
 └── src/
     ├── index.ts          # Hono 入口：CORS、日志、/healthz、路由挂载、Cron scheduled handler
     ├── types.ts          # Env 绑定 + 数据库行 + API 响应实体
@@ -63,7 +59,8 @@ edge/
     │   └── helpers.ts    # 重复检测：地址 / 名称归一化、本地聚类、合并建议（纯函数）
     ├── reports/
     │   └── generate.ts   # 精选报告：周期解析、统计、分节、摘要、Markdown（纯函数）
-
+    ├── agent/
+    │   └── workflow.ts   # Agent 工作流：模板 / 参数归一化、计划、Markdown 草稿（纯函数）
     ├── category-suggestions/
     │   ├── rules.ts      # 业务线词表 + 本地打分兜底（纯函数，与 VPS 词表一致）
     │   └── helpers.ts    # 状态 / 参数归一化、稳定建议 id（纯函数）
@@ -86,7 +83,7 @@ edge/
         ├── similar.ts    # /api/similar（相似项目：VPS 向量近邻 → D1 关键词兜底）
         ├── duplicates.ts # /api/duplicates/*（重复检测：VPS 规则 + 向量 → 本地兜底；按用户忽略）
         ├── reports.ts    # /api/reports/*（周报 / 月报列表、详情、Markdown、生成 + 内部批量生成）
-
+        ├── agent.ts      # /api/agent/*（模板 / 执行 / 回放 / 草稿箱）
         ├── category-suggestions.ts # /api/category-suggestions/*（生成 / 列表 / 采纳 / 忽略）
         └── internal-vectors.ts # /api/internal/vectors/*（VPS → Vectorize，X-Internal-Token）
 ```
@@ -263,6 +260,13 @@ npm run test:m2 -- --strict \
 | `POST /api/category-suggestions/generate` | body `{repoIds?, limit?, perRepo?, minScore?}`；返回 `{generatedAt,scanned,suggested,skipped,source}`；VPS 规则引擎失败时 edge 本地兜底 |
 | `POST /api/category-suggestions/accept` | body `{ids[]}` 或 `{repoId,categoryName}`；自动建分类并写回 `my_repositories.category_id`，返回 `{accepted,categoriesCreated,items}` |
 | `POST /api/category-suggestions/dismiss` | body `{ids[]}`；返回 `{dismissed}`，已忽略建议不会被重复生成覆盖 |
+| `GET /api/agent/templates` | Agent 模板与默认参数（需登录） |
+| `GET /api/agent/runs` | 执行记录列表（需登录；`status=completed\|failed`、`limit`、`offset`） |
+| `POST /api/agent/runs` | 执行工作流，body `{template, mode, threshold?, focus?, repoIds?}`；返回计划 / 结果 / 草稿（需登录） |
+| `GET /api/agent/runs/:id` | 执行详情（计划 / 结果 / 草稿；仅本人可见） |
+| `GET /api/agent/drafts` | 草稿列表（需登录；`status=draft\|applied\|discarded`） |
+| `GET /api/agent/drafts/:id` | 草稿详情（仅本人可见） |
+| `POST /api/agent/drafts/:id/status` | 标记草稿 `applied` / `discarded`（需登录） |
 | `GET /healthz` | `{"status":"ok"}` |
 
 JSON 形状（前端契约，勿改字段名）：
