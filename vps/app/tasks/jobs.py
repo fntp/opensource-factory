@@ -10,16 +10,25 @@ import concurrent.futures
 import logging
 from datetime import date
 from typing import Any, Coroutine, Optional
-from uuid import uuid4
 
 from sqlalchemy import select
 
 from app.config import get_settings
 from app.db import SessionLocal
-from app.models import MyRepository, Recommendation, TrendingRepository, User
+from app.models import MyRepository, Recommendation, TrendingRepository
 from app.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
+
+
+def _maybe_enqueue_vectorization(scope: str) -> None:
+    """同步 / 抓取完成后自动入队增量向量化；失败不影响主任务。"""
+    if not get_settings().VECTORIZE_AUTO:
+        return
+    try:
+        vectorize_repositories.delay(scope=scope)
+    except Exception:  # noqa: BLE001 - 自动任务失败只记录，不阻塞主流程
+        logger.warning("自动入队向量化失败（scope=%s）", scope, exc_info=True)
 
 
 def _run_async(coro: Coroutine[Any, Any, Any]) -> Any:
@@ -81,6 +90,8 @@ def sync_repositories(include_starred: bool = True) -> dict[str, Any]:
     finally:
         db.close()
 
+    if created or updated:
+        _maybe_enqueue_vectorization("my")
     logger.info("GitHub 同步完成: 共 %d 个仓库（新增 %d / 更新 %d）", len(repos), created, updated)
     return {"status": "ok", "total": len(repos), "created": created, "updated": updated}
 
@@ -140,93 +151,104 @@ def crawl_trending(platform: str = "github", language: Optional[str] = None) -> 
     finally:
         db.close()
 
+    if items:
+        _maybe_enqueue_vectorization("trending")
     logger.info("热榜抓取完成: 共 %d 条（新增 %d / 更新 %d）", len(items), created, updated)
     return {"status": "ok", "total": len(items), "created": created, "updated": updated}
 
 
 @celery_app.task(name="app.tasks.jobs.generate_recommendations")
-def generate_recommendations(user_id: Optional[str] = None, top_k: int = 20) -> dict[str, Any]:
-    """生成推荐：以本地仓库集合的平均向量为用户画像，对热榜候选排序后落库。"""
-    from app.services.embedding import get_embedding_service
-    from app.services.recommender import build_reason, recommend
+def generate_recommendations(
+    user_id: Optional[str] = None,
+    top_k: Optional[int] = None,
+    min_score: Optional[float] = None,
+) -> dict[str, Any]:
+    """每日推荐生成：反馈排除 → 画像 / 候选 / 打分 → 落库 → 回写 edge。
 
-    service = get_embedding_service()
+    M3-05 提供画像、候选、阈值与打分；M3-07 在此之上先拉取用户反馈（saved /
+    dismissed）做排除，生成后再把推荐快照回写 D1。edge 未配置或不可达时只影响
+    回写，不影响本地生成。参数为空时使用配置默认值。
+    """
+    from app.models import User
+    from app.services.embedding import get_embedding_service
+    from app.services.recommendation_feedback import fetch_feedback, push_recommendations
+    from app.services.recommendation_service import generate_daily_recommendations
+
     db = SessionLocal()
     try:
-        # 目标用户：指定用户 → 全部用户 → 兜底创建 default（单机自测友好）
         if user_id:
-            target_users = [user_id]
+            target_users = [str(user_id)]
         else:
-            target_users = [u.id for u in db.execute(select(User)).scalars().all()]
+            target_users = [
+                str(item) for item in db.execute(select(User.id)).scalars().all()
+            ]
             if not target_users:
                 if db.get(User, "default") is None:
                     db.add(User(id="default", username="default"))
                     db.commit()
                 target_users = ["default"]
 
-        # 用户画像：本地镜像仓库文本的平均向量
-        my_repos = db.execute(select(MyRepository).limit(1000)).scalars().all()
-        profile_texts = [
-            " ".join(filter(None, [r.name, r.description or "", r.readme_summary or "", r.language or ""]))
-            for r in my_repos
-        ]
-        if not profile_texts:
-            return {"status": "skipped", "reason": "本地没有仓库数据，无法构建用户画像"}
+        results: list[dict[str, Any]] = []
+        pushed: dict[str, int] = {}
+        feedback_excluded: dict[str, int] = {}
+        embedding = get_embedding_service()
+        for uid in target_users:
+            snapshot = fetch_feedback(db, uid)
+            feedback_excluded[uid] = len(snapshot.excluded_repo_ids)
+            summary = generate_daily_recommendations(
+                db,
+                user_id=uid,
+                service=embedding,
+                top_k=top_k,
+                min_score=min_score,
+                excluded_repo_ids=snapshot.excluded_repo_ids,
+            )
+            results.extend(summary.get("results", []))
+            pushed[uid] = push_recommendations(db, uid)
 
-        profile_vectors = service.encode(profile_texts)
-        dim = len(profile_vectors[0])
-        profile_vec = service.normalize(
-            [sum(vec[i] for vec in profile_vectors) / len(profile_vectors) for i in range(dim)]
+        ok_results = [item for item in results if item.get("status") == "ok"]
+        error_results = [item for item in results if item.get("status") == "error"]
+        if ok_results:
+            status = "ok"
+        elif error_results:
+            status = "error"
+        else:
+            status = "skipped"
+
+        effective_top_k = max(
+            1, int(top_k if top_k is not None else get_settings().RECOMMEND_DAILY_TOP_K)
         )
-
-        # 候选：热榜仓库
-        trending_rows = db.execute(select(TrendingRepository).limit(500)).scalars().all()
-        if not trending_rows:
-            return {"status": "skipped", "reason": "热榜数据为空，请先执行 crawl-trending"}
-        candidate_texts = [
-            " ".join(filter(None, [r.name, r.description or "", r.tech_stack or ""]))
-            for r in trending_rows
-        ]
-        candidate_vectors = service.encode(candidate_texts)
-        ranked = recommend(
-            profile_vec,
-            [(row.id, vec) for row, vec in zip(trending_rows, candidate_vectors)],
-            top_k=max(1, int(top_k)),
+        effective_min_score = float(
+            get_settings().RECOMMEND_MIN_SCORE if min_score is None else min_score
         )
-
-        by_id = {row.id: row for row in trending_rows}
-        created = 0
-        for repo_id, score in ranked:
-            row = by_id.get(repo_id)
-            if row is None:
-                continue
-            for uid in target_users:
-                existing = db.execute(
-                    select(Recommendation).where(
-                        Recommendation.user_id == uid, Recommendation.repo_id == repo_id
-                    )
-                ).scalar_one_or_none()
-                if existing is not None:
-                    existing.score = float(score)
-                    existing.reason = build_reason(row, score)
-                    continue
-                db.add(
-                    Recommendation(
-                        id=uuid4().hex,
-                        user_id=uid,
-                        repo_id=repo_id,
-                        score=float(score),
-                        reason=build_reason(row, score),
-                        status="new",
-                    )
-                )
-                created += 1
-        db.commit()
+        result = {
+            "status": status,
+            "users": target_users,
+            "userCount": len(target_users),
+            "created": sum(int(item.get("created", 0)) for item in results),
+            "updated": sum(int(item.get("updated", 0)) for item in results),
+            "expired": sum(int(item.get("expired", 0)) for item in results),
+            "selected": sum(int(item.get("selected", 0)) for item in results),
+            "minScore": round(max(0.0, min(1.0, effective_min_score)), 4),
+            "topK": effective_top_k,
+            "feedbackExcluded": feedback_excluded,
+            "pushed": pushed,
+            "results": results,
+        }
     finally:
         db.close()
 
-    logger.info("推荐生成完成: 用户 %s，新增 %d 条", target_users, created)
-    return {"status": "ok", "users": target_users, "created": created}
+    logger.info(
+        "推荐生成任务完成: status=%s users=%s created=%d updated=%d expired=%d 反馈排除=%s 回写=%s",
+        result.get("status"),
+        result.get("users"),
+        result.get("created", 0),
+        result.get("updated", 0),
+        result.get("expired", 0),
+        feedback_excluded,
+        pushed,
+    )
+    return result
 
 
 @celery_app.task(name="app.tasks.jobs.daily_push")
@@ -253,3 +275,93 @@ def daily_push(limit: int = 50) -> dict[str, Any]:
 
     logger.info("每日推送准备完成: %d 条", pushed)
     return {"status": "ok", "pushed": pushed}
+
+
+@celery_app.task(bind=True, name="app.tasks.jobs.vectorize_repositories")
+def vectorize_repositories(
+    self,
+    scope: str = "all",
+    limit: Optional[int] = None,
+    batch_size: Optional[int] = None,
+    force: bool = False,
+    run_id: Optional[str] = None,
+) -> dict[str, Any]:
+    """向量化任务：批量 / 增量 / 断点续跑。
+
+    - `run_id` 为空时新建运行；传入失败运行的 id 时从游标续跑；
+    - 进度通过 Celery `PROGRESS` 状态上报（eager 模式下后端不可用时静默跳过）。
+    """
+    from app.services.vector_pipeline import create_run, run_vectorization
+
+    try:
+        if run_id is None:
+            db = SessionLocal()
+            try:
+                run = create_run(
+                    db,
+                    scope=scope,
+                    limit=limit,
+                    batch_size=batch_size,
+                    force=force,
+                )
+                run_id = run.id
+            finally:
+                db.close()
+
+        def progress(meta: dict[str, Any]) -> None:
+            try:
+                self.update_state(state="PROGRESS", meta=meta)
+            except Exception:  # noqa: BLE001 - 进度上报失败不影响向量化
+                logger.debug("向量化进度上报失败（run=%s）", run_id, exc_info=True)
+
+        return run_vectorization(run_id, progress=progress)
+    except Exception as exc:  # noqa: BLE001 - 任务失败降级返回结构化结果
+        logger.exception("向量化任务失败（run=%s）", run_id)
+        return {"status": "error", "error": str(exc)[:300], "runId": run_id}
+
+
+@celery_app.task(bind=True, name="app.tasks.jobs.sync_vector_index")
+def sync_vector_index(
+    self,
+    kind: str = "sync",
+    scope: str = "all",
+    limit: Optional[int] = None,
+    batch_size: Optional[int] = None,
+    force: bool = False,
+) -> dict[str, Any]:
+    """Vectorize 索引同步任务：批量 upsert / 对账。
+
+    - `kind=sync`：增量（默认）或 `force=True` 全量；
+    - `kind=reconcile`：先对账，仅修复缺失 / 过期向量；
+    - 未配置 edge 地址 / 内部令牌时返回 `disabled`，不抛异常。
+    """
+    from app.services.vector_sync import (
+        VectorIndexDisabled,
+        VectorIndexError,
+        sync_vector_index as run_sync,
+    )
+
+    def progress(meta: dict[str, Any]) -> None:
+        try:
+            self.update_state(state="PROGRESS", meta=meta)
+        except Exception:  # noqa: BLE001 - 进度上报失败不影响同步
+            logger.debug("索引同步进度上报失败", exc_info=True)
+
+    try:
+        return run_sync(
+            kind=kind,
+            scope=scope,
+            limit=limit,
+            batch_size=batch_size,
+            force=force,
+            progress=progress,
+        )
+    except VectorIndexDisabled as exc:
+        logger.info("Vectorize 索引同步跳过：%s", exc)
+        return {"status": "disabled", "error": str(exc)}
+    except VectorIndexError as exc:
+        logger.warning("Vectorize 索引同步失败：%s", exc)
+        return {"status": "error", "error": str(exc)[:500]}
+    except Exception as exc:  # noqa: BLE001 - 任务失败降级为结构化结果
+        logger.exception("Vectorize 索引同步异常")
+        return {"status": "error", "error": str(exc)[:500]}

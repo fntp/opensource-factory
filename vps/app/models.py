@@ -2,14 +2,15 @@
 
 本地镜像与 Cloudflare D1 的表结构保持一致的列名与语义：
 `my_repositories` / `trending_repositories` / `categories`，
-并补充 `users`（最小）与 `recommendations`（推荐结果）。
+并补充 `users`（最小）、`recommendations`（推荐结果）、
+`repo_vectors`（M3-02 向量化）与 `vector_sync_*`（M3-03 索引同步）。
 """
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Date, DateTime, Float, Integer, String, Text
+from sqlalchemy import Boolean, Date, DateTime, Float, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -82,5 +83,122 @@ class Recommendation(Base):
     repo_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    status: Mapped[str] = mapped_column(String(32), nullable=False, default="new")  # new | pushed | ...
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="new"
+    )  # new | pushed | saved | dismissed | expired
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+
+
+class RepoVector(Base):
+    """仓库向量（VPS 本地持久化，供增量向量化与语义检索使用）。
+
+    联合主键 `(source, repo_id)`；`source` 为 `my`（收藏库）或 `trending`（热榜）。
+    `text_hash` / `model` / `backend` 共同决定是否可以跳过重算。
+    """
+
+    __tablename__ = "repo_vectors"
+
+    source: Mapped[str] = mapped_column(String(16), primary_key=True)
+    repo_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    model: Mapped[str] = mapped_column(String(128), nullable=False)
+    backend: Mapped[str] = mapped_column(String(32), nullable=False, default="hash")
+    dim: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    text_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    vector: Mapped[str] = mapped_column(Text, nullable=False)  # JSON 数组
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=_utcnow, onupdate=_utcnow
+    )
+
+    __table_args__ = (Index("idx_repo_vectors_source_model", "source", "model"),)
+
+
+class VectorizationRun(Base):
+    """向量化运行记录（批量 / 增量 / 断点续跑的状态载体）。"""
+
+    __tablename__ = "vectorization_runs"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    scope: Mapped[str] = mapped_column(String(16), nullable=False)  # my | trending | all
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="running"
+    )  # running | completed | failed
+    model: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    backend: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    dim: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    force: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    limit: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    batch_size: Mapped[int] = mapped_column(Integer, nullable=False, default=32)
+    total: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    processed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    vectorized: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    skipped: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cursor_source: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    cursor_repo_id: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=_utcnow, onupdate=_utcnow
+    )
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class VectorSyncState(Base):
+    """单条向量在 Vectorize 索引中的同步状态。
+
+    主键与 M3-02 的 `repo_vectors` 对齐（`source` + `repo_id`）；`text_hash` 用于
+    增量判断，`status` 取 `pending` / `synced` / `failed` / `dim_mismatch`。
+    """
+
+    __tablename__ = "vector_sync_state"
+
+    source: Mapped[str] = mapped_column(String(16), primary_key=True)  # my | trending
+    repo_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    vector_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    text_hash: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    model: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    backend: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    dim: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending", index=True)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    synced_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    checked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=_utcnow, onupdate=_utcnow
+    )
+
+
+class VectorSyncRun(Base):
+    """一次 Vectorize 同步 / 对账运行的统计记录。"""
+
+    __tablename__ = "vector_sync_runs"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False, default="sync")  # sync | reconcile
+    scope: Mapped[str] = mapped_column(String(16), nullable=False, default="all")  # my | trending | all
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="running")
+    batch_size: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    max_retries: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    force: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    limit: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    processed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    synced: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    skipped: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    deleted: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    checked: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    missing: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    repaired: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    orphan_scan: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    cursor_source: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    cursor_repo_id: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=_utcnow, onupdate=_utcnow
+    )
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)

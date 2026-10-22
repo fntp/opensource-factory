@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -68,6 +68,79 @@ class RecommendResponse(BaseModel):
     items: list[RecommendItem]
 
 
+class RecommendEvalRequest(BaseModel):
+    """推荐质量评估请求（M3-08）。"""
+
+    sampleSize: Optional[int] = Field(default=None, ge=1, le=50, description="评估折叠数")
+    topK: Optional[int] = Field(default=None, ge=1, le=50, description="评估用 top_k")
+    holdoutRatio: Optional[float] = Field(
+        default=None, gt=0.0, lt=1.0, description="每个折叠留出的正样本比例"
+    )
+    negativesPerPositive: Optional[int] = Field(
+        default=None, ge=1, le=20, description="每个正样本配的负样本数"
+    )
+    seed: Optional[int] = Field(default=None, ge=0, description="抽样随机种子")
+    userId: Optional[str] = Field(default=None, description="只统计该用户的线上反馈")
+
+
+class RecommendEvalMetrics(BaseModel):
+    """排序指标（逐折叠均值）。"""
+
+    precision: float = 0.0
+    recall: float = 0.0
+    f1: float = 0.0
+    hitRate: float = 0.0
+    mrr: float = 0.0
+    ndcg: float = 0.0
+    coverage: float = 0.0
+    diversity: float = 0.0
+    avgResults: float = 0.0
+
+
+class RecommendEvalThreshold(BaseModel):
+    """单个 min_score 候选的指标。"""
+
+    minScore: float
+    precision: float = 0.0
+    recall: float = 0.0
+    f1: float = 0.0
+    coverage: float = 0.0
+    avgResults: float = 0.0
+
+
+class RecommendEvalWeight(RecommendEvalThreshold):
+    """单个权重组合的最优结果。"""
+
+    similarityWeight: float
+    trendingWeight: float
+
+
+class RecommendEvalRecommendation(BaseModel):
+    """调参建议。"""
+
+    minScore: float
+    similarityWeight: float
+    trendingWeight: float
+    reason: str = ""
+    improved: bool = False
+
+
+class RecommendEvalReport(BaseModel):
+    """推荐质量评估报告。"""
+
+    status: str
+    generatedAt: datetime
+    config: dict[str, Any]
+    dataset: dict[str, Any]
+    metrics: RecommendEvalMetrics
+    thresholds: list[RecommendEvalThreshold]
+    weights: list[RecommendEvalWeight]
+    recommended: RecommendEvalRecommendation
+    current: RecommendEvalThreshold
+    feedback: dict[str, Any]
+    warnings: list[str]
+
+
 class TaskEnqueued(BaseModel):
     """任务入队响应（与边缘 Worker 的契约，字段名保持 camelCase）。"""
 
@@ -81,3 +154,205 @@ class TaskStatus(BaseModel):
     status: str  # pending | started | success | failure
     result: Any = None
     error: Optional[str] = None
+
+
+class VectorSyncRequest(BaseModel):
+    """Vectorize 索引同步请求。"""
+
+    kind: Literal["sync", "reconcile"] = "sync"
+    scope: Literal["my", "trending", "all"] = "all"
+    limit: Optional[int] = Field(default=None, ge=1, le=100000, description="本次最多处理的向量数")
+    batchSize: Optional[int] = Field(default=None, ge=1, le=1000, description="单批 upsert 条数")
+    force: bool = Field(default=False, description="忽略增量状态，全量重传")
+
+
+class VectorSyncRunOut(BaseModel):
+    """一次同步运行的统计输出。"""
+
+    runId: str
+    kind: str
+    scope: str
+    status: str
+    batchSize: int
+    maxRetries: int
+    force: bool
+    limit: int
+    total: int
+    processed: int
+    synced: int
+    skipped: int
+    failed: int
+    deleted: int
+    checked: int
+    missing: int
+    repaired: int
+    orphanScan: str = ""
+    cursorSource: str = ""
+    cursorRepoId: str = ""
+    error: Optional[str] = None
+    createdAt: Optional[datetime] = None
+    updatedAt: Optional[datetime] = None
+    finishedAt: Optional[datetime] = None
+
+
+class VectorizeEnqueued(TaskEnqueued):
+    """向量化任务入队响应（附带运行 id，可用于续跑 / 查询）。"""
+
+    runId: str
+
+
+class VectorRunOut(BaseModel):
+    """向量化运行状态。"""
+
+    runId: str
+    scope: str
+    status: str  # running | completed | failed
+    model: str = ""
+    backend: str = ""
+    dim: int = 0
+    force: bool = False
+    limit: int = 0
+    batchSize: int = 0
+    total: int = 0
+    processed: int = 0
+    vectorized: int = 0
+    skipped: int = 0
+    failed: int = 0
+    cursorSource: str = ""
+    cursorRepoId: str = ""
+    error: Optional[str] = None
+    createdAt: Optional[datetime] = None
+    updatedAt: Optional[datetime] = None
+    finishedAt: Optional[datetime] = None
+
+
+class VectorSyncStatusOut(BaseModel):
+    """索引同步状态：本地覆盖率、状态分布与最近运行。"""
+
+    enabled: bool
+    configured: bool
+    indexName: str
+    dim: int
+    localVectors: int
+    states: dict[str, int]
+    pending: int
+    lastRuns: list[VectorSyncRunOut]
+
+
+class VectorModelStats(BaseModel):
+    """按模型 / 后端分组的向量数量。"""
+
+    model: str
+    backend: str
+    count: int
+
+
+class VectorSourceStats(BaseModel):
+    """单个来源的向量覆盖情况。"""
+
+    total: int
+    vectorized: int
+    pending: int
+
+
+class VectorStatsResponse(BaseModel):
+    """向量化统计响应。"""
+
+    totalVectors: int
+    bySource: dict[str, int]
+    byModel: list[VectorModelStats]
+    repositories: dict[str, VectorSourceStats]
+    latestRuns: list[VectorRunOut]
+
+
+class VectorDetail(BaseModel):
+    """单条向量详情（调试 / 后续 Vectorize 同步使用）。"""
+
+    source: str
+    repoId: str
+    model: str
+    backend: str
+    dim: int
+    textHash: str
+    vector: list[float]
+    updatedAt: Optional[datetime] = None
+
+
+class SearchQuery(BaseModel):
+    """语义搜索请求（内部接口共用）。"""
+
+    query: str = Field(min_length=1, max_length=200, description="自然语言查询")
+    topK: Optional[int] = Field(default=None, ge=1, le=50, description="返回条数（默认 10，最大 50）")
+    scope: Literal["my", "trending", "all"] = "all"
+    minScore: Optional[float] = Field(default=None, ge=-1.0, le=1.0, description="最低余弦相似度")
+
+
+class SearchEmbedResponse(BaseModel):
+    """查询向量：供 edge 调用 Vectorize.query 使用。"""
+
+    vector: list[float]
+    dim: int
+    model: str
+    backend: str
+
+
+class SearchHitOut(BaseModel):
+    """本地向量命中（未水合）。"""
+
+    source: str
+    repoId: str
+    score: float
+
+
+class SearchQueryResponse(BaseModel):
+    """本地向量检索响应。"""
+
+    query: str
+    scope: str
+    count: int
+    topK: int
+    minScore: float
+    model: str
+    backend: str
+    dim: int
+    scanned: int
+    items: list[SearchHitOut]
+
+
+class SearchItem(BaseModel):
+    """水合后的搜索结果条目。"""
+
+    id: str
+    source: str
+    fullName: str
+    name: str
+    description: str = ""
+    language: str = ""
+    stars: int = 0
+    starsToday: int = 0
+    url: str = ""
+    score: float = 0.0
+    reason: str = ""
+
+
+class SearchSemanticResponse(BaseModel):
+    """本地语义搜索完整结果（内部 / 调试 / CLI）。"""
+
+    query: str
+    scope: str
+    count: int
+    model: str
+    backend: str
+    dim: int
+    scanned: int
+    items: list[SearchItem]
+
+
+class SearchStatusResponse(BaseModel):
+    """语义搜索可用性：向量覆盖率与最近向量化运行。"""
+
+    totalVectors: int
+    bySource: dict[str, int]
+    byModel: list[VectorModelStats]
+    dimensions: list[int]
+    latestRuns: list[VectorRunOut]

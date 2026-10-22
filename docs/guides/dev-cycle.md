@@ -41,6 +41,17 @@
 - **验证**：三端检查（admin lint/build/test、edge typecheck、vps pytest）全绿；文档同步（索引 / 问答 / 周期）；
 - **遗留**：平台 keyId 39 修复仍待处理（Q7）；部署口径确认（Q9）。
 
+### REQ-202610-0893 · 本机运行环境与部署基线（2026-10）
+
+- **范围**：运行目录 `/opt/openfactory` 布局与权限、Redis 基线配置、systemd 四单元（api / worker / beat / redis）、环境模板对齐、自检工具；
+- **交付**：
+  - `deploy/`：运行目录引导脚本、doctor 自检、生产环境模板、Redis 配置、systemd 单元；
+  - `vps/app/runtime.py`：运行目录 / 权限 / 环境键 / Redis 连通性检查（仅标准库）；
+  - 配置新增 `LOG_DIR`，API 支持滚动文件日志；
+  - 文档：`docs/guides/deployment-baseline.md`、`deploy/README.md` 及索引 / 资源规划 / 排期同步；
+- **验证**：vps `pytest` 全绿（新增运行目录与部署资产用例）；`bash -n` 脚本校验；本机 `doctor.sh` 通过；
+- **遗留**：worker / beat 待 M1-05 同步链路就绪后启用；Ollama 模型选型属 M3-01。
+
 ### 后续周期（规划）
 
 - REQ 下一阶段：按 `planning/roadmap.md` 里程碑 M1 起推进（资产同步闭环），迭代排期见 `planning/task-planning.md`；需求池见 `requirements/backlog.md`。
