@@ -42,7 +42,7 @@
 | IT-0005 | M1-03 | GitHub OAuth 注册与登录联调（先本地回调） | 人工：OAuth App（Q3） | 待排期 |
 | IT-0006 | M1-05 | Starred 全量同步 | IT-0003~0005 | 待排期 |
 | IT-0007 | M1-07 | 增量同步策略 | IT-0006 | 待排期 |
-| IT-0008 | M1-09 | 分类树 CRUD | IT-0004 | 待排期 |
+| IT-0008 | M1-09 | 分类树 CRUD | IT-0004 | ✅ 已完成（2026-10-22，REQ-202610-0901） |
 | IT-0009 | M1-10 | 标签体系 CRUD | IT-0004 | 待排期 |
 | IT-0010 | M1-11/12 | 组合筛选与秒级检索优化 | IT-0006/0008/0009 | 待排期 |
 | IT-0011 | M1-13 | README 摘要接入（Ollama 降级链 + 批量队列，2G 预算内） | IT-0006；M3-01 前置 | ✅ 已完成（2026-10-22） |
@@ -130,3 +130,5 @@
 | 2026-10-22 | 交付 | IT-0047 / M6-04 技术栈图谱（REQ-202610-0951）：新增 edge `GET /api/tech-stack`（D1 只读聚合，语言归一 + 标签 / 简介启发式框架识别）与 admin `/tech-stack` 页面（KPI、SVG 径向关系图、语言条形榜、框架排行、组合洞察、空状态）；计划见 `planning/plan-req-202610-0951-tech-stack-graph.md` |
 | 2026-10-22 | 交付 | IT-0048 / M6-05 项目健康度（REQ-202610-0952）：VPS 拉取 pushed_at / issue / 归档字段并计算健康度，每日任务 + 手动刷新回写 D1；edge 本地兜底计算与健康度接口；admin 仓库页汇总、筛选、徽章与刷新按钮；计划见 `planning/plan-req-202610-0952-repo-health-tracking.md` |
 | 2026-10-22 | 交付 | IT-0049 / M7-03 精选报告（REQ-202610-0962）：新增 D1 `curated_reports`（migration 0014）、edge 纯函数报告生成 + 登录态 / 内部接口 + Cron 周报月报、admin `/reports` 归档与 Markdown 下载；计划见 `planning/plan-req-202610-0962-weekly-monthly-report.md` |
+
+| 2026-10-22 | 交付 | IT-0047 / M7-02 完成（REQ-202610-0961）：18 条业务线分类规则（VPS 纯函数 + edge 本地兜底）、可解释建议生成、edge 建议表与采纳写回（migration 0014）、admin 分类建议页；计划见 `plan-req-202610-0961-auto-classification.md` |

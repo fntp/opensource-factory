@@ -505,6 +505,23 @@ admin /tag-suggestions「生成建议」
 - **幂等**：唯一索引 + upsert，重复生成只更新 pending 建议的分数与理由；
 - **降级**：VPS 不可用时本地规则仍能产出建议，页面不空白。
 
+### 3.14 自动分类建议（M7-02）
+
+```
+admin 分类建议页 POST /api/category-suggestions/generate {limit?, perRepo?, minScore?}
+→ edge 读取当前用户仓库（名称 / 简介 / 语言 / README 摘要 / 标签，上限 500）
+→ VPS POST /api/category-suggestions/generate：
+   18 条业务线词表（AI / 金融支付 / 电商 / SaaS / 开发工具 / 数据工程 …）
+   → 名称 ×3、标签 / 简介 ×2、摘要 ×1.5、语言 ×0.5 加权
+   → 每仓库取 Top N（默认 3，≥0.55），产出分类名 / 业务线 / 分数 / 理由 / 证据
+→ edge 写入 D1 category_suggestions（user_id + repo_id + category_name 唯一）
+→ 用户采纳：确保分类存在（不存在则按业务线描述自动建）→ 写 my_repositories.category_id
+```
+
+降级：VPS 不可达或某仓库未返回建议时，edge 用同一套业务线词表本地兜底（`source=local` /
+`mixed`）；语言仅作弱信号，单独命中不会超过默认阈值。生成只写建议表，采纳前不修改仓库分类；
+已采纳 / 已忽略的建议不会被重复生成覆盖。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -531,7 +548,11 @@ admin /tag-suggestions「生成建议」
 | `/api/recommendations/:id/save` | POST | 收藏推荐（写 my_repositories + saved 反馈） |
 | `/api/recommendations/:id/dismiss` | POST | 忽略推荐（可带 `reason`） |
 | `/api/recommendations/:id/click` | POST | 记录查看点击（clicked 反馈） |
-| `/api/categories` | GET | 分类 + 标签 |
+| `/api/categories` | GET | 分类树（扁平，含 `parentId` / `sortOrder` / `count`）+ 标签 |
+| `/api/categories` | POST | 新建分类（登录） |
+| `/api/categories/:id` | PATCH | 编辑分类：名称 / 描述 / 父级 / 排序（登录） |
+| `/api/categories/:id` | DELETE | 删除分类（登录；有子分类或被仓库引用时 409） |
+| `/api/categories/:id/move` | POST | 移动分类：换父级 + 插到 `beforeId` 之前（登录） |
 | `/api/dashboard/stats` | GET | 仪表盘统计 |
 | `/api/notifications` | GET | 通知列表（`?status=` / `?limit=` / `?offset=`，需登录） |
 | `/api/notifications/unread-count` | GET | 未读数（侧边栏徽标轮询） |
@@ -561,6 +582,11 @@ admin /tag-suggestions「生成建议」
 | `/api/tag-suggestions/generate` | POST | 基于摘要生成建议（`repoIds?` / `limit?` / `perRepo?`；VPS 优先、本地规则兜底） |
 | `/api/tag-suggestions/accept` | POST | 采纳建议（`ids` 或 `repoId + tags`；写 `tags` / `repo_tags`） |
 | `/api/tag-suggestions/dismiss` | POST | 忽略建议（`ids`；重复生成不覆盖忽略状态） |
+
+| `/api/category-suggestions` | GET | 当前用户分类建议（`?status=pending\|accepted\|dismissed\|all` / `?repoId=` / `?limit=` / `?offset=`；含汇总与分类列表） |
+| `/api/category-suggestions/generate` | POST | 批量生成建议（`repoIds?` / `limit?` / `perRepo?` / `minScore?`；VPS 规则 → 本地兜底） |
+| `/api/category-suggestions/accept` | POST | 采纳建议（`ids[]` 或 `repoId` + `categoryName`；自动建分类并写回仓库分类） |
+| `/api/category-suggestions/dismiss` | POST | 忽略建议（`ids[]`，保留用户决策） |
 
 ### 4.2 edge ↔ vps（内部 API，`X-Internal-Token`）
 
@@ -624,6 +650,7 @@ admin /tag-suggestions「生成建议」
 | `/api/search/fulltext/rebuild` | POST | 全量重建 README 全文索引 |
 | `/api/search/similar` | POST | 相似项目向量近邻（`source` / `repoId` / `topK` / `scope` / `minScore` / `excludeSaved`；返回未水合 hits） |
 | `/api/duplicates/scan` | POST | 重复 / 相似项目检测（`scope` / `myRepoIds` / `maxRepos` / `maxClusters`；返回未水合簇，只读不落库） |
+| `/api/category-suggestions/generate` | POST | 自动分类建议（`repos[]` 内联快照 / `perRepo` / `minScore`；返回业务线建议，无状态不落库） |
 | `/api/search/status` | GET | 向量覆盖率、模型分布与最近向量化运行 |
 | `/api/vectors/stats` | GET | 向量覆盖率与最近运行 |
 | `/api/vectors/runs/{runId}` | GET | 向量化运行详情 |

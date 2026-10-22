@@ -5,6 +5,8 @@
  *       /api/notifications、/api/push-preferences、/api/categories、
  *       /api/dashboard、/api/sync、/api/internal/trending、/api/search、/api/similar、
  *       /api/tech-stack
+
+ *       /api/category-suggestions
  */
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -31,6 +33,8 @@ import similarRoutes from './routes/similar';
 import duplicatesRoutes from './routes/duplicates';
 import techStackRoutes from './routes/tech-stack';
 import tagSuggestionRoutes from './routes/tag-suggestions';
+
+import categorySuggestionsRoutes from './routes/category-suggestions';
 import internalVectorsRoutes from './routes/internal-vectors';
 import internalRecommendationsRoutes from './routes/internal-recommendations';
 import internalSecurityRoutes from './routes/internal-security';
@@ -172,6 +176,8 @@ app.route('/api/similar', similarRoutes);
 app.route('/api/duplicates', duplicatesRoutes);
 app.route('/api/tech-stack', techStackRoutes);
 app.route('/api/tag-suggestions', tagSuggestionRoutes);
+
+app.route('/api/category-suggestions', categorySuggestionsRoutes);
 app.route('/api/internal/vectors', internalVectorsRoutes);
 app.route('/api/internal/recommendations', internalRecommendationsRoutes);
 app.route('/api/internal/security', internalSecurityRoutes);
