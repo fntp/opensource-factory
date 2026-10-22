@@ -38,7 +38,8 @@ CREATE TABLE trending_repositories (
     -- 追加列（API 需要）
     owner TEXT,
     language TEXT,
-    stars INTEGER DEFAULT 0
+    stars INTEGER DEFAULT 0,
+    readme_summary TEXT
 );
 
 -- ── 分类 ────────────────────────────────────────────────────────

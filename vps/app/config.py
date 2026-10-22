@@ -42,6 +42,13 @@ class Settings(BaseSettings):
     SUMMARY_DELAY_MS: int = 500
     SUMMARY_MAX_CHARS: int = 800
 
+    # 摘要质量抽检（M2-04）：按比例留存样本 + 低质量强制留存
+    SUMMARY_SAMPLE_RATE: float = 0.1
+    SUMMARY_SAMPLE_MAX_PER_RUN: int = 50
+    SUMMARY_SAMPLE_ALWAYS_BELOW: float = 60.0
+    SUMMARY_QUALITY_PASS_SCORE: float = 70.0
+    SUMMARY_QUALITY_MIN_CHARS: int = 40
+
     # 向量模型
     EMBEDDING_MODEL: str = "BAAI/bge-m3"
 

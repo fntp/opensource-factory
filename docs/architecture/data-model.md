@@ -16,6 +16,7 @@ my_repositories >──< repo_tags >──< tags
 categories（parent_id 自关联，无限级）
 
 trending_repositories        （独立，公共数据）
+summary_quality_samples      （摘要抽检样本，按批次留存）
 recommendations              （user_id 可空 = 全局推荐）
 ```
 
@@ -50,8 +51,9 @@ recommendations              （user_id 可空 = 全局推荐）
 | description | TEXT | 简介 |
 | tech_stack | TEXT | 自动提取的技术栈 |
 | crawled_at | DATE | 抓取日期 |
+| readme_summary | TEXT | VPS 生成的中文摘要（`source=trending` 批量任务写入，Ollama → DeepSeek → 截断降级） |
 
-> 扩展列：`owner`、`language`、`stars`（总 Star）。
+> 扩展列：`owner`、`language`、`stars`（总 Star）、`readme_summary`（M2-04）。
 
 ### 2.3 `categories` 分类
 
@@ -86,7 +88,26 @@ recommendations              （user_id 可空 = 全局推荐）
 - `tags`：`id`、`name`（唯一）、`count`（冗余计数）；
 - `repo_tags`：仓库与标签的多对多关联。
 
-### 3.4 `recommendations` 推荐
+### 3.4 `summary_quality_samples` 摘要质量抽检样本
+
+VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工复核与质量统计。
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | 样本 id（uuid hex） |
+| batch_id | 生成批次（Celery task id 或补抽样批次号） |
+| repo_id / repo_source | 仓库 id 与来源（`my` / `trending`） |
+| summary / source / model | 摘要正文、生成来源（`ollama` / `deepseek` / `truncated`）与模型名 |
+| max_chars | 生成时摘要长度上限 |
+| score / verdict | 启发式质量分（0~100）与判定（`pass` / `fail`） |
+| checks | 逐项检查明细（JSON 数组） |
+| status | 人工复核状态：`pending` / `passed` / `failed` |
+| reviewer / review_note / reviewed_at | 复核人与备注 |
+| created_at | 留存时间 |
+
+唯一约束：`(batch_id, repo_source, repo_id)`；同批次重跑时更新原样本，摘要变化则复核状态重置为 `pending`。
+
+### 3.5 `recommendations` 推荐
 
 | 字段 | 说明 |
 | --- | --- |
@@ -107,6 +128,7 @@ recommendations              （user_id 可空 = 全局推荐）
 | trending_repositories | `(stars_today DESC)`、`(crawled_at)` | 榜单查询 |
 | sessions | `(user_id)`、`(expires_at)` | 会话校验与清理 |
 | repo_tags | `(repo_id)`、`(tag_id)` | 反查 |
+| summary_quality_samples | `(batch_id)`、唯一 `(batch_id, repo_source, repo_id)` | 抽检批次查询与去重 |
 | recommendations | `(user_id, score DESC)` | 推荐列表 |
 
 ## 5. 向量数据（Vectorize，M3）

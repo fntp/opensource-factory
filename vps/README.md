@@ -87,6 +87,11 @@ pytest -q
 | `SUMMARY_MAX_PER_RUN` | `200` | 单次摘要任务最多处理条数 |
 | `SUMMARY_DELAY_MS` | `500` | 每条摘要之间的间隔（毫秒），给 Ollama 留出余量 |
 | `SUMMARY_MAX_CHARS` | `800` | 摘要最大字符数 |
+| `SUMMARY_SAMPLE_RATE` | `0.1` | 摘要抽检比例（按批次 + 仓库确定性抽样） |
+| `SUMMARY_SAMPLE_MAX_PER_RUN` | `50` | 单次任务最多留存样本数 |
+| `SUMMARY_SAMPLE_ALWAYS_BELOW` | `60` | 质量分低于该值时强制留存样本 |
+| `SUMMARY_QUALITY_PASS_SCORE` | `70` | 质量判定通过分数线 |
+| `SUMMARY_QUALITY_MIN_CHARS` | `40` | 摘要长度检查下限 |
 | `EMBEDDING_MODEL` | `BAAI/bge-m3` | 向量模型名（sentence-transformers / FlagEmbedding） |
 | `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
 | `EDGE_BASE_URL` | 空 | edge Worker 地址；配置后摘要任务批量回写 D1 |
@@ -102,8 +107,9 @@ pytest -q
 | 方法 | 路径 | 说明 | 返回 |
 | --- | --- | --- | --- |
 | POST | `/api/tasks/sync` | 入队 GitHub 仓库同步（自己的 + Starred，`with_summary=1` 时完成后自动排队摘要） | `202 {"taskId": "..."}` |
-| POST | `/api/tasks/summarize` | 入队 README 摘要批量生成（可选 `repo_id` 重复传、`limit`、`batch_size`、`force`、`max_chars`） | `202 {"taskId": "..."}` |
-| POST | `/api/tasks/crawl-trending` | 入队热榜抓取（`platform=github\|gitee\|all`，可选 `language`） | `202 {"taskId": "..."}` |
+| POST | `/api/tasks/summarize` | 入队 README 摘要批量生成（可选 `repo_id` 重复传、`limit`、`batch_size`、`force`、`max_chars`、`source=my\|trending\|all`） | `202 {"taskId": "..."}` |
+| POST | `/api/trending/summarize` | 入队热榜摘要生成（等价 `source=trending`，可选 `repo_id`、`limit`） | `202 {"taskId": "..."}` |
+| POST | `/api/tasks/crawl-trending` | 入队热榜抓取（`platform=github\|gitee\|all`，可选 `language`、`with_summary`、`summary_limit`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/generate-recommendations` | 入队推荐生成（可选 `user_id`、`top_k`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/daily-push` | 入队每日推送准备（将 `new` 推荐标记为 `pushed`） | `202 {"taskId": "..."}` |
 | GET | `/api/tasks/{task_id}` | 查询任务状态（`pending/started/progress/success/failure`，PROGRESS 时带 `progress`） | `200 {"taskId","status","result","progress"}` |
@@ -128,6 +134,19 @@ pytest -q
 - `SUMMARY_BATCH_SIZE` / `SUMMARY_MAX_PER_RUN` / `SUMMARY_DELAY_MS` / `OLLAMA_KEEP_ALIVE` 共同控制 2G 推理预算；
 - 任务通过 Celery `PROGRESS` 上报 `{phase, processed, total, percent, current}`，边缘侧可轮询 `/api/tasks/{taskId}`；
 - 摘要回写失败不影响本地落库，任务结果里 `writeback` 字段会标明 `ok / skipped / error`。
+
+### 摘要质量抽检（M2-04）
+
+- 每条摘要都做启发式评分：非空 / 长度 / 中文占比 / 功能·技术·场景三要素覆盖 / 非降级 / 无噪声 / 无重复；
+- 样本按 `sha256(batch_id:repo_source:repo_id)` 确定性抽取，同一批次重跑样本稳定；低于 `SUMMARY_SAMPLE_ALWAYS_BELOW` 的摘要强制留存；
+- 样本写入 `summary_quality_samples`，支持人工复核与统计（均为内部接口，需 `X-Internal-Token`）：
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/api/summaries/quality/samples` | 样本列表（`status` / `repoSource` / `batchId` / `limit` / `offset`） |
+| POST | `/api/summaries/quality/samples/{id}/review` | 人工复核：`{"result":"passed\|failed","reviewer":"...","note":"..."}` |
+| GET | `/api/summaries/quality/stats` | 总量 / 待复核 / 通过率 / 平均分 / 来源分布 / 最近批次 |
+| POST | `/api/summaries/quality/sample-existing` | 存量摘要补抽样：`{"source":"my\|trending\|all","limit":200,"rate":0.1}` |
 
 ## 常用检查
 

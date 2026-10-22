@@ -35,6 +35,23 @@ def test_tasks_summarize_eager_returns_202_with_task_id() -> None:
     assert resp.json().get("taskId")
 
 
+def test_tasks_summarize_accepts_source_param() -> None:
+    with TestClient(app) as client:
+        for source in ("my", "trending", "all"):
+            resp = client.post("/api/tasks/summarize", params={"source": source})
+            assert resp.status_code == 202
+            assert resp.json().get("taskId")
+        invalid = client.post("/api/tasks/summarize", params={"source": "unknown"})
+    assert invalid.status_code == 422
+
+
+def test_trending_summarize_endpoint_returns_202() -> None:
+    with TestClient(app) as client:
+        resp = client.post("/api/trending/summarize", params={"limit": 10})
+    assert resp.status_code == 202
+    assert resp.json().get("taskId")
+
+
 def test_repos_list_returns_200() -> None:
     with TestClient(app) as client:
         resp = client.get("/api/repos")

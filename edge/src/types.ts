@@ -72,6 +72,8 @@ export interface TrendingRow {
   owner: string | null;
   language: string | null;
   stars: number | null;
+  /** VPS 生成的中文摘要（M2-04） */
+  readme_summary: string | null;
 }
 
 export interface RecommendationRow {
@@ -140,6 +142,8 @@ export interface TrendingRepo {
   owner: string;
   name: string;
   description: string | null;
+  /** VPS 生成的中文摘要（可为空） */
+  summary?: string | null;
   language: string | null;
   stars: number;
   starsToday: number;

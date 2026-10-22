@@ -65,6 +65,7 @@ async def enqueue_summarize(
     batch_size: int = Query(default=10, ge=1, le=50),
     force: bool = Query(default=False, description="已有摘要也重新生成"),
     max_chars: int = Query(default=800, ge=200, le=4000),
+    source: str = Query(default="my", pattern="^(my|trending|all)$", description="摘要来源"),
 ) -> TaskEnqueued:
     task = summarize_readmes.delay(
         repo_ids=repo_id,
@@ -72,6 +73,7 @@ async def enqueue_summarize(
         batch_size=batch_size,
         force=force,
         max_chars=max_chars,
+        source=source,
     )
     return TaskEnqueued(taskId=task.id)
 
