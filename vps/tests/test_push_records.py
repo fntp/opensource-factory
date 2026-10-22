@@ -445,10 +445,10 @@ def test_api_records_list_detail_and_receipt(db):
 
 
 def test_api_requires_internal_token(monkeypatch):
-    import app.api.tasks as tasks_module
+    import app.security as security_module
 
     monkeypatch.setattr(
-        tasks_module, "get_settings", lambda: SimpleNamespace(INTERNAL_TOKEN="secret")
+        security_module, "get_settings", lambda: SimpleNamespace(INTERNAL_TOKEN="secret")
     )
     client = TestClient(app)
     assert client.get("/api/push/records").status_code == 401

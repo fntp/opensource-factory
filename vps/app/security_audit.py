@@ -144,10 +144,30 @@ PII_COLUMNS: dict[str, tuple[str, ...]] = {
     "recommendations": ("user_id",),
 }
 
-SENSITIVE_LOG_RE = re.compile(
+LOG_CALL_RE = re.compile(
     r"(?i)\b(?:logger\.(?:debug|info|warning|error|exception)|console\.(?:log|warn|error)|print)\s*\("
-    r"[^\n]*(?:email|e-mail|token|cookie|authorization|password|passwd|secret|api[_-]?key)"
 )
+SENSITIVE_NAME_RE = re.compile(
+    r"(?i)\b(?:email|e-mail|token|cookie|authorization|password|passwd|secret|api[_-]?key)\b"
+)
+STRING_LITERAL_RE = re.compile(r"""(["'])(?:\\.|(?!\1).)*\1""")
+
+
+def log_mentions_sensitive(line: str) -> bool:
+    """判断日志调用是否把敏感字段作为参数输出（忽略纯文本提示语）。
+
+    - 先去掉字符串字面量，避免「Email 摘要任务完成」这类提示语误报；
+    - 再单独检查 f-string 的 `{...}` 内插表达式，覆盖 ``f"token={token}"``。
+    """
+    if not LOG_CALL_RE.search(line):
+        return False
+    stripped = STRING_LITERAL_RE.sub('""', line)
+    if SENSITIVE_NAME_RE.search(stripped):
+        return True
+    for expr in re.findall(r"\{([^{}]+)\}", line):
+        if SENSITIVE_NAME_RE.search(expr):
+            return True
+    return False
 
 
 @dataclass
@@ -1030,7 +1050,7 @@ def check_privacy_boundary(ctx: AuditContext) -> list[Finding]:
             continue
         text = _read_text(path)
         for lineno, line in enumerate(text.splitlines(), 1):
-            if SENSITIVE_LOG_RE.search(line):
+            if log_mentions_sensitive(line):
                 findings.append(
                     Finding(
                         check="privacy-log",

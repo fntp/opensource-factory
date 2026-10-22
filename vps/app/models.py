@@ -506,6 +506,7 @@ class PushReceipt(Base):
     external_id: Mapped[str] = mapped_column(String(255), nullable=False, default="", index=True)
     detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     occurred_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
 
 
 class MonitoringAlert(Base):

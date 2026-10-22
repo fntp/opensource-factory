@@ -422,9 +422,9 @@ def test_test_api_success_and_not_configured(monkeypatch):
 
 
 def test_internal_token_guard(monkeypatch):
-    import app.api.tasks as tasks_api
+    import app.security as security_api
 
-    monkeypatch.setattr(tasks_api, "get_settings", lambda: SimpleNamespace(INTERNAL_TOKEN="secret"))
+    monkeypatch.setattr(security_api, "get_settings", lambda: SimpleNamespace(INTERNAL_TOKEN="secret"))
     response = TestClient(app).get("/api/notifications/telegram/status")
     assert response.status_code == 401
     response = TestClient(app).get(

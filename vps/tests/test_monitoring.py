@@ -274,7 +274,7 @@ def test_monitoring_api_status_check_and_ack(monkeypatch) -> None:
 
 def test_internal_token_enforced(monkeypatch) -> None:
     monkeypatch.setattr(
-        "app.api.tasks.get_settings",
+        "app.security.get_settings",
         lambda: SimpleNamespace(INTERNAL_TOKEN="secret-token"),
     )
     client = TestClient(app)

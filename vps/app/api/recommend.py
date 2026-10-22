@@ -1,6 +1,7 @@
 """推荐接口：语义查询（即时计算）、本地推荐查询、推荐生成入队、质量评估与每日评估。"""
 from __future__ import annotations
 
+import json
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session

@@ -444,12 +444,12 @@ def test_policy_api_check_and_events(db) -> None:
 
 
 def test_policy_api_requires_internal_token(monkeypatch) -> None:
-    import app.api.tasks as tasks_api
+    import app.security as security_api
 
     class _FakeSettings:
         INTERNAL_TOKEN = "policy-secret"
 
-    monkeypatch.setattr(tasks_api, "get_settings", lambda: _FakeSettings())
+    monkeypatch.setattr(security_api, "get_settings", lambda: _FakeSettings())
     with TestClient(app) as client:
         unauthorized = client.get("/api/push/policy/status")
         authorized = client.get(
