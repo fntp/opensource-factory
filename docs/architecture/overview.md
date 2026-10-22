@@ -58,7 +58,10 @@ GitHub → /api/auth/github/callback?code → edge 换取 token → 拉取用户
 
 ```
 admin「同步仓库」→ POST /api/sync（edge）→ POST {VPS}/api/tasks/sync（X-Internal-Token）
-→ Celery 拉取 GitHub Starred/自有仓库 → upsert → 摘要（Ollama）→ 写回 D1 → 前端可见
+→ Celery 拉取 GitHub Starred/自有仓库 → upsert
+→ 入队 summarize_readmes（批量队列）→ 抓 README / 清洗
+→ Ollama → DeepSeek → 截断原文（降级链）
+→ 分批写本地镜像 → POST {edge}/api/repos/summaries 回写 D1 → 前端可见
 ```
 
 ### 3.3 热榜流
@@ -85,7 +88,7 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 | `/api/auth/github/callback` | GET | OAuth 回调（code → 会话） |
 | `/api/auth/me` | GET | 当前用户（未登录 401） |
 | `/api/auth/logout` | POST | 退出（204） |
-| `/api/repos` | GET | 仓库列表（`?q=` / `?categoryId=`） |
+| `/api/repos` | GET | 仓库列表（`?q=` / `?categoryId=`，含 `summary`） |
 | `/api/trending` | GET | 热榜（`?limit=`） |
 | `/api/recommendations` | GET | 推荐列表 |
 | `/api/categories` | GET | 分类 + 标签 |
@@ -96,7 +99,9 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 
 | 端点 | 方法 | 说明 |
 | --- | --- | --- |
-| `/api/tasks/sync` | POST | 入队仓库同步 |
+| `/api/tasks/sync` | POST | 入队仓库同步（完成后自动排队摘要） |
+| `/api/tasks/summarize` | POST | 入队 README 摘要批量生成 |
+| `/api/repos/summaries` | POST | 反向：VPS 批量回写摘要到 edge / D1 |
 | `/api/tasks/crawl-trending` | POST | 入队热榜抓取 |
 | `/api/tasks/generate-recommendations` | POST | 入队推荐生成 |
 | `/api/tasks/daily-push` | POST | 入队每日推送 |

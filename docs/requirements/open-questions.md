@@ -68,6 +68,15 @@
   - C. 其他：由维护者指定。
 - **默认处理**：A 先行（本机已承载全部私有数据与推理），M5 阶段实施 B 的评估与落地；若要求纯本机运行，请确认选项 B 并调整 M5 排期。
 
+## Q10. README 摘要模型与 edge 回写地址（REQ-202610-0905 新增）
+
+- **背景**：M1-13 依赖 M3-01 的模型选型，但 M3-01 尚未完成；摘要任务还需要知道 edge Worker 地址才能把结果回写 D1；
+- **选项**：
+  - A. 摘要模型沿用 `OLLAMA_MODEL`（当前默认 `qwen2.5:7b`），M3-01 完成后再切 ≤2B 量化模型；`EDGE_BASE_URL` 留空时只写本地镜像（**当前默认**，不阻塞本需求）；
+  - B. 本需求内直接切换默认模型为 `qwen2.5:1.5b-instruct` 并配置生产 edge 地址（需要 M3-01 的实测数据与人工确认）；
+  - C. 其他：由维护者指定模型与地址。
+- **默认处理**：A。`SUMMARY_BATCH_SIZE / SUMMARY_MAX_PER_RUN / SUMMARY_DELAY_MS / OLLAMA_KEEP_ALIVE` 已按 2G 预算给出保守默认值；正式联调时在 `vps/.env` 配置 `EDGE_BASE_URL` 与 `INTERNAL_TOKEN` 即可回写 D1。
+
 ---
 
 > 处理约定：人工确认任一问题后，更新本文件状态并在 `docs/planning/task-planning.md` 记录。

@@ -28,6 +28,13 @@ def test_tasks_sync_eager_returns_202_with_task_id() -> None:
     assert body.get("taskId")
 
 
+def test_tasks_summarize_eager_returns_202_with_task_id() -> None:
+    with TestClient(app) as client:
+        resp = client.post("/api/tasks/summarize")
+    assert resp.status_code == 202
+    assert resp.json().get("taskId")
+
+
 def test_repos_list_returns_200() -> None:
     with TestClient(app) as client:
         resp = client.get("/api/repos")

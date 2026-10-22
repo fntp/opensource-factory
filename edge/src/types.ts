@@ -123,6 +123,8 @@ export interface RepoItem {
   id: string;
   fullName: string;
   description: string | null;
+  /** VPS 生成的 README 中文摘要（可为空） */
+  summary?: string | null;
   language: string | null;
   stars: number;
   forks: number;
