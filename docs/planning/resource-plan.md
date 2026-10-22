@@ -81,6 +81,11 @@
 
 ## 6. 预算验证与监控
 
-- **验证计划**：M5-06 按本表实测核对（进程 RSS / 磁盘占用 / 模型驻留），超限即优化（降并发、换更小模型、清理策略）；
+- **验证工具（M5-06，2026-10-22）**：`deploy/scripts/resource-budget.sh`（等价
+  `cd vps && python -m app.resource_budget check`）只读采集 systemd RSS / 模型峰值 / 磁盘分项，
+  按 4G / 15G 红线与 3.5G / 13G 预警判定，超限输出优化建议；
+- **实测基线**：2026-10-22 本机内存峰值 1359.2 / 4096 MB（33.2%）、磁盘 106.2 / 15360 MB（0.7%），
+  PASS；运行配置曾残留 `qwen2.5:7b`（4700 MB）导致超限，已切回 `qwen2.5:1.5b-instruct-q4_K_M`
+  并复测通过，详见 [resource-budget-verification.md](../guides/resource-budget-verification.md)；
 - **日常监控**：M5-03 资源红线告警（内存 > 3.5G、磁盘 > 13G 预警）；
 - **关联问题**：Q3（Cloudflare 资源信息）、Q9（部署口径与边缘去留）。

@@ -27,6 +27,7 @@ vps/
 │   ├── models.py             # 数据库模型（D1 表结构的本地镜像）
 │   ├── schemas.py            # Pydantic 出入参模型
 │   ├── degradation.py        # 降级路径自检 CLI（python -m app.degradation check）
+│   ├── resource_budget.py    # 资源预算实测 CLI（python -m app.resource_budget check）
 │   ├── services/             # 业务逻辑（单一职责，可独立单测）
 │   │   ├── github_service.py     # GitHub REST v3 异步客户端（分页、README base64 解码）
 │   │   ├── trending_crawler.py   # GitHub Trending 解析/抓取 + Gitee 探索页（尽力而为）
@@ -42,6 +43,7 @@ vps/
 │   │   ├── recommendation_service.py # 每日推荐：画像 / 去重已收藏 / 阈值 / 落库
 │   │   ├── recommendation_feedback.py # 推荐反馈：edge 拉取 / 回写 / 本地降级
 │   │   ├── recommendation_eval.py # 质量评估：抽样评估集 / 指标 / 阈值调优
+│   │   ├── resource_budget.py    # 4G / 15G 资源预算实测与超限建议（M5-06）
 │   │   ├── vector_index.py       # Vectorize 批量 upsert / 重试 / 对账 / 孤儿清理
 │   │   ├── query_understanding.py # 同义词 / 技术栈词表查询理解（离线、确定性）
 │   │   ├── semantic_search.py    # 查询向量化 + repo_vectors 余弦检索 + 结果水合
@@ -211,6 +213,20 @@ cd vps
 
 预算内退出码 0；超预算或未收录模型退出码 1。`deploy/scripts/doctor.sh` 也会执行同一项检查。
 int8 量化在 `sentence-transformers` 后端下对 Linear 层做动态量化；生产更推荐预量化的 ONNX int8 权重。
+
+## 资源预算实测（M5-06）
+
+`app.resource_budget` 采集 systemd 进程 RSS、模型峰值与磁盘分项，按 4G / 15G 红线判定
+（3.5G / 13G 预警），超限输出优化建议但不自动改配置：
+
+```bash
+cd vps
+.venv/bin/python -m app.resource_budget check
+.venv/bin/python -m app.resource_budget check --json
+```
+
+部署机可直接执行 `deploy/scripts/resource-budget.sh`；实测基线与超限优化手册见
+[docs/guides/resource-budget-verification.md](../docs/guides/resource-budget-verification.md)。
 
 ## 降级路径自检（M3-09）
 

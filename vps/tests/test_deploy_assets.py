@@ -201,6 +201,16 @@ def test_production_scripts_support_help() -> None:
         assert "用法" in proc.stdout, name
 
 
+def test_resource_budget_script_help() -> None:
+    proc = subprocess.run(
+        ["bash", str(DEPLOY / "scripts" / "resource-budget.sh"), "--help"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert "usage:" in proc.stdout.lower() or "资源预算" in proc.stdout
+
+
 def test_preflight_and_smoke_dry_run_pass_with_example(tmp_path: Path) -> None:
     env = os.environ.copy()
     env["OPENFACTORY_HOME"] = str(tmp_path / "runtime")
