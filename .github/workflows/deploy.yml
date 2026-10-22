@@ -1,0 +1,165 @@
+name: Deploy Production
+
+# 生产部署（REQ-202610-0939 / M5-01）
+# 触发：手动 workflow_dispatch，或 main 推送且仓库变量 DEPLOY_ENABLED=true。
+# 需要在 GitHub 仓库配置 production environment 与下列 Secrets：
+#   CLOUDFLARE_ACCOUNT_ID / CLOUDFLARE_API_TOKEN / D1_DATABASE_ID
+#   GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET / SESSION_SECRET / INTERNAL_TOKEN
+#   VPS_SSH_HOST / VPS_SSH_USER / VPS_SSH_KEY（可选 VPS_SSH_PORT / VPS_SSH_KNOWN_HOSTS）
+# 非机密变量：ADMIN_ORIGIN / API_ORIGIN / VPS_NODE_URL / PAGES_PROJECT_NAME / D1_DATABASE_NAME
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  edge:
+    name: edge · D1 migrate + Worker deploy
+    runs-on: ubuntu-latest
+    environment: production
+    if: github.event_name == 'workflow_dispatch' || vars.DEPLOY_ENABLED == 'true'
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: edge/package-lock.json
+      - name: Install edge dependencies
+        working-directory: edge
+        run: npm ci
+      - name: Prepare deploy config
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          D1_DATABASE_NAME: ${{ vars.D1_DATABASE_NAME || 'opensource-factory' }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          WORKER_NAME: ${{ vars.WORKER_NAME || 'opensource-factory-api' }}
+          VECTORIZE_INDEX_NAME: ${{ vars.VECTORIZE_INDEX_NAME || 'opensource-factory-vectors' }}
+          ADMIN_ORIGIN: ${{ vars.ADMIN_ORIGIN }}
+          API_ORIGIN: ${{ vars.API_ORIGIN }}
+          VPS_NODE_URL: ${{ vars.VPS_NODE_URL }}
+          GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.GITHUB_CLIENT_SECRET }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          INTERNAL_TOKEN: ${{ secrets.INTERNAL_TOKEN }}
+          OPENFACTORY_HOME: ${{ runner.temp }}/openfactory
+        run: |
+          umask 077
+          mkdir -p "$OPENFACTORY_HOME"
+          cat > "$RUNNER_TEMP/deploy.env" <<EOF
+          CLOUDFLARE_ACCOUNT_ID=$CLOUDFLARE_ACCOUNT_ID
+          CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN
+          D1_DATABASE_NAME=$D1_DATABASE_NAME
+          D1_DATABASE_ID=$D1_DATABASE_ID
+          WORKER_NAME=$WORKER_NAME
+          VECTORIZE_INDEX_NAME=$VECTORIZE_INDEX_NAME
+          ADMIN_ORIGIN=$ADMIN_ORIGIN
+          API_ORIGIN=$API_ORIGIN
+          VPS_NODE_URL=$VPS_NODE_URL
+          GITHUB_CLIENT_ID=$GITHUB_CLIENT_ID
+          GITHUB_CLIENT_SECRET=$GITHUB_CLIENT_SECRET
+          SESSION_SECRET=$SESSION_SECRET
+          INTERNAL_TOKEN=$INTERNAL_TOKEN
+          OPENFACTORY_HOME=$OPENFACTORY_HOME
+          EOF
+      - name: Deploy edge
+        env:
+          OPENFACTORY_HOME: ${{ runner.temp }}/openfactory
+        run: deploy/scripts/deploy-edge.sh --env-file "$RUNNER_TEMP/deploy.env" --skip-install
+
+  admin:
+    name: admin · build + Pages deploy
+    runs-on: ubuntu-latest
+    environment: production
+    if: github.event_name == 'workflow_dispatch' || vars.DEPLOY_ENABLED == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: admin/package-lock.json
+      - name: Install admin dependencies
+        working-directory: admin
+        run: npm ci
+      - name: Prepare deploy config
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PAGES_PROJECT_NAME: ${{ vars.PAGES_PROJECT_NAME || 'opensource-factory-admin' }}
+          ADMIN_ORIGIN: ${{ vars.ADMIN_ORIGIN }}
+          API_ORIGIN: ${{ vars.API_ORIGIN }}
+        run: |
+          umask 077
+          cat > "$RUNNER_TEMP/deploy.env" <<EOF
+          CLOUDFLARE_ACCOUNT_ID=$CLOUDFLARE_ACCOUNT_ID
+          CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN
+          PAGES_PROJECT_NAME=$PAGES_PROJECT_NAME
+          ADMIN_ORIGIN=$ADMIN_ORIGIN
+          API_ORIGIN=$API_ORIGIN
+          EOF
+      - name: Deploy admin
+        run: deploy/scripts/deploy-admin.sh --env-file "$RUNNER_TEMP/deploy.env" --skip-install --create-project
+
+  vps:
+    name: vps · systemd deploy over SSH
+    runs-on: ubuntu-latest
+    environment: production
+    if: github.event_name == 'workflow_dispatch' || vars.DEPLOY_ENABLED == 'true'
+    steps:
+      - name: Deploy VPS node
+        env:
+          VPS_SSH_HOST: ${{ secrets.VPS_SSH_HOST }}
+          VPS_SSH_USER: ${{ secrets.VPS_SSH_USER }}
+          VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT || '22' }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+          VPS_APP_DIR: ${{ vars.VPS_APP_DIR || '/opt/workspace/opensource-factory' }}
+        run: |
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          if [ -n "$VPS_SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -p "$VPS_SSH_PORT" "$VPS_SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+          ssh -i ~/.ssh/deploy_key -p "$VPS_SSH_PORT" \
+            "$VPS_SSH_USER@$VPS_SSH_HOST" \
+            "cd '$VPS_APP_DIR' && git fetch origin main && git checkout main && git pull --ff-only && deploy/scripts/deploy-vps.sh --skip-deps"
+
+  smoke:
+    name: smoke · three-tier health check
+    runs-on: ubuntu-latest
+    environment: production
+    needs: [edge, admin, vps]
+    if: always() && (github.event_name == 'workflow_dispatch' || vars.DEPLOY_ENABLED == 'true')
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare smoke config
+        env:
+          ADMIN_ORIGIN: ${{ vars.ADMIN_ORIGIN }}
+          API_ORIGIN: ${{ vars.API_ORIGIN }}
+          VPS_NODE_URL: ${{ vars.VPS_NODE_URL }}
+        run: |
+          umask 077
+          cat > "$RUNNER_TEMP/deploy.env" <<EOF
+          ADMIN_ORIGIN=$ADMIN_ORIGIN
+          API_ORIGIN=$API_ORIGIN
+          VPS_NODE_URL=$VPS_NODE_URL
+          EOF
+      - name: Smoke test
+        run: deploy/scripts/smoke-test.sh --env-file "$RUNNER_TEMP/deploy.env"

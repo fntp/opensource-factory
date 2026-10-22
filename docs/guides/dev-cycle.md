@@ -1,0 +1,57 @@
+# 开发周期文档 · Development Cycle
+
+> 文档编号：GD-02 ｜ 维护人：fntp
+
+## 1. 周期模型
+
+每个需求按以下六个阶段推进，阶段与产出物一一对应：
+
+| 阶段 | 活动 | 产出物 | 出口条件 |
+| --- | --- | --- | --- |
+| ① 需求受理 | 阅读需求、澄清背景 | 需求文档（`docs/requirements/`） | 功能点与验收标准明确 |
+| ② 立项 | 规范落实、文档落实、基建搭建 | 规范文档、规划文档、目录骨架 | 检查清单全绿 |
+| ③ 设计 | 架构 / 数据模型 / 接口契约 | `docs/architecture/**` | 接口与数据模型冻结 |
+| ④ 开发 | 按功能点实现（参考项目优先集成） | 代码 + 单测 | 本地检查全绿 |
+| ⑤ 验证 | Lint / Build / Test / 人工验收 | 验证记录 | 验收标准逐条通过 |
+| ⑥ 交付 | 提交、推送、平台回报 | 提交哈希 + 回报信息 | 平台确认 |
+
+## 2. 迭代节奏
+
+- **小步快跑**：一个需求分支生命周期 ≤ 1 周；大需求拆分为子任务（见 `planning/task-planning.md`）；
+- **每日构建**：CI 在 `main` 与 PR 上自动运行三端检查；
+- **里程碑评审**：每完成一个里程碑（见 `planning/roadmap.md`）做一次回顾，更新路线图。
+
+## 3. 当前周期记录
+
+### REQ-202610-0454 · 项目立项（2026-10）
+
+- **范围**：鉴权配置（仅 GitHub）、规范落实、文档落实、文档管理、功能集成、参考项目融合、实施步骤（梳理需求 → 项目基建 → UI 风格延续模板）、沟通机制（待确认问题记录）；
+- **交付**：
+  - `admin/`：基于 shadcn-admin 的控制台（GitHub 登录 / 演示模式、仪表盘、仓库、分类标签、热榜、推荐）；
+  - `edge/`：Hono + D1 边缘 API 骨架（鉴权、元数据读写、任务调度）；
+  - `vps/`：FastAPI + Celery 算力节点（同步、爬虫、清洗、摘要、向量化、推荐）；
+  - `docs/`：四类规范 + 维护 / 周期文档 + 规划 + 需求 + 架构 + 数据资产；
+- **验证**：admin `lint/build/test` 全绿（73 个用例）；edge `tsc` 通过；vps `pytest` 通过；
+- **遗留**：见 `docs/requirements/open-questions.md`（含参考项目 github_trending 仓库 404、推送凭据等问题）。
+
+### REQ-202610-0462 · 需求调研与完整规划（2026-10）
+
+- **范围**：项目完整规划（里程碑扩展至 M6–M9 + 常设打磨轨道）、需求池回填、资源规划（4G / 15G）、后续迭代排期；
+- **交付**：`docs/requirements/backlog.md`（需求池）、`docs/planning/roadmap.md`（扩展）、`docs/planning/resource-plan.md`（新增）、`docs/planning/task-planning.md`（排期）；
+- **验证**：三端检查（admin lint/build/test、edge typecheck、vps pytest）全绿；文档同步（索引 / 问答 / 周期）；
+- **遗留**：平台 keyId 39 修复仍待处理（Q7）；部署口径确认（Q9）。
+
+### REQ-202610-0893 · 本机运行环境与部署基线（2026-10）
+
+- **范围**：运行目录 `/opt/openfactory` 布局与权限、Redis 基线配置、systemd 四单元（api / worker / beat / redis）、环境模板对齐、自检工具；
+- **交付**：
+  - `deploy/`：运行目录引导脚本、doctor 自检、生产环境模板、Redis 配置、systemd 单元；
+  - `vps/app/runtime.py`：运行目录 / 权限 / 环境键 / Redis 连通性检查（仅标准库）；
+  - 配置新增 `LOG_DIR`，API 支持滚动文件日志；
+  - 文档：`docs/guides/deployment-baseline.md`、`deploy/README.md` 及索引 / 资源规划 / 排期同步；
+- **验证**：vps `pytest` 全绿（新增运行目录与部署资产用例）；`bash -n` 脚本校验；本机 `doctor.sh` 通过；
+- **遗留**：worker / beat 待 M1-05 同步链路就绪后启用；Ollama 模型选型属 M3-01。
+
+### 后续周期（规划）
+
+- REQ 下一阶段：按 `planning/roadmap.md` 里程碑 M1 起推进（资产同步闭环），迭代排期见 `planning/task-planning.md`；需求池见 `requirements/backlog.md`。

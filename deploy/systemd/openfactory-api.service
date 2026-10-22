@@ -1,0 +1,29 @@
+# OpenFactory VPS API（FastAPI / uvicorn）
+# 模板由 deploy/scripts/bootstrap-runtime.sh --install-units 渲染并安装。
+[Unit]
+Description=OpenFactory VPS API (FastAPI/uvicorn)
+Documentation=file://@APP_DIR@/deploy/README.md
+After=network-online.target openfactory-redis.service
+Wants=network-online.target openfactory-redis.service
+
+[Service]
+Type=simple
+User=@SERVICE_USER@
+Group=@SERVICE_USER@
+WorkingDirectory=@APP_DIR@/vps
+EnvironmentFile=@RUNTIME_DIR@/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=@APP_DIR@/vps/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+KillSignal=SIGINT
+MemoryMax=384M
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=@RUNTIME_DIR@
+
+[Install]
+WantedBy=multi-user.target
