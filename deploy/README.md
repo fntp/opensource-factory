@@ -101,6 +101,7 @@ journalctl -u openfactory-api -f         # 查看进程日志
 | `backup-all.sh` | SQLite 快照 + D1 导出 + 恢复演练汇总入口（cron） |
 | `backup-drill.sh` | 最新 SQLite 快照 / D1 导出恢复演练 |
 | `restore-sqlite.sh` | 受保护的 SQLite 恢复（默认拒绝覆盖，可停 / 起 systemd） |
+| `security-audit.sh` | 只读安全审计（密钥 / 依赖 / 配置 / 响应头 / 隐私），`--online` / `--strict` 可选（M5-08） |
 
 部署控制配置模板：`deploy/env/deploy.env.example`（复制到 `/opt/openfactory/deploy.env`，600）。
 首次使用前务必阅读 [正式部署手册](../docs/guides/production-deployment.md) 的 Q3 资源清单。

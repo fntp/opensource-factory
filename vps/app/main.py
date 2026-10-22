@@ -36,6 +36,7 @@ from app.config import get_settings
 from app.db import SessionLocal, init_db
 from app.local_ui import mount_local_ui
 from app.middleware.rate_limit import install_rate_limit_middleware
+from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.schemas import ReadyCheckOut
 from app.services import monitoring as monitoring_service
 
@@ -82,8 +83,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS：开发环境允许所有来源（生产可通过 CORS_ORIGINS 收紧）
-_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()] or ["*"]
+# CORS：默认仅本机管理后台 dev server；生产通过 CORS_ORIGINS 配置精确域名
+_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()] or ["http://localhost:5173"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
@@ -91,6 +92,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# M5-08 安全审计：补充浏览器侧基线响应头
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(tasks.router)
 app.include_router(notifications.router)

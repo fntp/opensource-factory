@@ -149,6 +149,7 @@ PRODUCTION_SCRIPTS = (
     "backup-all.sh",
     "backup-drill.sh",
     "restore-sqlite.sh",
+    "security-audit.sh",
 )
 
 

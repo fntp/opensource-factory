@@ -510,7 +510,9 @@ edge 侧 `/api/monitoring/overview` 需登录，`/api/internal/analytics` 供内
 - edge → vps 调用必须带 `X-Internal-Token`；vps 不直接对公网暴露业务接口；
 - 内部令牌支持双令牌轮换：`INTERNAL_TOKEN`（当前）+ `INTERNAL_TOKEN_PREVIOUS`（过渡期），两端均接受两枚，验证通过后清空过渡位；
 - 边缘接口按 auth / write / read 三类固定窗口限流；登录失败达到阈值后按 IP 锁定，身份只存 sha-256 哈希；
-- 所有密钥通过平台 secrets 注入，仓库内只有 `.env.example` 占位符；任何接口都不回显令牌明文，只提供 12 位指纹。
+- 所有密钥通过平台 secrets 注入，仓库内只有 `.env.example` 占位符；任何接口都不回显令牌明文，只提供 12 位指纹；
+- 响应头基线：edge 使用 `hono/secure-headers`，VPS 使用 `SecurityHeadersMiddleware`（nosniff / frame / referrer / permissions / COOP，认证路径 `Cache-Control: no-store`）；
+- 安全审计：`deploy/scripts/security-audit.sh`（`vps/app/security_audit.py`）只读扫描密钥泄露、依赖完整性 / 漏洞、配置基线、Cookie / 响应头与隐私边界，`--strict` 可作为 CI 门禁；清单见 [security-audit.md](../guides/security-audit.md)。
 
 ## 6. 部署拓扑
 

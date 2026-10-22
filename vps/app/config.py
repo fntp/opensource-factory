@@ -311,8 +311,8 @@ class Settings(BaseSettings):
         "uvicorn+app.main:app,celery+app.tasks.celery_app+worker,celery+beat,redis-server,ollama"
     )
 
-    # CORS（开发默认允许全部来源）
-    CORS_ORIGINS: str = "*"
+    # CORS（安全默认：仅本机管理后台 dev server；生产通过环境变量改为实际域名）
+    CORS_ORIGINS: str = "http://localhost:5173"
 
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),

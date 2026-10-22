@@ -28,6 +28,7 @@ vps/
 │   ├── schemas.py            # Pydantic 出入参模型
 │   ├── degradation.py        # 降级路径自检 CLI（python -m app.degradation check）
 │   ├── resource_budget.py    # 资源预算实测 CLI（python -m app.resource_budget check）
+│   ├── security_audit.py     # 安全审计 CLI（python -m app.security_audit；密钥 / 依赖 / 配置 / 隐私）
 │   ├── services/             # 业务逻辑（单一职责，可独立单测）
 │   │   ├── github_service.py     # GitHub REST v3 异步客户端（分页、README base64 解码）
 │   │   ├── trending_crawler.py   # GitHub Trending 解析/抓取 + Gitee 探索页（尽力而为）
@@ -115,6 +116,22 @@ deploy/scripts/doctor.sh --services          # 基线自检
 ```
 
 完整步骤与验收标准见 [docs/guides/deployment-baseline.md](../docs/guides/deployment-baseline.md)。
+
+## 安全审计
+
+只读审计 CLI，覆盖密钥泄露、依赖锁定 / 漏洞、CORS / 限流 / 内部令牌配置、Cookie 与响应头、隐私边界：
+
+```bash
+python -m app.security_audit --root ..            # 离线静态审计
+python -m app.security_audit --root .. --strict   # high / critical 退出码 1（CI 门禁）
+python -m app.security_audit --root .. --online   # 额外执行 npm audit / pip-audit
+```
+
+仓库根目录的 `deploy/scripts/security-audit.sh` 是等价入口。检查项、基线结果与遗留风险见
+[docs/guides/security-audit.md](../docs/guides/security-audit.md)。
+
+VPS API 默认挂载 `SecurityHeadersMiddleware`，为所有响应补充 nosniff / frame / referrer /
+permissions / COOP 头，认证路径额外返回 `Cache-Control: no-store`。
 
 ## 环境变量说明
 

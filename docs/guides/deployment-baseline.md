@@ -93,7 +93,7 @@ journalctl -u openfactory-worker -f
 | `DATABASE_URL` | `sqlite:///./data/...` | `sqlite:////opt/openfactory/data/...` |
 | `LOG_DIR` | 空（仅 stdout） | `/opt/openfactory/logs` |
 | `REDIS_URL` / `OLLAMA_BASE_URL` | `localhost` | `127.0.0.1`（避免 IPv6 解析歧义） |
-| `CORS_ORIGINS` | `*` | 实际管理后台域名（禁止 `*`） |
+| `CORS_ORIGINS` | `http://localhost:5173`（仅本地开发） | 实际管理后台域名（禁止 `*`） |
 | `INTERNAL_TOKEN` | 空（本地不鉴权） | bootstrap 自动生成 64 位十六进制 |
 
 ## 6. 首次部署步骤

@@ -8,6 +8,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
+import { secureHeaders } from 'hono/secure-headers';
 import type { Env, Variables } from './types';
 import { getSessionUser } from './auth';
 import authRoutes from './routes/auth';
@@ -41,6 +42,9 @@ import { recordSecurityEvent } from './security/login-guard.ts';
 import { normalizeRoute, recordRequestMetric, shouldRecordMetric } from './monitoring/metrics';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
+
+// 安全响应头（M5-08）：nosniff / frame / referrer / HSTS 等基线
+app.use('*', secureHeaders());
 
 // 请求日志
 app.use('*', logger());

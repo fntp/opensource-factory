@@ -21,6 +21,7 @@
 
 - 边缘侧只做 API 与会话；重算力（爬取、Embedding、推荐打分）在 VPS 节点。
 - 数据存储：Cloudflare D1（SQLite），schema 见 `migrations/`。
+- 所有响应经 `hono/secure-headers` 的 `secureHeaders()` 补充 nosniff / frame / referrer / HSTS 等安全头（M5-08）。
 
 ## 目录结构
 
