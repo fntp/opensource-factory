@@ -10,7 +10,15 @@
  * 权限：`my` 来源的结果只保留当前登录用户的行；`trending` 为全局数据。
  */
 import { Hono } from 'hono';
-import type { Env, RepoRow, SearchResponse, SearchResultItem, TrendingRow, Variables } from '../types';
+import type {
+  Env,
+  RepoRow,
+  SearchResponse,
+  SearchResultItem,
+  SearchUnderstanding,
+  TrendingRow,
+  Variables,
+} from '../types';
 import { all } from '../db';
 
 const search = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -19,6 +27,7 @@ const DEFAULT_TOP_K = 10;
 const MAX_TOP_K = 30;
 const MAX_QUERY_LENGTH = 200;
 const HYDRATE_CHUNK = 50;
+const MAX_KEYWORD_TERMS = 8;
 
 type Scope = 'my' | 'trending' | 'all';
 
@@ -27,6 +36,7 @@ interface VpsEmbedResponse {
   dim?: number;
   model?: string;
   backend?: string;
+  understanding?: SearchUnderstanding;
 }
 
 interface VpsHit {
@@ -40,6 +50,7 @@ interface VpsQueryResponse {
   model?: string;
   backend?: string;
   dim?: number;
+  understanding?: SearchUnderstanding;
 }
 
 interface Hit {
@@ -170,24 +181,44 @@ async function hydrate(
   return items;
 }
 
-/** D1 关键词兜底：当前用户的收藏 + 全局热榜。 */
+/** 关键词词表：原查询 + 查询理解扩展词，去重后限 8 个。 */
+function keywordTerms(query: string, understanding?: SearchUnderstanding): string[] {
+  const values = [query, ...(understanding?.keywordTerms ?? [])]
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return [...new Set(values)].slice(0, MAX_KEYWORD_TERMS);
+}
+
+/** 多词 OR LIKE：每个词在给定列上做一次 LIKE，词之间 OR。 */
+function likeFilter(columns: string[], terms: string[]): { sql: string; params: string[] } {
+  const groups = terms.map(
+    () => `(${columns.map((column) => `${column} LIKE ?`).join(' OR ')})`
+  );
+  const params = terms.flatMap((term) => columns.map(() => `%${term}%`));
+  return { sql: groups.join(' OR '), params };
+}
+
+/** D1 关键词兜底：当前用户的收藏 + 全局热榜；使用查询理解的扩展词提升召回。 */
 async function keywordSearch(
   env: Env,
   userId: string,
   query: string,
   scope: Scope,
-  limit: number
+  limit: number,
+  understanding?: SearchUnderstanding
 ): Promise<SearchResultItem[]> {
-  const like = `%${query}%`;
+  const terms = keywordTerms(query, understanding);
+  if (terms.length === 0) return [];
   const items: SearchResultItem[] = [];
 
   if (scope === 'my' || scope === 'all') {
+    const filter = likeFilter(['name', 'id', 'description', 'readme_summary'], terms);
     const rows = await all<RepoRow>(
       env.DB,
       `SELECT * FROM my_repositories
-        WHERE user_id = ? AND (name LIKE ? OR id LIKE ? OR description LIKE ? OR readme_summary LIKE ?)
+        WHERE user_id = ? AND (${filter.sql})
         ORDER BY stars DESC LIMIT ?`,
-      [userId, like, like, like, like, limit]
+      [userId, ...filter.params, limit]
     );
     for (const row of rows) {
       const hit = row.name.toLowerCase().includes(query.toLowerCase()) ? 0.6 : 0.4;
@@ -195,12 +226,13 @@ async function keywordSearch(
     }
   }
   if (scope === 'trending' || scope === 'all') {
+    const filter = likeFilter(['name', 'id', 'description', 'tech_stack'], terms);
     const rows = await all<TrendingRow>(
       env.DB,
       `SELECT * FROM trending_repositories
-        WHERE name LIKE ? OR id LIKE ? OR description LIKE ? OR tech_stack LIKE ?
+        WHERE ${filter.sql}
         ORDER BY stars_today DESC LIMIT ?`,
-      [like, like, like, like, limit]
+      [...filter.params, limit]
     );
     for (const row of rows) {
       const hit = row.name.toLowerCase().includes(query.toLowerCase()) ? 0.6 : 0.4;
@@ -229,10 +261,12 @@ search.post('/semantic', async (c) => {
   const topK = clampTopK(body.topK);
   const started = Date.now();
   const base = { query, scope, count: 0, tookMs: 0 } as const;
+  let understanding: SearchUnderstanding | undefined;
 
   // 1) Vectorize 优先
   if (c.env.VECTORIZE) {
     const embedded = await postVps<VpsEmbedResponse>(c.env, '/api/search/embed', { query });
+    understanding = embedded?.understanding;
     if (embedded?.vector?.length) {
       try {
         const result = await c.env.VECTORIZE.query(embedded.vector, {
@@ -260,6 +294,7 @@ search.post('/semantic', async (c) => {
             model: embedded.model ?? '',
             dim: embedded.dim ?? embedded.vector.length,
             items,
+            ...(understanding ? { understanding } : {}),
           } satisfies SearchResponse);
         }
       } catch (err) {
@@ -274,6 +309,7 @@ search.post('/semantic', async (c) => {
     topK: Math.min(50, topK * 3),
     scope,
   });
+  understanding = local?.understanding ?? understanding;
   if (local?.items?.length) {
     const hits: Hit[] = local.items
       .filter(
@@ -294,12 +330,13 @@ search.post('/semantic', async (c) => {
         model: local.model ?? '',
         dim: local.dim ?? 0,
         items,
+        ...(understanding ? { understanding } : {}),
       } satisfies SearchResponse);
     }
   }
 
   // 3) D1 关键词兜底
-  const items = await keywordSearch(c.env, user.id, query, scope, topK);
+  const items = await keywordSearch(c.env, user.id, query, scope, topK, understanding);
   return c.json({
     ...base,
     mode: 'keyword',
@@ -309,6 +346,7 @@ search.post('/semantic', async (c) => {
     model: '',
     dim: 0,
     items,
+    ...(understanding ? { understanding } : {}),
   } satisfies SearchResponse);
 });
 

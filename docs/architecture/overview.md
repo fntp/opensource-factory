@@ -98,18 +98,22 @@ Celery beat（每 30 分钟）或 POST /api/vector-index/sync
 可选 list + delete 清理孤儿（默认关闭）。
 ```
 
-### 3.7 语义搜索流（M3-04）
+### 3.7 语义搜索流（M3-04 / M3-10）
 
 ```
 admin 搜索页 POST /api/search/semantic（登录态）
-→ edge 调 VPS POST /api/search/embed 生成查询向量（X-Internal-Token）
+→ edge 调 VPS POST /api/search/embed（X-Internal-Token）
+   ↳ VPS 先做查询理解：同义词 / 技术栈词表扩展（expand=false 可关闭），返回 understanding
 → edge 通过 Vectorize 绑定做近邻检索（topK 放大后按 source / user 过滤）
 → edge 从 D1 水合（my 仅当前用户；trending 全局）→ 返回匹配度 + 项目元信息
 
 降级链：
 Vectorize 未绑定 / 查询失败 / 水合 0 条 → VPS POST /api/search/query（本地 repo_vectors 余弦）
-→ VPS 不可达 → edge D1 关键词 LIKE 检索（mode=keyword，页面仍可用）
+→ VPS 不可达 → edge D1 关键词 LIKE 检索（mode=keyword，使用 understanding.keywordTerms 多词 OR 召回）
 ```
+
+查询理解结果（`query` / `rewritten` / `techStack` / `concepts` / `terms` / `keywordTerms`）随搜索响应返回：
+admin 搜索页展示「查询理解」标签，edge 关键词兜底使用扩展词提升召回。
 
 ## 4. 接口边界
 
@@ -146,7 +150,8 @@ Vectorize 未绑定 / 查询失败 / 水合 0 条 → VPS POST /api/search/query
 | `/api/vectors/stats` | GET | 向量覆盖率与最近运行 |
 | `/api/vectors/runs/{runId}` | GET | 向量化运行详情 |
 | `/api/vectors/{source}/{repoId}` | GET | 单条仓库向量 |
-| `/api/search/embed` | POST | 查询向量化（供 edge 调用 Vectorize） |
+| `/api/search/understand` | POST | 查询理解：同义词 / 技术栈词表扩展（`query` / `expand`） |
+| `/api/search/embed` | POST | 查询理解 + 查询向量化（供 edge 调用 Vectorize） |
 | `/api/search/query` | POST | 本地向量余弦检索（未水合，Vectorize 降级路径） |
 | `/api/search/semantic` | POST | 本地检索 + 水合完整项目信息（调试 / CLI） |
 | `/api/search/status` | GET | 语义搜索可用性：向量覆盖率与最近运行 |

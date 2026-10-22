@@ -1,5 +1,5 @@
 import { apiFetch } from '@/lib/api'
-import type { SearchMode, SearchScope } from './utils'
+import type { SearchMode, SearchScope, SearchUnderstanding } from './utils'
 
 export interface SearchResultItem {
   id: string
@@ -24,6 +24,7 @@ export interface SearchResponse {
   model: string
   dim: number
   items: SearchResultItem[]
+  understanding?: SearchUnderstanding
 }
 
 export interface SearchRequest {

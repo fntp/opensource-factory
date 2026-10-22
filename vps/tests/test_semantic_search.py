@@ -204,6 +204,61 @@ def test_search_api_endpoints(db) -> None:
         assert bad_scope.status_code == 422
 
 
+def test_search_local_returns_query_understanding(db) -> None:
+    _seed(db)
+    result = search_local(db, "k8s 组件库", top_k=5)
+    understanding = result["understanding"]
+    assert understanding["expanded"] is True
+    assert "Kubernetes" in understanding["techStack"]
+    assert "组件库" in understanding["concepts"]
+    assert understanding["rewritten"].startswith("k8s 组件库")
+    assert "Kubernetes" in understanding["rewritten"]
+
+
+def test_search_local_can_disable_expansion(db) -> None:
+    _seed(db)
+    result = search_local(db, "k8s 组件库", expand=False)
+    assert result["understanding"]["expanded"] is False
+    assert result["understanding"]["rewritten"] == "k8s 组件库"
+
+
+def test_search_api_understand_and_expansion_flags(db) -> None:
+    _seed(db)
+    with TestClient(app) as client:
+        understood = client.post("/api/search/understand", json={"query": "k8s 部署"})
+        assert understood.status_code == 200
+        body = understood.json()
+        assert body["expanded"] is True
+        assert "Kubernetes" in body["techStack"]
+        assert body["rewritten"].startswith("k8s 部署")
+
+        embed = client.post("/api/search/embed", json={"query": "k8s 部署"})
+        assert embed.status_code == 200
+        assert embed.json()["understanding"]["expanded"] is True
+        assert "Kubernetes" in embed.json()["understanding"]["techStack"]
+
+        disabled = client.post(
+            "/api/search/embed", json={"query": "k8s 部署", "expand": False}
+        )
+        assert disabled.status_code == 200
+        assert disabled.json()["understanding"]["expanded"] is False
+        assert disabled.json()["understanding"]["rewritten"] == "k8s 部署"
+
+        semantic = client.post("/api/search/semantic", json={"query": "k8s 部署"})
+        assert semantic.status_code == 200
+        assert semantic.json()["understanding"]["expanded"] is True
+
+        empty = client.post("/api/search/understand", json={"query": "  "})
+        assert empty.status_code == 400  # 去空白后为空 → QueryUnderstandingError
+
+
+def test_search_status_reports_vocabulary(db) -> None:
+    _seed(db)
+    status = get_status(db)
+    assert status["vocabulary"]["techEntries"] >= 60
+    assert status["vocabulary"]["conceptEntries"] >= 50
+
+
 def test_search_api_requires_internal_token_when_configured(db, monkeypatch) -> None:
     import app.api.tasks as tasks_module
 

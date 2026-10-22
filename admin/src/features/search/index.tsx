@@ -31,6 +31,7 @@ import {
   modeLabel,
   normalizeQuery,
   scopeLabel,
+  understandingLabels,
   type SearchScope,
 } from './utils'
 
@@ -48,6 +49,7 @@ export function SemanticSearch() {
   const [result, setResult] = useState<SearchResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const understood = result ? understandingLabels(result.understanding) : []
 
   async function runSearch(rawQuery: string, nextScope: SearchScope = scope) {
     const normalized = normalizeQuery(rawQuery)
@@ -163,6 +165,17 @@ export function SemanticSearch() {
               {result.model ? ` · ${result.model}` : ''}
               {result.dim ? ` · ${result.dim} 维` : ''}
             </span>
+          </div>
+        )}
+
+        {understood.length > 0 && (
+          <div className='mb-4 flex flex-wrap items-center gap-2 text-xs'>
+            <span className='text-muted-foreground'>查询理解：</span>
+            {understood.map((label) => (
+              <Badge key={label} variant='outline'>
+                {label}
+              </Badge>
+            ))}
           </div>
         )}
 

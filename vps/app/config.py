@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     SEARCH_MIN_SCORE: float = 0.0
     # 本地全量余弦扫描的向量上限（超过后依赖 Vectorize）
     SEARCH_MAX_VECTORS: int = 50000
+    # 查询理解（M3-10）：同义词 / 技术栈词表扩展
+    SEARCH_QUERY_EXPANSION_ENABLED: bool = True
+    SEARCH_QUERY_EXPANSION_MAX_TERMS: int = 12
 
     # 内部接口鉴权（设置后 /api/tasks/* 校验 X-Internal-Token）
     INTERNAL_TOKEN: str = ""

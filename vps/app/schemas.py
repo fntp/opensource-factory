@@ -212,6 +212,20 @@ class SearchQuery(BaseModel):
     topK: Optional[int] = Field(default=None, ge=1, le=50, description="返回条数（默认 10，最大 50）")
     scope: Literal["my", "trending", "all"] = "all"
     minScore: Optional[float] = Field(default=None, ge=-1.0, le=1.0, description="最低余弦相似度")
+    expand: bool = Field(default=True, description="是否启用同义词 / 技术栈词表扩展")
+
+
+class SearchUnderstandingOut(BaseModel):
+    """查询理解结果（同义词 / 技术栈词表）。"""
+
+    query: str
+    rewritten: str
+    expanded: bool
+    techStack: list[str]
+    concepts: list[str]
+    terms: list[str]
+    keywordTerms: list[str]
+    maxTerms: int
 
 
 class SearchEmbedResponse(BaseModel):
@@ -221,6 +235,7 @@ class SearchEmbedResponse(BaseModel):
     dim: int
     model: str
     backend: str
+    understanding: SearchUnderstandingOut
 
 
 class SearchHitOut(BaseModel):
@@ -243,6 +258,7 @@ class SearchQueryResponse(BaseModel):
     backend: str
     dim: int
     scanned: int
+    understanding: SearchUnderstandingOut
     items: list[SearchHitOut]
 
 
@@ -272,6 +288,7 @@ class SearchSemanticResponse(BaseModel):
     backend: str
     dim: int
     scanned: int
+    understanding: SearchUnderstandingOut
     items: list[SearchItem]
 
 
@@ -282,4 +299,5 @@ class SearchStatusResponse(BaseModel):
     bySource: dict[str, int]
     byModel: list[VectorModelStats]
     dimensions: list[int]
+    vocabulary: dict[str, int]
     latestRuns: list[VectorRunOut]

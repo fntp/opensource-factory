@@ -44,7 +44,7 @@ edge/
         ├── categories.ts # /api/categories
         ├── dashboard.ts  # /api/dashboard/stats
         ├── sync.ts       # /api/sync
-        ├── search.ts     # /api/search/semantic（Vectorize → 本地向量 → 关键词三级降级）
+        ├── search.ts     # /api/search/semantic（查询理解 + Vectorize → 本地向量 → 关键词三级降级）
         └── internal-vectors.ts # /api/internal/vectors/*（VPS → Vectorize，X-Internal-Token）
 ```
 
@@ -143,7 +143,7 @@ npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FR
 | `GET /api/categories` | `CategoriesPayload` |
 | `GET /api/dashboard/stats` | `DashboardStats` |
 | `POST /api/sync` | 202 `{"status":"queued"}`（已配置 VPS）或 `{"status":"accepted","note":"vps node not configured"}` |
-| `POST /api/search/semantic` | `SearchResponse`：body `{query, topK?, scope?}`；mode 为 `vectorize` / `local` / `keyword`；`my` 结果仅当前用户 |
+| `POST /api/search/semantic` | `SearchResponse`：body `{query, topK?, scope?}`；mode 为 `vectorize` / `local` / `keyword`；`my` 结果仅当前用户；响应可带 `understanding`（查询理解结果），关键词兜底用其扩展词做多词 OR LIKE |
 | `GET /healthz` | `{"status":"ok"}` |
 
 JSON 形状（前端契约，勿改字段名）：
