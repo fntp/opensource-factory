@@ -25,6 +25,11 @@ from app.config import Settings, get_settings
 from app.models import Category, MyRepository, Recommendation, RepoVector, TrendingRepository, User
 from app.services.embedding import EmbeddingService, get_embedding_service
 from app.services.recommend_reason import build_reason_detail, build_user_profile
+from app.services.recommendation_feedback import (
+    fetch_feedback,
+    merge_exclusions,
+    push_recommendations,
+)
 from app.services.recommender import (
     Candidate,
     build_profile_vector,
@@ -290,8 +295,10 @@ def generate_for_user(
         )
 
     collected_ids = set(db.execute(select(MyRepository.id)).scalars().all())
+    feedback = fetch_feedback(db, user_id, settings=config)
+    exclusions = merge_exclusions(collected_ids, feedback.excluded_repo_ids)
     candidates, excluded_collected = _load_candidates(
-        db, collected_ids, effective_candidate_limit
+        db, exclusions, effective_candidate_limit
     )
     if not candidates:
         return _skipped(
@@ -383,11 +390,12 @@ def generate_for_user(
     for row in existing_rows:
         if row.status != "new":
             continue
-        if row.repo_id in collected_ids or row.repo_id not in selected_ids:
+        if row.repo_id in exclusions or row.repo_id not in selected_ids:
             row.status = "expired"
             expired += 1
 
     db.commit()
+    pushed = push_recommendations(db, user_id, settings=config) if config.RECOMMEND_FEEDBACK_SYNC else 0
     return {
         "userId": user_id,
         "status": "ok",
@@ -402,6 +410,9 @@ def generate_for_user(
         "profileSize": len(profile_vectors),
         "minScore": round(effective_min_score, 4),
         "topK": effective_top_k,
+        "feedbackExcluded": len(feedback.excluded_repo_ids),
+        "feedbackSource": feedback.source,
+        "pushed": pushed,
     }
 
 

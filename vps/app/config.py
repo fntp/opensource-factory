@@ -91,7 +91,6 @@ class Settings(BaseSettings):
     # 本地全量余弦扫描的向量上限（超过后依赖 Vectorize）
     SEARCH_MAX_VECTORS: int = 50000
 
-    # 内部接口鉴权（设置后 /api/tasks/*、/api/vector-index/*、/api/search/* 校验 X-Internal-Token）
     # 推荐生成（M3-05）
     # 最终得分最低阈值（0~1）：相似度 × 权重 + 热榜热度 × 权重
     RECOMMEND_MIN_SCORE: float = 0.30
@@ -102,8 +101,10 @@ class Settings(BaseSettings):
     # 相似度 / 热榜热度权重（均为 0 时退化为纯相似度）
     RECOMMEND_SIMILARITY_WEIGHT: float = 0.8
     RECOMMEND_TRENDING_WEIGHT: float = 0.2
+    # 推荐反馈回流（M3-07）：生成前拉取 edge 反馈、生成后回写 D1
+    RECOMMEND_FEEDBACK_SYNC: bool = True
 
-    # 内部接口鉴权（设置后 /api/tasks/* 校验 X-Internal-Token）
+    # 内部接口鉴权（设置后 /api/tasks/*、/api/vector-index/*、/api/search/* 校验 X-Internal-Token）
     INTERNAL_TOKEN: str = ""
 
     # Celery

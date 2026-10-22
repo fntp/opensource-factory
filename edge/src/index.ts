@@ -19,6 +19,7 @@ import syncRoutes from './routes/sync';
 import internalTrendingRoutes from './routes/internal-trending';
 import searchRoutes from './routes/search';
 import internalVectorsRoutes from './routes/internal-vectors';
+import internalRecommendationsRoutes from './routes/internal-recommendations';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -57,6 +58,7 @@ app.route('/api/sync', syncRoutes);
 app.route('/api/internal/trending', internalTrendingRoutes);
 app.route('/api/search', searchRoutes);
 app.route('/api/internal/vectors', internalVectorsRoutes);
+app.route('/api/internal/recommendations', internalRecommendationsRoutes);
 
 // 404
 app.notFound((c) =>

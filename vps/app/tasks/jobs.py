@@ -464,6 +464,10 @@ def generate_recommendations(
     from app.services.recommendation_service import generate_daily_recommendations
 
     db = SessionLocal()
+    target_users: list[str] = []
+    created = 0
+    pushed: dict[str, int] = {}
+    feedback_excluded: dict[str, int] = {}
     try:
         result = generate_daily_recommendations(
             db,
@@ -534,6 +538,10 @@ def regenerate_recommendation_reasons(
             row.based_on = detail.based_on_json
             updated += 1
         db.commit()
+
+        # 回写 edge D1（推荐页读取）；失败只记日志
+        for uid in target_users:
+            pushed[uid] = push_recommendations(db, uid)
     finally:
         db.close()
 

@@ -122,6 +122,7 @@ export interface FavoriteResult {
 export interface RecommendationRow {
   id: string;
   user_id: string | null;
+  repo_id: string | null;
   owner: string | null;
   name: string | null;
   description: string | null;
@@ -133,6 +134,19 @@ export interface RecommendationRow {
   url: string | null;
   status: string | null;
   created_at: string | null;
+  updated_at: string | null;
+}
+
+export type RecommendationFeedbackAction = 'saved' | 'dismissed' | 'clicked';
+
+export interface RecommendationFeedbackRow {
+  id: string;
+  user_id: string;
+  recommendation_id: string;
+  repo_id: string;
+  action: RecommendationFeedbackAction;
+  reason: string | null;
+  created_at: string;
 }
 
 export interface CategoryRow {
@@ -210,6 +224,7 @@ export interface TrendingRepo {
 /** GET /api/recommendations 列表项 */
 export interface Recommendation {
   id: string;
+  repoId: string | null;
   owner: string | null;
   name: string | null;
   description: string | null;
@@ -219,6 +234,17 @@ export interface Recommendation {
   reason: string | null;
   basedOn: string[];
   url: string | null;
+  status: string;
+  createdAt: string | null;
+}
+
+/** GET /api/recommendations/stats 计数 */
+export interface RecommendationStats {
+  new: number;
+  saved: number;
+  dismissed: number;
+  pushed: number;
+  clicked: number;
 }
 
 /** GET /api/categories */

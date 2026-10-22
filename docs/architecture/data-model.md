@@ -145,18 +145,34 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | --- | --- |
 | id TEXT PK | 推荐 id |
 | user_id | 目标用户（NULL = 全局） |
+| repo_id TEXT | 稳定仓库 id（`owner/name`，M3-07 起） |
 | owner / name / description / language / stars / url | 推荐项目快照 |
 | score REAL | 综合得分 0~1（相似度 × 0.8 + 热榜热度 × 0.2） |
 | reason TEXT | 推荐理由（中文） |
 | based_on TEXT | 依据（JSON 数组，如 `["AI/LLM","Python"]`） |
 | status TEXT | `new` / `saved` / `dismissed` / `pushed` / `expired`（VPS 每日任务未入选或已收藏） |
-| created_at | 生成时间 |
+| created_at / updated_at | 生成 / 状态更新时间 |
+
+### 3.6 `recommendation_feedback` 推荐反馈（M3-07）
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | 反馈 id |
+| user_id | 反馈用户 |
+| recommendation_id | 关联推荐 id |
+| repo_id TEXT | 稳定仓库 id（`owner/name`） |
+| action TEXT | `saved` / `dismissed` / `clicked` |
+| reason TEXT | 忽略原因（仅 dismissed，≤200 字） |
+| created_at | 反馈时间 |
+
+唯一索引 `(user_id, recommendation_id, action)` 保证重复点击幂等；另按
+`(user_id, created_at)`、`(user_id, repo_id)` 建索引，供 VPS 拉取反馈与排除候选。
 
 > 本地 VPS 镜像同样保留 `reason` / `based_on`：`based_on` 为 JSON 数组字符串
 > （如 `["相似度 87%","语言 Python","技术栈 FastAPI"]`），旧 SQLite 库由 `init_db()` 幂等补列；
 > 生成逻辑见 `vps/app/services/recommend_reason.py`（纯规则，不调用 LLM）。
 
-### 3.6 `crawl_alerts` / `crawl_page_stats` 抓取告警（VPS 本地表）
+### 3.7 `crawl_alerts` / `crawl_page_stats` 抓取告警（VPS 本地表）
 
 > 仅存在于 VPS 本地镜像库，不进入 D1；用于热榜抓取的容错基线与值班告警。
 
@@ -197,6 +213,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | summary_quality_samples | `(batch_id)`、唯一 `(batch_id, repo_source, repo_id)` | 抽检批次查询与去重 |
 | recommendations | `(user_id, score DESC)` | 推荐列表 |
 | crawl_alerts | `(dedupe_key)`、`(status)` | 告警去重与未确认列表 |
+| recommendation_feedback | `(user_id, recommendation_id, action)` UNIQUE、`(user_id, created_at)`、`(user_id, repo_id)` | 反馈幂等 / 回流查询 |
 
 ## 5. 向量数据（M3）
 

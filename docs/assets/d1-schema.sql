@@ -88,6 +88,7 @@ CREATE TABLE repo_tags (
 CREATE TABLE recommendations (
     id TEXT PRIMARY KEY,
     user_id TEXT,                    -- NULL 表示全局推荐
+    repo_id TEXT,                    -- owner/name（REQ-202610-0925）
     owner TEXT,
     name TEXT,
     description TEXT,
@@ -97,7 +98,19 @@ CREATE TABLE recommendations (
     reason TEXT,
     based_on TEXT,                   -- JSON 数组字符串，如 '["tag:ai","lang:ts"]'
     url TEXT,
-    status TEXT DEFAULT 'new',       -- new / saved / dismissed ...
+    status TEXT DEFAULT 'new',       -- new / saved / dismissed / pushed
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME
+);
+
+-- 推荐反馈明细（收藏 / 忽略 / 点击），(user_id, recommendation_id, action) 唯一
+CREATE TABLE recommendation_feedback (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    recommendation_id TEXT NOT NULL,
+    repo_id TEXT NOT NULL,
+    action TEXT NOT NULL CHECK (action IN ('saved', 'dismissed', 'clicked')),
+    reason TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -141,3 +154,9 @@ CREATE INDEX idx_sessions_expires_at ON sessions (expires_at);
 CREATE INDEX idx_recommendations_user_id ON recommendations (user_id);
 CREATE INDEX idx_recommendations_score ON recommendations (score DESC);
 CREATE INDEX idx_repo_tags_tag_id ON repo_tags (tag_id);
+CREATE UNIQUE INDEX idx_recommendation_feedback_unique
+    ON recommendation_feedback (user_id, recommendation_id, action);
+CREATE INDEX idx_recommendation_feedback_user_time
+    ON recommendation_feedback (user_id, created_at DESC);
+CREATE INDEX idx_recommendation_feedback_user_repo
+    ON recommendation_feedback (user_id, repo_id);

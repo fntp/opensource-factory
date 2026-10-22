@@ -219,6 +219,15 @@ DashboardStats  { totalRepos, trendingToday, pendingRecommendations, categoryCou
 | `GET /api/internal/vectors/stats` | 索引统计 |
 | `GET /api/internal/vectors/list?count=&cursor=` | 分页列出 ID；绑定不支持时返回 501（VPS 对账自动降级） |
 
+### 内部推荐接口（VPS → D1，M3-07）
+
+同样要求 `X-Internal-Token`（未配置 503 / 不匹配 401）：
+
+| 方法/路径 | 说明 |
+| --- | --- |
+| `POST /api/internal/recommendations/upsert` | body `{userId, items: [...]}`，≤500 条；按 id upsert，`saved` / `dismissed` 状态不被生成任务覆盖 |
+| `GET /api/internal/recommendations/feedback?userId=` | 返回 `{savedRepoIds, dismissedRepoIds, clickedRepoIds}`，合并反馈表与推荐状态 |
+
 ### 会话与安全
 
 - 会话 token 为 32 字节随机值，D1 中仅存 sha-256 摘要；有效期 30 天。
