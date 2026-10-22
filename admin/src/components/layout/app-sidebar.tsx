@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query'
 import { useLayout } from '@/context/layout-provider'
 import {
   Sidebar,
@@ -6,6 +7,7 @@ import {
   SidebarHeader,
   SidebarRail,
 } from '@/components/ui/sidebar'
+import { fetchUnreadCount, formatUnreadBadge } from '@/features/notifications/api'
 import { useAuthStore } from '@/stores/auth-store'
 import { sidebarData } from './data/sidebar-data'
 import { NavGroup } from './nav-group'
@@ -17,13 +19,30 @@ export function AppSidebar() {
   const { auth } = useAuthStore()
   const user = auth.user
 
+  const { data: unreadData } = useQuery({
+    queryKey: ['notifications', 'unread-count'],
+    queryFn: fetchUnreadCount,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  })
+  const unreadBadge = formatUnreadBadge(unreadData?.unread ?? 0)
+
+  const navGroups = sidebarData.navGroups.map((group) => ({
+    ...group,
+    items: group.items.map((item) =>
+      item.url === '/notifications'
+        ? { ...item, badge: unreadBadge ?? undefined }
+        : item
+    ),
+  }))
+
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
       <SidebarHeader>
         <AppTitle />
       </SidebarHeader>
       <SidebarContent>
-        {sidebarData.navGroups.map((props) => (
+        {navGroups.map((props) => (
           <NavGroup key={props.title} {...props} />
         ))}
       </SidebarContent>

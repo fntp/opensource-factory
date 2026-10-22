@@ -19,15 +19,21 @@ import { Route as errors503RouteImport } from './routes/(errors)/503'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings/route'
 import { Route as AuthenticatedCategoriesIndexRouteImport } from './routes/_authenticated/categories/index'
+import { Route as AuthenticatedCategorySuggestionsIndexRouteImport } from './routes/_authenticated/category-suggestions/index'
+import { Route as AuthenticatedDuplicatesIndexRouteImport } from './routes/_authenticated/duplicates/index'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
+import { Route as AuthenticatedMonitoringIndexRouteImport } from './routes/_authenticated/monitoring/index'
+import { Route as AuthenticatedNotificationsIndexRouteImport } from './routes/_authenticated/notifications/index'
 import { Route as AuthenticatedRecommendIndexRouteImport } from './routes/_authenticated/recommend/index'
 import { Route as AuthenticatedReposIndexRouteImport } from './routes/_authenticated/repos/index'
+import { Route as AuthenticatedSearchIndexRouteImport } from './routes/_authenticated/search/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_authenticated/settings/account'
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
 import { Route as AuthenticatedSettingsDisplayRouteImport } from './routes/_authenticated/settings/display'
 import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings/notifications'
 import { Route as AuthenticatedTrendingIndexRouteImport } from './routes/_authenticated/trending/index'
+import { Route as AuthenticatedTrendingOwnerNameRouteImport } from './routes/_authenticated/trending/$owner/$name'
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
@@ -80,10 +86,34 @@ const AuthenticatedCategoriesIndexRoute =
     path: '/categories/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedCategorySuggestionsIndexRoute =
+  AuthenticatedCategorySuggestionsIndexRouteImport.update({
+    id: '/category-suggestions/',
+    path: '/category-suggestions/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedDuplicatesIndexRoute =
+  AuthenticatedDuplicatesIndexRouteImport.update({
+    id: '/duplicates/',
+    path: '/duplicates/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedErrorsErrorRoute =
   AuthenticatedErrorsErrorRouteImport.update({
     id: '/errors/$error',
     path: '/errors/$error',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedMonitoringIndexRoute =
+  AuthenticatedMonitoringIndexRouteImport.update({
+    id: '/monitoring/',
+    path: '/monitoring/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedNotificationsIndexRoute =
+  AuthenticatedNotificationsIndexRouteImport.update({
+    id: '/notifications/',
+    path: '/notifications/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedRecommendIndexRoute =
@@ -97,6 +127,12 @@ const AuthenticatedReposIndexRoute = AuthenticatedReposIndexRouteImport.update({
   path: '/repos/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedSearchIndexRoute =
+  AuthenticatedSearchIndexRouteImport.update({
+    id: '/search/',
+    path: '/search/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSettingsIndexRoute =
   AuthenticatedSettingsIndexRouteImport.update({
     id: '/',
@@ -133,6 +169,12 @@ const AuthenticatedTrendingIndexRoute =
     path: '/trending/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedTrendingOwnerNameRoute =
+  AuthenticatedTrendingOwnerNameRouteImport.update({
+    id: '/trending/$owner/$name',
+    path: '/trending/$owner/$name',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -149,10 +191,16 @@ export interface FileRoutesByFullPath {
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/categories/': typeof AuthenticatedCategoriesIndexRoute
+  '/category-suggestions/': typeof AuthenticatedCategorySuggestionsIndexRoute
+  '/duplicates/': typeof AuthenticatedDuplicatesIndexRoute
+  '/monitoring/': typeof AuthenticatedMonitoringIndexRoute
+  '/notifications/': typeof AuthenticatedNotificationsIndexRoute
   '/recommend/': typeof AuthenticatedRecommendIndexRoute
   '/repos/': typeof AuthenticatedReposIndexRoute
+  '/search/': typeof AuthenticatedSearchIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/trending/': typeof AuthenticatedTrendingIndexRoute
+  '/trending/$owner/$name': typeof AuthenticatedTrendingOwnerNameRoute
 }
 export interface FileRoutesByTo {
   '/sign-in': typeof authSignInRoute
@@ -168,10 +216,16 @@ export interface FileRoutesByTo {
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/categories': typeof AuthenticatedCategoriesIndexRoute
+  '/category-suggestions': typeof AuthenticatedCategorySuggestionsIndexRoute
+  '/duplicates': typeof AuthenticatedDuplicatesIndexRoute
+  '/monitoring': typeof AuthenticatedMonitoringIndexRoute
+  '/notifications': typeof AuthenticatedNotificationsIndexRoute
   '/recommend': typeof AuthenticatedRecommendIndexRoute
   '/repos': typeof AuthenticatedReposIndexRoute
+  '/search': typeof AuthenticatedSearchIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/trending': typeof AuthenticatedTrendingIndexRoute
+  '/trending/$owner/$name': typeof AuthenticatedTrendingOwnerNameRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -190,10 +244,16 @@ export interface FileRoutesById {
   '/_authenticated/settings/display': typeof AuthenticatedSettingsDisplayRoute
   '/_authenticated/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/_authenticated/categories/': typeof AuthenticatedCategoriesIndexRoute
+  '/_authenticated/category-suggestions/': typeof AuthenticatedCategorySuggestionsIndexRoute
+  '/_authenticated/duplicates/': typeof AuthenticatedDuplicatesIndexRoute
+  '/_authenticated/monitoring/': typeof AuthenticatedMonitoringIndexRoute
+  '/_authenticated/notifications/': typeof AuthenticatedNotificationsIndexRoute
   '/_authenticated/recommend/': typeof AuthenticatedRecommendIndexRoute
   '/_authenticated/repos/': typeof AuthenticatedReposIndexRoute
+  '/_authenticated/search/': typeof AuthenticatedSearchIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/trending/': typeof AuthenticatedTrendingIndexRoute
+  '/_authenticated/trending/$owner/$name': typeof AuthenticatedTrendingOwnerNameRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -212,10 +272,16 @@ export interface FileRouteTypes {
     | '/settings/display'
     | '/settings/notifications'
     | '/categories/'
+    | '/category-suggestions/'
+    | '/duplicates/'
+    | '/monitoring/'
+    | '/notifications/'
     | '/recommend/'
     | '/repos/'
+    | '/search/'
     | '/settings/'
     | '/trending/'
+    | '/trending/$owner/$name'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/sign-in'
@@ -231,10 +297,16 @@ export interface FileRouteTypes {
     | '/settings/display'
     | '/settings/notifications'
     | '/categories'
+    | '/category-suggestions'
+    | '/duplicates'
+    | '/monitoring'
+    | '/notifications'
     | '/recommend'
     | '/repos'
+    | '/search'
     | '/settings'
     | '/trending'
+    | '/trending/$owner/$name'
   id:
     | '__root__'
     | '/_authenticated'
@@ -252,10 +324,16 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/display'
     | '/_authenticated/settings/notifications'
     | '/_authenticated/categories/'
+    | '/_authenticated/category-suggestions/'
+    | '/_authenticated/duplicates/'
+    | '/_authenticated/monitoring/'
+    | '/_authenticated/notifications/'
     | '/_authenticated/recommend/'
     | '/_authenticated/repos/'
+    | '/_authenticated/search/'
     | '/_authenticated/settings/'
     | '/_authenticated/trending/'
+    | '/_authenticated/trending/$owner/$name'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -340,11 +418,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCategoriesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/category-suggestions/': {
+      id: '/_authenticated/category-suggestions/'
+      path: '/category-suggestions'
+      fullPath: '/category-suggestions/'
+      preLoaderRoute: typeof AuthenticatedCategorySuggestionsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/duplicates/': {
+      id: '/_authenticated/duplicates/'
+      path: '/duplicates'
+      fullPath: '/duplicates/'
+      preLoaderRoute: typeof AuthenticatedDuplicatesIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/errors/$error': {
       id: '/_authenticated/errors/$error'
       path: '/errors/$error'
       fullPath: '/errors/$error'
       preLoaderRoute: typeof AuthenticatedErrorsErrorRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/monitoring/': {
+      id: '/_authenticated/monitoring/'
+      path: '/monitoring'
+      fullPath: '/monitoring/'
+      preLoaderRoute: typeof AuthenticatedMonitoringIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/notifications/': {
+      id: '/_authenticated/notifications/'
+      path: '/notifications'
+      fullPath: '/notifications/'
+      preLoaderRoute: typeof AuthenticatedNotificationsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/recommend/': {
@@ -359,6 +465,13 @@ declare module '@tanstack/react-router' {
       path: '/repos'
       fullPath: '/repos/'
       preLoaderRoute: typeof AuthenticatedReposIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/search/': {
+      id: '/_authenticated/search/'
+      path: '/search'
+      fullPath: '/search/'
+      preLoaderRoute: typeof AuthenticatedSearchIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/settings/': {
@@ -403,6 +516,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTrendingIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/trending/$owner/$name': {
+      id: '/_authenticated/trending/$owner/$name'
+      path: '/trending/$owner/$name'
+      fullPath: '/trending/$owner/$name'
+      preLoaderRoute: typeof AuthenticatedTrendingOwnerNameRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -434,9 +554,15 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedCategoriesIndexRoute: typeof AuthenticatedCategoriesIndexRoute
+  AuthenticatedCategorySuggestionsIndexRoute: typeof AuthenticatedCategorySuggestionsIndexRoute
+  AuthenticatedDuplicatesIndexRoute: typeof AuthenticatedDuplicatesIndexRoute
+  AuthenticatedMonitoringIndexRoute: typeof AuthenticatedMonitoringIndexRoute
+  AuthenticatedNotificationsIndexRoute: typeof AuthenticatedNotificationsIndexRoute
   AuthenticatedRecommendIndexRoute: typeof AuthenticatedRecommendIndexRoute
   AuthenticatedReposIndexRoute: typeof AuthenticatedReposIndexRoute
+  AuthenticatedSearchIndexRoute: typeof AuthenticatedSearchIndexRoute
   AuthenticatedTrendingIndexRoute: typeof AuthenticatedTrendingIndexRoute
+  AuthenticatedTrendingOwnerNameRoute: typeof AuthenticatedTrendingOwnerNameRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -444,9 +570,16 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedCategoriesIndexRoute: AuthenticatedCategoriesIndexRoute,
+  AuthenticatedCategorySuggestionsIndexRoute:
+    AuthenticatedCategorySuggestionsIndexRoute,
+  AuthenticatedDuplicatesIndexRoute: AuthenticatedDuplicatesIndexRoute,
+  AuthenticatedMonitoringIndexRoute: AuthenticatedMonitoringIndexRoute,
+  AuthenticatedNotificationsIndexRoute: AuthenticatedNotificationsIndexRoute,
   AuthenticatedRecommendIndexRoute: AuthenticatedRecommendIndexRoute,
   AuthenticatedReposIndexRoute: AuthenticatedReposIndexRoute,
+  AuthenticatedSearchIndexRoute: AuthenticatedSearchIndexRoute,
   AuthenticatedTrendingIndexRoute: AuthenticatedTrendingIndexRoute,
+  AuthenticatedTrendingOwnerNameRoute: AuthenticatedTrendingOwnerNameRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

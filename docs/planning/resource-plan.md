@@ -37,7 +37,8 @@
 | LLM 备选 | deepseek-r1:1.5b（q4） | ~1.4 GB | ~1.1 GB | 推理型，较慢 |
 | 超预算（不默认） | qwen2.5:7b / deepseek-r1:7b（q4） | ~4.7 GB | ~4.7 GB | ❌ 超 2G，仅按需人工启用 |
 
-- **已知调整**：`vps/.env.example` 当前默认 `OLLAMA_MODEL=qwen2.5:7b` 超出预算，需在 M3-01 切换为 ≤2B 量化模型并更新模板；
+- **M3-01 选型结论（2026-10-22）**：默认切换为 `BAAI/bge-m3`（int8，约 1.1G）+ `qwen2.5:1.5b-instruct-q4_K_M`（约 1.3G）；旧默认 `qwen2.5:7b`（约 4.7G）不再默认启用；
+- **预算校验**：`cd vps && .venv/bin/python -m app.model_budget check`（`--probe` 读取 Ollama `/api/ps`）；`deploy/scripts/doctor.sh` 已纳入同一检查；
 - **调度**：Embedding 批量任务与摘要任务分队列串行；Ollama `keep_alive` 缩短（如 2m），空闲即卸载；
 - **降级链**：模型不可用 / 超预算 → hash 兜底向量、截断摘要（沿用现有降级路径，M3-09 验证）。
 
@@ -49,7 +50,7 @@
 | 仓库与依赖 | 2.0 GB | 源码 + admin/edge node_modules + vps venv（轻量，不含 torch） |
 | 数据（SQLite 镜像 / 缓存） | 2.0 GB | 定期 VACUUM / 归档；增长监控 |
 | 日志 | 1.0 GB | 轮转保留 14 天 |
-| 备份 | 3.0 GB | D1 导出 + SQLite 快照，保留最近 7 份 |
+| 备份 | 3.0 GB | D1 导出 + SQLite 快照，保留最近 7 份；M5-04 已按 `BACKUP_MAX_TOTAL_MB=3072` 强制清理 |
 | 余量 | 3.0 GB | 构建 / 临时文件 / 系统缓冲 |
 | **合计** | **15.0 GB** | 超限告警（M5-03） |
 
@@ -59,7 +60,7 @@
 
 - **目标**：项目部署并运行于本机（唯一运行环境）；
 - **进程清单**（本机）：`vps-api`、`vps-worker`、`vps-beat`、`redis`、`ollama`、`caddy`（静态托管，可选）；
-- **运行目录（建议）**：`/opt/openfactory/`（`.env`、`data/`、`logs/`、`backups/`；仅本机、不进仓库）；
+- **运行目录**：`/opt/openfactory/`（`.env`、`etc/redis.conf`、`data/`、`logs/`、`backups/`、`run/`；仅本机、不进仓库），基线见 [deployment-baseline.md](../guides/deployment-baseline.md)；
 - **云侧组件**：Cloudflare Pages / Workers / D1 / Vectorize（免费额度内）不占本机资源；是否完全本机化见 [Q9](../requirements/open-questions.md)。
 
 ### 5.2 配置文件分级（公开 / 私有）
@@ -80,6 +81,11 @@
 
 ## 6. 预算验证与监控
 
-- **验证计划**：M5-06 按本表实测核对（进程 RSS / 磁盘占用 / 模型驻留），超限即优化（降并发、换更小模型、清理策略）；
+- **验证工具（M5-06，2026-10-22）**：`deploy/scripts/resource-budget.sh`（等价
+  `cd vps && python -m app.resource_budget check`）只读采集 systemd RSS / 模型峰值 / 磁盘分项，
+  按 4G / 15G 红线与 3.5G / 13G 预警判定，超限输出优化建议；
+- **实测基线**：2026-10-22 本机内存峰值 1359.2 / 4096 MB（33.2%）、磁盘 106.2 / 15360 MB（0.7%），
+  PASS；运行配置曾残留 `qwen2.5:7b`（4700 MB）导致超限，已切回 `qwen2.5:1.5b-instruct-q4_K_M`
+  并复测通过，详见 [resource-budget-verification.md](../guides/resource-budget-verification.md)；
 - **日常监控**：M5-03 资源红线告警（内存 > 3.5G、磁盘 > 13G 预警）；
 - **关联问题**：Q3（Cloudflare 资源信息）、Q9（部署口径与边缘去留）。

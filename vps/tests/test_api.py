@@ -28,6 +28,30 @@ def test_tasks_sync_eager_returns_202_with_task_id() -> None:
     assert body.get("taskId")
 
 
+def test_tasks_summarize_eager_returns_202_with_task_id() -> None:
+    with TestClient(app) as client:
+        resp = client.post("/api/tasks/summarize")
+    assert resp.status_code == 202
+    assert resp.json().get("taskId")
+
+
+def test_tasks_summarize_accepts_source_param() -> None:
+    with TestClient(app) as client:
+        for source in ("my", "trending", "all"):
+            resp = client.post("/api/tasks/summarize", params={"source": source})
+            assert resp.status_code == 202
+            assert resp.json().get("taskId")
+        invalid = client.post("/api/tasks/summarize", params={"source": "unknown"})
+    assert invalid.status_code == 422
+
+
+def test_trending_summarize_endpoint_returns_202() -> None:
+    with TestClient(app) as client:
+        resp = client.post("/api/trending/summarize", params={"limit": 10})
+    assert resp.status_code == 202
+    assert resp.json().get("taskId")
+
+
 def test_repos_list_returns_200() -> None:
     with TestClient(app) as client:
         resp = client.get("/api/repos")
@@ -42,13 +66,32 @@ def test_trending_list_returns_200() -> None:
     assert isinstance(resp.json(), list)
 
 
+def test_generate_recommendations_accepts_min_score() -> None:
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/tasks/generate-recommendations",
+            params={"top_k": 5, "min_score": 0.5},
+        )
+    assert resp.status_code == 202
+    assert resp.json().get("taskId")
+
+
+def test_generate_recommendations_rejects_invalid_min_score() -> None:
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/tasks/generate-recommendations",
+            params={"min_score": 1.5},
+        )
+    assert resp.status_code == 422
+
+
 def test_internal_token_enforced_when_configured(monkeypatch) -> None:
-    import app.api.tasks as tasks_api
+    import app.security as security_api
 
     class _FakeSettings:
         INTERNAL_TOKEN = "secret-token"
 
-    monkeypatch.setattr(tasks_api, "get_settings", lambda: _FakeSettings())
+    monkeypatch.setattr(security_api, "get_settings", lambda: _FakeSettings())
     with TestClient(app) as client:
         unauthorized = client.post("/api/tasks/sync")
         authorized = client.post("/api/tasks/sync", headers={"X-Internal-Token": "secret-token"})

@@ -52,6 +52,8 @@ jobs:
         run: npm ci
       - name: Typecheck
         run: npm run typecheck
+      - name: Test (internal vector routes)
+        run: npm run test:vectorize
 
   vps:
     name: vps · pytest
@@ -68,3 +70,32 @@ jobs:
         run: pip install -r requirements.txt
       - name: Test
         run: python -m pytest -q
+
+  security:
+    name: security · audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Static audit (secrets / config / headers / privacy)
+        working-directory: vps
+        run: python -m app.security_audit --root .. --strict
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            admin/package-lock.json
+            edge/package-lock.json
+      - name: npm audit (admin, high+)
+        working-directory: admin
+        run: npm audit --package-lock-only --audit-level=high
+      - name: npm audit (edge, high+)
+        working-directory: edge
+        run: npm audit --package-lock-only --audit-level=high
+      - name: pip-audit (vps)
+        run: |
+          pip install pip-audit
+          pip-audit -r vps/requirements.txt
