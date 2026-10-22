@@ -20,7 +20,10 @@ categories.get('/', async (c) => {
 
   const tagRows = await all<TagCountRow>(
     c.env.DB,
-    `SELECT name, count FROM tags ORDER BY count DESC, name ASC`
+    `SELECT t.name,
+            (SELECT COUNT(*) FROM repo_tags rt WHERE rt.tag_id = t.id) AS count
+       FROM tags t
+      ORDER BY count DESC, t.name ASC`
   );
 
   return c.json({

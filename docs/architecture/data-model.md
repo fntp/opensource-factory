@@ -83,8 +83,11 @@ recommendations              （user_id 可空 = 全局推荐）
 
 ### 3.3 `tags` / `repo_tags` 标签
 
-- `tags`：`id`、`name`（唯一）、`count`（冗余计数）；
-- `repo_tags`：仓库与标签的多对多关联。
+- `tags`：`id`、`name`（唯一，应用层按大小写不敏感校验）、`count`（冗余计数）；
+- `repo_tags`：仓库与标签的多对多关联；
+- **计数维护**（REQ-202610-0902）：迁移 `0003_tag_count_triggers.sql` 在 `repo_tags` 的
+  INSERT / DELETE / UPDATE 后按实际关联数重算 `tags.count`；`POST /api/tags/recount`
+  用于存量修复，列表接口以实时计数展示。
 
 ### 3.4 `recommendations` 推荐
 
