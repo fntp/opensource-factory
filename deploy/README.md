@@ -130,7 +130,7 @@ deploy/scripts/restore-sqlite.sh --name <snapshot> --target <db> --force --stop-
 - `CORS_ORIGINS` 生产环境禁止使用 `*`；
 - 单元默认以专用系统用户 `openfactory` 运行，启用 `NoNewPrivileges` / `ProtectSystem=full`。
 
-## 7. 本机一体化模式（可选）
+## 9. 本机一体化模式（可选）
 
 `local-allinone.sh` 提供离线自托管开关：开启后 `openfactory-api` 同进程托管 admin 构建产物
 与 `/local/api/*` 只读接口，不依赖 Cloudflare；默认关闭，混合架构不受影响。
@@ -147,7 +147,7 @@ sudo deploy/scripts/local-allinone.sh disable  # 回滚到混合架构
 `LOCAL_ADMIN_DIR`。安全边界、资源占用与验收清单见
 [docs/guides/local-allinone-deployment.md](../docs/guides/local-allinone-deployment.md)。
 
-## 8. 运维手册（M5-07）
+## 10. 运维手册（M5-07）
 
 - 统一 SOP：[docs/guides/operations-runbook.md](../docs/guides/operations-runbook.md)
   （日常巡检 / 部署 / 升级 / 回滚 / 故障处理 / 备份恢复 / 密钥轮换）；
