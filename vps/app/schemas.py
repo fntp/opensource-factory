@@ -303,3 +303,27 @@ class VectorDetail(BaseModel):
     textHash: str
     vector: list[float]
     updatedAt: Optional[datetime] = None
+
+
+class VectorSyncRequest(BaseModel):
+    """Vectorize 索引同步入参。"""
+
+    mode: str = Field(default="incremental", pattern="^(incremental|full)$")
+    scope: str = Field(default="all", pattern="^(my|trending|all)$")
+    limit: Optional[int] = Field(default=None, ge=1, le=100000)
+    batchSize: Optional[int] = Field(default=None, ge=1, le=1000)
+
+
+class VectorSyncEnqueued(BaseModel):
+    """同步入队响应。"""
+
+    taskId: str
+    runId: str
+
+
+class VectorReconcileRequest(BaseModel):
+    """Vectorize 对账入参。"""
+
+    scope: str = Field(default="all", pattern="^(my|trending|all)$")
+    repair: bool = False
+    limit: Optional[int] = Field(default=None, ge=1, le=100000)

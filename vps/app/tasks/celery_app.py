@@ -54,6 +54,17 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.jobs.daily_push",
         "schedule": crontab(minute=0, hour=9),
     },
+    # Vectorize 索引：每日增量同步 + 对账（M3-03）
+    "vector-index-sync-daily": {
+        "task": "app.tasks.jobs.sync_vector_index",
+        "schedule": crontab(minute=37, hour=4),
+        "kwargs": {"mode": "incremental", "scope": "all"},
+    },
+    "vector-index-reconcile-daily": {
+        "task": "app.tasks.jobs.reconcile_vector_index",
+        "schedule": crontab(minute=17, hour=5),
+        "kwargs": {"scope": "all", "repair": False},
+    },
 }
 
 # 兼容 `celery -A app.tasks.celery_app`（默认按属性名 app/celery 查找）

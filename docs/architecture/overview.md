@@ -89,6 +89,21 @@ admin 热榜列表 → 详情页 GET /api/trending/{owner}/{name}（摘要 + 元
 任务不抛异常。告警写入本地 `crawl_alerts`，通过 `GET /api/trending/alerts` 查询、
 `POST /api/trending/alerts/{id}/ack` 确认。
 
+### 3.3.1 向量索引同步（M3-03）
+
+```
+repo_vectors（VPS SQLite，M3-02 产出）
+→ 按 (source, repo_id) keyset 分批读取（默认 100，上限 1000）
+→ POST {EDGE_BASE_URL}/api/internal/vectors/upsert（X-Internal-Token）
+→ edge Worker 绑定 VECTORIZE.upsert → Cloudflare Vectorize
+```
+
+- 增量模式以 `text_hash + model + backend + dim` 判定变更，未变化且已同步的向量跳过；`full` 模式全量重传；
+- 网络错误 / 429 / 5xx 指数退避重试；单批最终失败仅标记该批，不中断整个运行，下次增量自动重试；
+- 每批提交后持久化游标（`vector_index_runs.cursor_source/cursor_repo_id`），任务中断可断点续跑；
+- 对账模式调用 `getByIds` 校验本地向量是否存在，可选修复缺失 / 过期向量并清理孤儿（默认关闭）；
+- 定时任务：Celery beat 每日 04:37 增量同步、05:17 对账；手动入口 `POST /api/vector-index/sync` / `reconcile`。
+
 ### 3.4 推荐流（RAG）
 
 ```

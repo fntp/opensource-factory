@@ -73,3 +73,4 @@
 | 2026-10-22 | 验收 | M2-10 / REQ-202610-0918 M2 验收与回顾：集成 8 个分支、24 项断言全 PASS、P95 38.3ms；报告见 `planning/acceptance-m2.md` |
 | 2026-10-22 | 交付 | IT-0015 / REQ-202610-0919 完成：默认模型切换为 bge-m3 int8 + `qwen2.5:1.5b-instruct-q4_K_M`，新增 `app.model_budget` 预算校验与部署自检；见 `planning/plan-req-202610-0919-model-selection.md` |
 | 2026-10-22 | 交付 | M3-02 向量化管线完成（REQ-202610-0920）：收藏库 + 热榜、批量 / 增量 / 断点续跑；计划见 `plan-req-202610-0920-vector-pipeline.md` |
+| 2026-10-22 | 交付 | M3-03 / REQ-202610-0921 完成：Vectorize 批量 upsert、失败重试、增量 / 全量同步、断点续跑与对账（含孤儿清理开关），VPS + edge 测试全绿 |

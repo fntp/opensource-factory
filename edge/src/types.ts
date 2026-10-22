@@ -18,6 +18,8 @@ export interface Env {
   VPS_NODE_URL: string;
   // 可选：边缘 → VPS 节点的内部调用令牌
   INTERNAL_TOKEN?: string;
+  // Vectorize 向量索引绑定（未配置时内部向量接口返回 503）
+  VECTORIZE?: Vectorize;
 }
 
 // ── 数据库行 ────────────────────────────────────────────────────

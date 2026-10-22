@@ -602,3 +602,44 @@ def vectorize_repositories(
     except Exception as exc:  # noqa: BLE001 - 任务失败降级返回结构化结果
         logger.exception("向量化任务失败（run=%s）", run_id)
         return {"status": "error", "error": str(exc)[:300], "runId": run_id}
+
+
+@celery_app.task(bind=True, name="app.tasks.jobs.sync_vector_index")
+def sync_vector_index(
+    self,
+    run_id: Optional[str] = None,
+    mode: str = "incremental",
+    scope: str = "all",
+    limit: Optional[int] = None,
+    batch_size: Optional[int] = None,
+) -> dict[str, Any]:
+    """Vectorize 索引同步（增量 / 全量），带 PROGRESS 进度。"""
+    from app.services import vector_index
+
+    def progress(meta: dict[str, Any]) -> None:
+        try:
+            if not self.request.is_eager:
+                self.update_state(state="PROGRESS", meta=meta)
+        except Exception:  # noqa: BLE001 - 进度上报失败不影响同步
+            logger.debug("进度上报失败", exc_info=True)
+
+    return vector_index.sync_vectors(
+        run_id=run_id,
+        mode=mode,
+        scope=scope,
+        limit=limit,
+        batch_size=batch_size,
+        progress=progress,
+    )
+
+
+@celery_app.task(name="app.tasks.jobs.reconcile_vector_index")
+def reconcile_vector_index(
+    scope: str = "all",
+    repair: bool = False,
+    limit: Optional[int] = None,
+) -> dict[str, Any]:
+    """Vectorize 索引对账（可选修复缺失 / 过期向量）。"""
+    from app.services import vector_index
+
+    return vector_index.reconcile_vectors(scope=scope, repair=repair, limit=limit)
