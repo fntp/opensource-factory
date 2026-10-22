@@ -56,6 +56,7 @@ import { recordSecurityEvent } from './security/login-guard.ts';
 import { normalizeRoute, recordRequestMetric, shouldRecordMetric } from './monitoring/metrics';
 import licensesRoutes from './routes/licenses';
 import internalLicensesRoutes from './routes/internal-licenses';
+import extensionRoutes from './routes/extension';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -65,9 +66,12 @@ app.use('*', secureHeaders());
 // 请求日志
 app.use('*', logger());
 
-// CORS：必须精确回显 ALLOWED_ORIGIN 且带 credentials（前端 fetch 使用 credentials: 'include'）
+// CORS：精确回显 ALLOWED_ORIGIN 且带 credentials（前端 fetch 使用 credentials: 'include'）。
+// 浏览器扩展（M8-02）的 Origin 为 chrome-extension:// / moz-extension://，按来源精确回显。
 app.use('*', async (c, next) => {
-  const origin = c.env.ALLOWED_ORIGIN || '';
+  const requestOrigin = c.req.header('Origin') ?? '';
+  const isExtensionOrigin = /^(chrome|moz)-extension:\/\//i.test(requestOrigin);
+  const origin = isExtensionOrigin ? requestOrigin : c.env.ALLOWED_ORIGIN || '';
   return cors({
     origin,
     credentials: true,
@@ -200,6 +204,7 @@ app.route('/api/reports', reportsRoutes);
 app.route('/api/internal/reports', internalReports);
 app.route('/api/repo-updates', repoUpdatesRoutes);
 app.route('/api/internal/repo-updates', internalRepoUpdates);
+app.route('/api/extension', extensionRoutes);
 
 // 404
 app.notFound((c) =>

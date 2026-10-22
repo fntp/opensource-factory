@@ -43,6 +43,7 @@ opensource-factory/
 ├── admin/     # 前端控制台（基于 shadcn-admin 模板定制）
 ├── edge/      # Cloudflare Workers API（Hono + D1 + Vectorize）
 ├── vps/       # 本地算力节点（FastAPI + Celery + Ollama/BGE-M3）
+├── extension/ # 浏览器扩展（Manifest V3，一键收藏 GitHub / Gitee 仓库）
 ├── docs/      # 全部项目文档与数据资产（规范 / 规划 / 需求 / 架构）
 └── .github/   # CI 工作流
 ```
