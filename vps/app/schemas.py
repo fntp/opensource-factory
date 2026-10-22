@@ -25,6 +25,10 @@ class RepoOut(ORMModel):
     language: Optional[str] = None
     readme_summary: Optional[str] = None
     category_id: Optional[str] = None
+    owner: Optional[str] = None
+    forks: int = 0
+    updated_at: Optional[str] = None
+    synced_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
 
 

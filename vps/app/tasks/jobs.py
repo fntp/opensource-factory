@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import logging
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any, Coroutine, Optional
 from uuid import uuid4
 
@@ -32,27 +32,52 @@ def _run_async(coro: Coroutine[Any, Any, Any]) -> Any:
         return pool.submit(asyncio.run, coro).result()
 
 
+def _utcnow() -> datetime:
+    """统一使用无时区 UTC 时间（与 D1 CURRENT_TIMESTAMP 语义对齐）。"""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 @celery_app.task(name="app.tasks.jobs.sync_repositories")
-def sync_repositories(include_starred: bool = True) -> dict[str, Any]:
-    """同步 GitHub 仓库（自己的 + 可选 Starred）到本地镜像表。"""
+def sync_repositories(
+    include_starred: bool = True,
+    include_own: bool | None = None,
+    include_orgs: bool | None = None,
+    include_forks: bool | None = None,
+    include_archived: bool | None = None,
+) -> dict[str, Any]:
+    """同步 GitHub 仓库（自有 + 组织 + 可选 Starred）到本地镜像表。
+
+    过滤策略来自 `GITHUB_SYNC_*` 配置，可通过入参按次覆盖；Starred 不受
+    「自有/组织」策略过滤。任务结果返回各类过滤原因计数，便于观察。
+    """
     settings = get_settings()
     token = (settings.GITHUB_TOKEN or "").strip()
     if not token:
         return {"status": "skipped", "reason": "GITHUB_TOKEN 未配置，跳过 GitHub 同步"}
 
-    from app.services.github_service import list_user_repos
+    from app.services.github_service import RepoFilterPolicy, collect_user_repos
+
+    policy = RepoFilterPolicy.from_settings(settings).with_overrides(
+        include_own=include_own,
+        include_orgs=include_orgs,
+        include_forks=include_forks,
+        include_archived=include_archived,
+    )
 
     try:
-        repos = _run_async(list_user_repos(token, include_starred=include_starred))
+        collection = _run_async(
+            collect_user_repos(token, include_starred=include_starred, policy=policy)
+        )
     except Exception as exc:  # noqa: BLE001 - 同步失败降级返回，等待下次重试
         logger.exception("GitHub 同步失败")
         return {"status": "error", "error": str(exc)[:300]}
 
     created = 0
     updated = 0
+    synced_at = _utcnow()
     db = SessionLocal()
     try:
-        for item in repos:
+        for item in collection.repos:
             repo_id = item.get("id") or ""
             if not repo_id:
                 continue
@@ -67,6 +92,10 @@ def sync_repositories(include_starred: bool = True) -> dict[str, Any]:
                         html_url=item.get("html_url") or f"https://github.com/{repo_id}",
                         stars=int(item.get("stars") or 0),
                         language=item.get("language") or None,
+                        owner=item.get("owner") or None,
+                        forks=int(item.get("forks") or 0),
+                        updated_at=item.get("updated_at") or None,
+                        synced_at=synced_at,
                     )
                 )
                 created += 1
@@ -76,13 +105,37 @@ def sync_repositories(include_starred: bool = True) -> dict[str, Any]:
                 row.html_url = item.get("html_url") or row.html_url
                 row.stars = int(item.get("stars") or 0)
                 row.language = item.get("language") or row.language
+                row.owner = item.get("owner") or row.owner
+                row.forks = int(item.get("forks") or 0)
+                row.updated_at = item.get("updated_at") or row.updated_at
+                row.synced_at = synced_at
                 updated += 1
         db.commit()
     finally:
         db.close()
 
-    logger.info("GitHub 同步完成: 共 %d 个仓库（新增 %d / 更新 %d）", len(repos), created, updated)
-    return {"status": "ok", "total": len(repos), "created": created, "updated": updated}
+    logger.info(
+        "GitHub 同步完成: 共 %d 个仓库（新增 %d / 更新 %d，过滤 %d；自有 %d / 组织 %d / Starred %d）",
+        len(collection.repos),
+        created,
+        updated,
+        collection.filtered,
+        collection.own,
+        collection.org,
+        collection.starred,
+    )
+    return {
+        "status": "ok",
+        "total": len(collection.repos),
+        "created": created,
+        "updated": updated,
+        "fetched": collection.fetched,
+        "filtered": collection.filtered,
+        "excluded": collection.excluded,
+        "own": collection.own,
+        "org": collection.org,
+        "starred": collection.starred,
+    }
 
 
 @celery_app.task(name="app.tasks.jobs.crawl_trending")

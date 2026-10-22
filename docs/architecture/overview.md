@@ -58,7 +58,8 @@ GitHub → /api/auth/github/callback?code → edge 换取 token → 拉取用户
 
 ```
 admin「同步仓库」→ POST /api/sync（edge）→ POST {VPS}/api/tasks/sync（X-Internal-Token）
-→ Celery 拉取 GitHub Starred/自有仓库 → upsert → 摘要（Ollama）→ 写回 D1 → 前端可见
+→ Celery 拉取 GitHub 自有 + 组织仓库（affiliation=owner,organization_member）与 Starred
+→ 按可配置策略过滤 fork / 归档（组织白名单可选）→ upsert → 摘要（Ollama）→ 写回 D1 → 前端可见
 ```
 
 ### 3.3 热榜流

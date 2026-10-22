@@ -45,6 +45,13 @@ class Settings(BaseSettings):
 
     # GitHub
     GITHUB_TOKEN: str = ""
+    # 自有 / 组织仓库同步过滤策略（M1-06）
+    GITHUB_SYNC_INCLUDE_OWN: bool = True
+    GITHUB_SYNC_INCLUDE_ORGS: bool = True
+    GITHUB_SYNC_INCLUDE_FORKS: bool = False
+    GITHUB_SYNC_INCLUDE_ARCHIVED: bool = False
+    # 组织白名单（逗号分隔，大小写不敏感）；为空表示全部组织
+    GITHUB_SYNC_ORG_ALLOWLIST: str = ""
 
     # CORS（开发默认允许全部来源）
     CORS_ORIGINS: str = "*"

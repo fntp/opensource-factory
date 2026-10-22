@@ -37,6 +37,8 @@ recommendations              （user_id 可空 = 全局推荐）
 | created_at | DATETIME | 收录时间 |
 
 > 本仓库扩展列（不改变上述语义）：`user_id`、`owner`、`forks`、`updated_at`、`synced_at`。
+> VPS 本地镜像自 M1-06 起持久化 `owner` / `forks` / `updated_at` / `synced_at`，并在启动时对既有
+> SQLite 库做幂等补列，保证与 D1 schema 对齐。
 
 ### 2.2 `trending_repositories` 热榜项目
 
