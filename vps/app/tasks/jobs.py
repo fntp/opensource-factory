@@ -16,10 +16,20 @@ from sqlalchemy import select
 
 from app.config import get_settings
 from app.db import SessionLocal
-from app.models import MyRepository, Recommendation, TrendingRepository, User
+from app.models import Category, MyRepository, Recommendation, TrendingRepository, User
 from app.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
+
+
+def _maybe_enqueue_vectorization(scope: str) -> None:
+    """同步 / 抓取完成后自动入队增量向量化；失败不影响主任务。"""
+    if not get_settings().VECTORIZE_AUTO:
+        return
+    try:
+        vectorize_repositories.delay(scope=scope)
+    except Exception:  # noqa: BLE001 - 自动任务失败只记录，不阻塞主流程
+        logger.warning("自动入队向量化失败（scope=%s）", scope, exc_info=True)
 
 
 def _run_async(coro: Coroutine[Any, Any, Any]) -> Any:
@@ -81,6 +91,8 @@ def sync_repositories(include_starred: bool = True) -> dict[str, Any]:
     finally:
         db.close()
 
+    if created or updated:
+        _maybe_enqueue_vectorization("my")
     logger.info("GitHub 同步完成: 共 %d 个仓库（新增 %d / 更新 %d）", len(repos), created, updated)
     return {"status": "ok", "total": len(repos), "created": created, "updated": updated}
 
@@ -140,6 +152,8 @@ def crawl_trending(platform: str = "github", language: Optional[str] = None) -> 
     finally:
         db.close()
 
+    if items:
+        _maybe_enqueue_vectorization("trending")
     logger.info("热榜抓取完成: 共 %d 条（新增 %d / 更新 %d）", len(items), created, updated)
     return {"status": "ok", "total": len(items), "created": created, "updated": updated}
 
@@ -148,7 +162,8 @@ def crawl_trending(platform: str = "github", language: Optional[str] = None) -> 
 def generate_recommendations(user_id: Optional[str] = None, top_k: int = 20) -> dict[str, Any]:
     """生成推荐：以本地仓库集合的平均向量为用户画像，对热榜候选排序后落库。"""
     from app.services.embedding import get_embedding_service
-    from app.services.recommender import build_reason, recommend
+    from app.services.recommend_reason import build_reason_detail, build_user_profile
+    from app.services.recommender import recommend
 
     service = get_embedding_service()
     db = SessionLocal()
@@ -164,7 +179,7 @@ def generate_recommendations(user_id: Optional[str] = None, top_k: int = 20) -> 
                     db.commit()
                 target_users = ["default"]
 
-        # 用户画像：本地镜像仓库文本的平均向量
+        # 用户画像：本地镜像仓库文本的平均向量 + 语言 / 技术栈 / 分类偏好
         my_repos = db.execute(select(MyRepository).limit(1000)).scalars().all()
         profile_texts = [
             " ".join(filter(None, [r.name, r.description or "", r.readme_summary or "", r.language or ""]))
@@ -172,6 +187,11 @@ def generate_recommendations(user_id: Optional[str] = None, top_k: int = 20) -> 
         ]
         if not profile_texts:
             return {"status": "skipped", "reason": "本地没有仓库数据，无法构建用户画像"}
+
+        category_names = {
+            row.id: row.name for row in db.execute(select(Category)).scalars().all()
+        }
+        interest_profile = build_user_profile(my_repos, category_names)
 
         profile_vectors = service.encode(profile_texts)
         dim = len(profile_vectors[0])
@@ -200,6 +220,7 @@ def generate_recommendations(user_id: Optional[str] = None, top_k: int = 20) -> 
             row = by_id.get(repo_id)
             if row is None:
                 continue
+            detail = build_reason_detail(row, score, interest_profile)
             for uid in target_users:
                 existing = db.execute(
                     select(Recommendation).where(
@@ -208,7 +229,8 @@ def generate_recommendations(user_id: Optional[str] = None, top_k: int = 20) -> 
                 ).scalar_one_or_none()
                 if existing is not None:
                     existing.score = float(score)
-                    existing.reason = build_reason(row, score)
+                    existing.reason = detail.reason
+                    existing.based_on = detail.based_on_json
                     continue
                 db.add(
                     Recommendation(
@@ -216,7 +238,8 @@ def generate_recommendations(user_id: Optional[str] = None, top_k: int = 20) -> 
                         user_id=uid,
                         repo_id=repo_id,
                         score=float(score),
-                        reason=build_reason(row, score),
+                        reason=detail.reason,
+                        based_on=detail.based_on_json,
                         status="new",
                     )
                 )
@@ -227,6 +250,61 @@ def generate_recommendations(user_id: Optional[str] = None, top_k: int = 20) -> 
 
     logger.info("推荐生成完成: 用户 %s，新增 %d 条", target_users, created)
     return {"status": "ok", "users": target_users, "created": created}
+
+
+@celery_app.task(name="app.tasks.jobs.regenerate_recommendation_reasons")
+def regenerate_recommendation_reasons(
+    user_id: Optional[str] = None, limit: int = 500
+) -> dict[str, Any]:
+    """按当前模板重算存量推荐的中文理由与依据字段（模板升级 / 画像变化后使用）。"""
+    from app.services.recommend_reason import build_reason_detail, build_user_profile
+
+    db = SessionLocal()
+    try:
+        my_repos = db.execute(select(MyRepository).limit(1000)).scalars().all()
+        category_names = {
+            row.id: row.name for row in db.execute(select(Category)).scalars().all()
+        }
+        interest_profile = build_user_profile(my_repos, category_names)
+
+        stmt = select(Recommendation).order_by(Recommendation.score.desc()).limit(max(1, int(limit)))
+        if user_id:
+            stmt = stmt.where(Recommendation.user_id == user_id)
+        rows = list(db.execute(stmt).scalars().all())
+        if not rows:
+            return {"status": "skipped", "reason": "没有可回填的推荐", "updated": 0}
+
+        repo_ids = {row.repo_id for row in rows}
+        trending = {
+            item.id: item
+            for item in db.execute(
+                select(TrendingRepository).where(TrendingRepository.id.in_(repo_ids))
+            ).scalars().all()
+        }
+        mine = {
+            item.id: item
+            for item in db.execute(
+                select(MyRepository).where(MyRepository.id.in_(repo_ids))
+            ).scalars().all()
+        }
+
+        updated = 0
+        for row in rows:
+            source = trending.get(row.repo_id) or mine.get(row.repo_id)
+            detail = build_reason_detail(
+                source if source is not None else {"id": row.repo_id, "name": row.repo_id},
+                float(row.score or 0),
+                interest_profile,
+            )
+            row.reason = detail.reason
+            row.based_on = detail.based_on_json
+            updated += 1
+        db.commit()
+    finally:
+        db.close()
+
+    logger.info("推荐理由回填完成: %d 条", updated)
+    return {"status": "ok", "updated": updated}
 
 
 @celery_app.task(name="app.tasks.jobs.daily_push")
@@ -253,3 +331,93 @@ def daily_push(limit: int = 50) -> dict[str, Any]:
 
     logger.info("每日推送准备完成: %d 条", pushed)
     return {"status": "ok", "pushed": pushed}
+
+
+@celery_app.task(bind=True, name="app.tasks.jobs.vectorize_repositories")
+def vectorize_repositories(
+    self,
+    scope: str = "all",
+    limit: Optional[int] = None,
+    batch_size: Optional[int] = None,
+    force: bool = False,
+    run_id: Optional[str] = None,
+) -> dict[str, Any]:
+    """向量化任务：批量 / 增量 / 断点续跑。
+
+    - `run_id` 为空时新建运行；传入失败运行的 id 时从游标续跑；
+    - 进度通过 Celery `PROGRESS` 状态上报（eager 模式下后端不可用时静默跳过）。
+    """
+    from app.services.vector_pipeline import create_run, run_vectorization
+
+    try:
+        if run_id is None:
+            db = SessionLocal()
+            try:
+                run = create_run(
+                    db,
+                    scope=scope,
+                    limit=limit,
+                    batch_size=batch_size,
+                    force=force,
+                )
+                run_id = run.id
+            finally:
+                db.close()
+
+        def progress(meta: dict[str, Any]) -> None:
+            try:
+                self.update_state(state="PROGRESS", meta=meta)
+            except Exception:  # noqa: BLE001 - 进度上报失败不影响向量化
+                logger.debug("向量化进度上报失败（run=%s）", run_id, exc_info=True)
+
+        return run_vectorization(run_id, progress=progress)
+    except Exception as exc:  # noqa: BLE001 - 任务失败降级返回结构化结果
+        logger.exception("向量化任务失败（run=%s）", run_id)
+        return {"status": "error", "error": str(exc)[:300], "runId": run_id}
+
+
+@celery_app.task(bind=True, name="app.tasks.jobs.sync_vector_index")
+def sync_vector_index(
+    self,
+    kind: str = "sync",
+    scope: str = "all",
+    limit: Optional[int] = None,
+    batch_size: Optional[int] = None,
+    force: bool = False,
+) -> dict[str, Any]:
+    """Vectorize 索引同步任务：批量 upsert / 对账。
+
+    - `kind=sync`：增量（默认）或 `force=True` 全量；
+    - `kind=reconcile`：先对账，仅修复缺失 / 过期向量；
+    - 未配置 edge 地址 / 内部令牌时返回 `disabled`，不抛异常。
+    """
+    from app.services.vector_sync import (
+        VectorIndexDisabled,
+        VectorIndexError,
+        sync_vector_index as run_sync,
+    )
+
+    def progress(meta: dict[str, Any]) -> None:
+        try:
+            self.update_state(state="PROGRESS", meta=meta)
+        except Exception:  # noqa: BLE001 - 进度上报失败不影响同步
+            logger.debug("索引同步进度上报失败", exc_info=True)
+
+    try:
+        return run_sync(
+            kind=kind,
+            scope=scope,
+            limit=limit,
+            batch_size=batch_size,
+            force=force,
+            progress=progress,
+        )
+    except VectorIndexDisabled as exc:
+        logger.info("Vectorize 索引同步跳过：%s", exc)
+        return {"status": "disabled", "error": str(exc)}
+    except VectorIndexError as exc:
+        logger.warning("Vectorize 索引同步失败：%s", exc)
+        return {"status": "error", "error": str(exc)[:500]}
+    except Exception as exc:  # noqa: BLE001 - 任务失败降级为结构化结果
+        logger.exception("Vectorize 索引同步异常")
+        return {"status": "error", "error": str(exc)[:500]}

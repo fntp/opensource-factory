@@ -11,9 +11,24 @@ import logging
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 
 from app.config import get_settings
-from app.schemas import TaskEnqueued, TaskStatus
+from app.db import SessionLocal
+from app.models import VectorizationRun
+from app.schemas import TaskEnqueued, TaskStatus, VectorizeEnqueued
+from app.services.vector_pipeline import (
+    RunFinished,
+    RunNotFound,
+    VectorRunError,
+    create_run,
+)
 from app.tasks.celery_app import celery_app
-from app.tasks.jobs import crawl_trending, daily_push, generate_recommendations, sync_repositories
+from app.tasks.jobs import (
+    crawl_trending,
+    daily_push,
+    generate_recommendations,
+    regenerate_recommendation_reasons,
+    sync_repositories,
+    vectorize_repositories,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +89,21 @@ async def enqueue_generate_recommendations(
 
 
 @router.post(
+    "/regenerate-recommendation-reasons",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=TaskEnqueued,
+    dependencies=[Depends(require_internal_token)],
+    summary="入队：重算存量推荐理由与依据字段",
+)
+async def enqueue_regenerate_recommendation_reasons(
+    user_id: str | None = Query(default=None),
+    limit: int = Query(default=500, ge=1, le=5000),
+) -> TaskEnqueued:
+    task = regenerate_recommendation_reasons.delay(user_id=user_id, limit=limit)
+    return TaskEnqueued(taskId=task.id)
+
+
+@router.post(
     "/daily-push",
     status_code=status.HTTP_202_ACCEPTED,
     response_model=TaskEnqueued,
@@ -83,6 +113,58 @@ async def enqueue_generate_recommendations(
 async def enqueue_daily_push() -> TaskEnqueued:
     task = daily_push.delay()
     return TaskEnqueued(taskId=task.id)
+
+
+@router.post(
+    "/vectorize",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=VectorizeEnqueued,
+    dependencies=[Depends(require_internal_token)],
+    summary="入队：向量化（收藏库 / 热榜 / 全部；支持续跑）",
+)
+async def enqueue_vectorize(
+    scope: str = Query(default="all", pattern="^(my|trending|all)$"),
+    limit: int | None = Query(default=None, ge=1, le=100000),
+    batch_size: int | None = Query(default=None, ge=1, le=256),
+    force: bool = Query(default=False),
+    run_id: str | None = Query(default=None, description="失败运行的 id，用于断点续跑"),
+) -> VectorizeEnqueued:
+    db = SessionLocal()
+    try:
+        run = create_run(
+            db,
+            scope=scope,
+            limit=limit,
+            batch_size=batch_size,
+            force=force,
+            run_id=run_id,
+        )
+        active_run_id = run.id
+    except RunNotFound as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except RunFinished as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except VectorRunError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    finally:
+        db.close()
+
+    try:
+        task = vectorize_repositories.delay(run_id=active_run_id)
+    except Exception as exc:  # noqa: BLE001 - 入队失败标记运行失败，便于人工重试
+        db = SessionLocal()
+        try:
+            failed = db.get(VectorizationRun, active_run_id)
+            if failed is not None:
+                failed.status = "failed"
+                failed.error = f"任务入队失败：{str(exc)[:200]}"
+                db.commit()
+        finally:
+            db.close()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="向量化任务入队失败"
+        ) from exc
+    return VectorizeEnqueued(taskId=task.id, runId=active_run_id)
 
 
 @router.get(

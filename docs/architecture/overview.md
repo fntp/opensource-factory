@@ -65,7 +65,7 @@ admin「同步仓库」→ POST /api/sync（edge）→ POST {VPS}/api/tasks/sync
 
 ```
 Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trending_repositories
-→ 摘要/技术栈提取 → （M3）向量化 → 同步 Vectorize
+→ 摘要/技术栈提取 → 向量化（M3-02）→ 同步 Vectorize（M3-03）
 ```
 
 ### 3.4 推荐流（RAG）
@@ -74,6 +74,41 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 用户自然语言查询 → edge → Vectorize 检索（已收藏库 + 热榜库）
 → 结果聚合排序 → 返回（含匹配度与理由）；每日推送任务见 M4
 ```
+
+### 3.5 向量化流（M3-02）
+
+```
+同步 / 抓取完成 → 自动入队 vectorize_repositories（或 POST /api/tasks/vectorize）
+→ 按批读取 my_repositories / trending_repositories
+→ 文本哈希 + 模型 + 后端判断增量 → EmbeddingService（BGE-M3 / hash 降级）
+→ upsert repo_vectors（逐批提交 + 游标）→ 运行状态可查询 / 可断点续跑
+→ M3-03 批量同步 Cloudflare Vectorize
+```
+
+### 3.6 向量索引同步流（M3-03）
+
+```
+Celery beat（每 30 分钟）或 POST /api/vector-index/sync
+→ VPS 读取本地 repo_vectors（仅 text_hash 变更 / 上次失败项；force 可全量）
+→ 按批 POST {EDGE_BASE_URL}/api/internal/vectors/upsert（X-Internal-Token）
+→ edge Worker 通过 Vectorize 绑定批量 upsert
+→ VPS 写 vector_sync_state（逐条状态）/ vector_sync_runs（运行统计）
+
+对账（kind=reconcile）：POST /api/internal/vectors/check 比对缺失 / 过期向量并修复；
+可选 list + delete 清理孤儿（默认关闭）。
+```
+
+### 3.7 推荐理由生成流（M3-06）
+
+```
+generate_recommendations / POST /api/recommend/query
+→ build_user_profile（收藏库语言 / 技术栈 / 分类）
+→ build_reason_detail（相似度分档 + 共同语言 / 技术栈 / 分类 / 今日热度 / 简介）
+→ reason（中文）+ based_on（JSON 数组）
+→ 写 recommendations.reason / based_on；存量可 POST /api/tasks/regenerate-recommendation-reasons 回填
+```
+
+纯规则、不调用 LLM；收藏库为空时退化为候选字段 + 相似度，不虚构用户偏好。
 
 ## 4. 接口边界
 
@@ -99,9 +134,30 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 | `/api/tasks/sync` | POST | 入队仓库同步 |
 | `/api/tasks/crawl-trending` | POST | 入队热榜抓取 |
 | `/api/tasks/generate-recommendations` | POST | 入队推荐生成 |
+| `/api/tasks/regenerate-recommendation-reasons` | POST | 入队重算存量推荐理由与依据字段 |
 | `/api/tasks/daily-push` | POST | 入队每日推送 |
+| `/api/recommend/query` | POST | 语义查询（返回 `reason` + `based_on`） |
+| `/api/recommend/list` | GET | 本地已生成推荐（`reason` + `based_on`） |
+| `/api/tasks/vectorize` | POST | 入队向量化（批量 / 增量 / 断点续跑） |
 | `/api/tasks/{taskId}` | GET | 任务状态 |
+| `/api/vector-index/sync` | POST | 入队 Vectorize 同步 / 对账（`kind` / `scope` / `force`） |
+| `/api/vector-index/status` | GET | 本地向量覆盖率与同步状态分布 |
+| `/api/vector-index/runs` | GET | 最近同步运行记录 |
+| `/api/vector-index/runs/{runId}` | GET | 单次运行详情 |
+| `/api/vectors/stats` | GET | 向量覆盖率与最近运行 |
+| `/api/vectors/runs/{runId}` | GET | 向量化运行详情 |
+| `/api/vectors/{source}/{repoId}` | GET | 单条仓库向量 |
 | `/healthz` | GET | 健康检查 |
+
+### 4.3 vps → edge（Vectorize 内部接口，`X-Internal-Token`）
+
+| 端点 | 方法 | 说明 |
+| --- | --- | --- |
+| `/api/internal/vectors/upsert` | POST | 批量写入向量（1~1000 条/批） |
+| `/api/internal/vectors/check` | POST | 按 ID 批量查询元数据（≤100 条/批） |
+| `/api/internal/vectors/delete` | POST | 批量删除向量（≤1000 条/批） |
+| `/api/internal/vectors/stats` | GET | 索引统计 |
+| `/api/internal/vectors/list` | GET | 分页列出 ID（孤儿对账；不支持时返回 501） |
 
 ## 5. 安全边界
 

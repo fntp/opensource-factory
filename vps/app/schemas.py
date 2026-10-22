@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -49,7 +49,7 @@ class RecommendQuery(BaseModel):
 
 
 class RecommendItem(BaseModel):
-    """单条推荐结果。"""
+    """单条推荐结果（含中文理由与依据字段）。"""
 
     repo_id: str
     name: str
@@ -58,6 +58,7 @@ class RecommendItem(BaseModel):
     description: str = ""
     score: float
     reason: str
+    based_on: list[str] = Field(default_factory=list, description="理由依据字段")
 
 
 class RecommendResponse(BaseModel):
@@ -66,6 +67,24 @@ class RecommendResponse(BaseModel):
     query: str
     count: int
     items: list[RecommendItem]
+
+
+class RecommendationOut(BaseModel):
+    """本地已生成的推荐结果（含理由与依据字段）。"""
+
+    id: str
+    user_id: str
+    repo_id: str
+    name: str = ""
+    html_url: str = ""
+    description: str = ""
+    language: str = ""
+    tech_stack: str = ""
+    score: float
+    reason: str = ""
+    based_on: list[str] = Field(default_factory=list)
+    status: str = "new"
+    created_at: Optional[datetime] = None
 
 
 class TaskEnqueued(BaseModel):
@@ -81,3 +100,125 @@ class TaskStatus(BaseModel):
     status: str  # pending | started | success | failure
     result: Any = None
     error: Optional[str] = None
+
+
+class VectorSyncRequest(BaseModel):
+    """Vectorize 索引同步请求。"""
+
+    kind: Literal["sync", "reconcile"] = "sync"
+    scope: Literal["my", "trending", "all"] = "all"
+    limit: Optional[int] = Field(default=None, ge=1, le=100000, description="本次最多处理的向量数")
+    batchSize: Optional[int] = Field(default=None, ge=1, le=1000, description="单批 upsert 条数")
+    force: bool = Field(default=False, description="忽略增量状态，全量重传")
+
+
+class VectorSyncRunOut(BaseModel):
+    """一次同步运行的统计输出。"""
+
+    runId: str
+    kind: str
+    scope: str
+    status: str
+    batchSize: int
+    maxRetries: int
+    force: bool
+    limit: int
+    total: int
+    processed: int
+    synced: int
+    skipped: int
+    failed: int
+    deleted: int
+    checked: int
+    missing: int
+    repaired: int
+    orphanScan: str = ""
+    cursorSource: str = ""
+    cursorRepoId: str = ""
+    error: Optional[str] = None
+    createdAt: Optional[datetime] = None
+    updatedAt: Optional[datetime] = None
+    finishedAt: Optional[datetime] = None
+
+
+class VectorizeEnqueued(TaskEnqueued):
+    """向量化任务入队响应（附带运行 id，可用于续跑 / 查询）。"""
+
+    runId: str
+
+
+class VectorRunOut(BaseModel):
+    """向量化运行状态。"""
+
+    runId: str
+    scope: str
+    status: str  # running | completed | failed
+    model: str = ""
+    backend: str = ""
+    dim: int = 0
+    force: bool = False
+    limit: int = 0
+    batchSize: int = 0
+    total: int = 0
+    processed: int = 0
+    vectorized: int = 0
+    skipped: int = 0
+    failed: int = 0
+    cursorSource: str = ""
+    cursorRepoId: str = ""
+    error: Optional[str] = None
+    createdAt: Optional[datetime] = None
+    updatedAt: Optional[datetime] = None
+    finishedAt: Optional[datetime] = None
+
+
+class VectorSyncStatusOut(BaseModel):
+    """索引同步状态：本地覆盖率、状态分布与最近运行。"""
+
+    enabled: bool
+    configured: bool
+    indexName: str
+    dim: int
+    localVectors: int
+    states: dict[str, int]
+    pending: int
+    lastRuns: list[VectorSyncRunOut]
+
+
+class VectorModelStats(BaseModel):
+    """按模型 / 后端分组的向量数量。"""
+
+    model: str
+    backend: str
+    count: int
+
+
+class VectorSourceStats(BaseModel):
+    """单个来源的向量覆盖情况。"""
+
+    total: int
+    vectorized: int
+    pending: int
+
+
+class VectorStatsResponse(BaseModel):
+    """向量化统计响应。"""
+
+    totalVectors: int
+    bySource: dict[str, int]
+    byModel: list[VectorModelStats]
+    repositories: dict[str, VectorSourceStats]
+    latestRuns: list[VectorRunOut]
+
+
+class VectorDetail(BaseModel):
+    """单条向量详情（调试 / 后续 Vectorize 同步使用）。"""
+
+    source: str
+    repoId: str
+    model: str
+    backend: str
+    dim: int
+    textHash: str
+    vector: list[float]
+    updatedAt: Optional[datetime] = None
