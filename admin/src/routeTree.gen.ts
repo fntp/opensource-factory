@@ -28,6 +28,7 @@ import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_a
 import { Route as AuthenticatedSettingsDisplayRouteImport } from './routes/_authenticated/settings/display'
 import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings/notifications'
 import { Route as AuthenticatedTrendingIndexRouteImport } from './routes/_authenticated/trending/index'
+import { Route as AuthenticatedTrendingOwnerNameRouteImport } from './routes/_authenticated/trending/$owner/$name'
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
@@ -133,6 +134,12 @@ const AuthenticatedTrendingIndexRoute =
     path: '/trending/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedTrendingOwnerNameRoute =
+  AuthenticatedTrendingOwnerNameRouteImport.update({
+    id: '/trending/$owner/$name',
+    path: '/trending/$owner/$name',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -153,6 +160,7 @@ export interface FileRoutesByFullPath {
   '/repos/': typeof AuthenticatedReposIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/trending/': typeof AuthenticatedTrendingIndexRoute
+  '/trending/$owner/$name': typeof AuthenticatedTrendingOwnerNameRoute
 }
 export interface FileRoutesByTo {
   '/sign-in': typeof authSignInRoute
@@ -172,6 +180,7 @@ export interface FileRoutesByTo {
   '/repos': typeof AuthenticatedReposIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/trending': typeof AuthenticatedTrendingIndexRoute
+  '/trending/$owner/$name': typeof AuthenticatedTrendingOwnerNameRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -194,6 +203,7 @@ export interface FileRoutesById {
   '/_authenticated/repos/': typeof AuthenticatedReposIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/trending/': typeof AuthenticatedTrendingIndexRoute
+  '/_authenticated/trending/$owner/$name': typeof AuthenticatedTrendingOwnerNameRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -216,6 +226,7 @@ export interface FileRouteTypes {
     | '/repos/'
     | '/settings/'
     | '/trending/'
+    | '/trending/$owner/$name'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/sign-in'
@@ -235,6 +246,7 @@ export interface FileRouteTypes {
     | '/repos'
     | '/settings'
     | '/trending'
+    | '/trending/$owner/$name'
   id:
     | '__root__'
     | '/_authenticated'
@@ -256,6 +268,7 @@ export interface FileRouteTypes {
     | '/_authenticated/repos/'
     | '/_authenticated/settings/'
     | '/_authenticated/trending/'
+    | '/_authenticated/trending/$owner/$name'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -403,6 +416,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTrendingIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/trending/$owner/$name': {
+      id: '/_authenticated/trending/$owner/$name'
+      path: '/trending/$owner/$name'
+      fullPath: '/trending/$owner/$name'
+      preLoaderRoute: typeof AuthenticatedTrendingOwnerNameRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -437,6 +457,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedRecommendIndexRoute: typeof AuthenticatedRecommendIndexRoute
   AuthenticatedReposIndexRoute: typeof AuthenticatedReposIndexRoute
   AuthenticatedTrendingIndexRoute: typeof AuthenticatedTrendingIndexRoute
+  AuthenticatedTrendingOwnerNameRoute: typeof AuthenticatedTrendingOwnerNameRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -447,6 +468,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedRecommendIndexRoute: AuthenticatedRecommendIndexRoute,
   AuthenticatedReposIndexRoute: AuthenticatedReposIndexRoute,
   AuthenticatedTrendingIndexRoute: AuthenticatedTrendingIndexRoute,
+  AuthenticatedTrendingOwnerNameRoute: AuthenticatedTrendingOwnerNameRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

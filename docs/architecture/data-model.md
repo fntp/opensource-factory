@@ -51,7 +51,8 @@ recommendations              （user_id 可空 = 全局推荐）
 | tech_stack | TEXT | 自动提取的技术栈 |
 | crawled_at | DATE | 抓取日期 |
 
-> 扩展列：`owner`、`language`、`stars`（总 Star）。
+> 扩展列：`owner`、`language`、`stars`（总 Star）、`readme_summary`（M2-04 中文摘要；为空时详情页回退 `description`）。
+> 详情页收藏写入 `my_repositories`，字段映射见 REQ-202610-0915 实施计划。
 
 ### 2.3 `categories` 分类
 

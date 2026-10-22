@@ -106,11 +106,15 @@ def crawl_trending(platform: str = "github", language: Optional[str] = None) -> 
     db = SessionLocal()
     try:
         for item in items:
-            repo_id = item.get("id") or ""
+            repo_id = str(item.get("id") or "").strip()
             if not repo_id:
                 continue
+            owner = item.get("owner") or repo_id.split("/")[0]
+            language_name = (item.get("language") or "").strip() or None
+            stars = int(item.get("stars") or 0)
+            stars_today = int(item.get("stars_today") or 0)
             tech_stack = extract_tech_stack(
-                " ".join(filter(None, [item.get("description"), item.get("language")]))
+                " ".join(filter(None, [item.get("description"), language_name]))
             )
             row = db.get(TrendingRepository, repo_id)
             if row is None:
@@ -120,9 +124,12 @@ def crawl_trending(platform: str = "github", language: Optional[str] = None) -> 
                         platform=item.get("platform") or "github",
                         name=item.get("name") or repo_id.split("/")[-1],
                         html_url=item.get("html_url") or "",
-                        stars_today=int(item.get("stars_today") or 0),
+                        stars_today=stars_today,
                         description=item.get("description") or "",
                         tech_stack=tech_stack,
+                        owner=owner,
+                        language=language_name,
+                        stars=stars,
                         crawled_at=date.today(),
                     )
                 )
@@ -131,9 +138,12 @@ def crawl_trending(platform: str = "github", language: Optional[str] = None) -> 
                 row.platform = item.get("platform") or row.platform
                 row.name = item.get("name") or row.name
                 row.html_url = item.get("html_url") or row.html_url
-                row.stars_today = int(item.get("stars_today") or 0)
+                row.stars_today = stars_today
                 row.description = item.get("description") or row.description
                 row.tech_stack = tech_stack or row.tech_stack
+                row.owner = owner or row.owner
+                row.language = language_name or row.language
+                row.stars = stars or row.stars
                 row.crawled_at = date.today()
                 updated += 1
         db.commit()

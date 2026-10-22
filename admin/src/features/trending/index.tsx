@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
-import { Flame } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { ChevronRight, Flame } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
@@ -62,14 +64,13 @@ export function Trending() {
                   {index + 1}
                 </div>
                 <div className='min-w-0 flex-1'>
-                  <a
-                    href={item.url}
-                    target='_blank'
-                    rel='noreferrer'
+                  <Link
+                    to='/trending/$owner/$name'
+                    params={{ owner: item.owner, name: item.name }}
                     className='text-sm font-medium hover:underline'
                   >
                     {item.owner}/{item.name}
-                  </a>
+                  </Link>
                   <p className='truncate text-sm text-muted-foreground'>
                     {item.description}
                   </p>
@@ -79,6 +80,15 @@ export function Trending() {
                   <div className='text-sm font-medium'>+{item.starsToday}</div>
                   <div className='text-xs text-muted-foreground'>今日 Star</div>
                 </div>
+                <Button variant='ghost' size='sm' asChild>
+                  <Link
+                    to='/trending/$owner/$name'
+                    params={{ owner: item.owner, name: item.name }}
+                  >
+                    详情
+                    <ChevronRight />
+                  </Link>
+                </Button>
               </div>
             ))}
           </CardContent>

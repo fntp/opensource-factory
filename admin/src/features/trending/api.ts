@@ -1,4 +1,6 @@
-import { fetchWithFallback } from '@/lib/api'
+import { apiFetch, DEMO_MODE, fetchWithFallback } from '@/lib/api'
+
+export type SummarySource = 'readme' | 'description' | 'tech' | 'empty'
 
 export interface TrendingRepo {
   id: string
@@ -9,6 +11,22 @@ export interface TrendingRepo {
   stars: number
   starsToday: number
   url: string
+}
+
+export interface TrendingRepoDetail extends TrendingRepo {
+  platform: string
+  techStack: string[]
+  summary: string | null
+  summarySource: SummarySource
+  crawledAt: string | null
+  isFavorited: boolean
+}
+
+export interface FavoriteResult {
+  favorited: boolean
+  created?: boolean
+  removed?: boolean
+  repoId: string
 }
 
 export const MOCK_TRENDING_REPOS: TrendingRepo[] = [
@@ -114,6 +132,91 @@ export const MOCK_TRENDING_REPOS: TrendingRepo[] = [
   },
 ]
 
+const MOCK_TECH_STACK: Record<string, string[]> = {
+  'langchain-ai/langchain': ['Python', 'LLM', 'RAG'],
+  'microsoft/autogen': ['Python', 'LLM'],
+  'shadcn-ui/ui': ['TypeScript', 'React', 'Tailwind CSS'],
+  'ollama/ollama': ['Go', 'LLM'],
+  'lobehub/lobe-chat': ['TypeScript', 'React', 'Next.js'],
+  'ggml-org/llama.cpp': ['C++', 'LLM'],
+  'browser-use/browser-use': ['Python', 'LLM'],
+  'n8n-io/n8n': ['TypeScript', 'Node.js'],
+  'supabase/supabase': ['TypeScript', 'PostgreSQL'],
+  'tauri-apps/tauri': ['Rust', 'Tauri'],
+}
+
+export const MOCK_TRENDING_DETAILS: TrendingRepoDetail[] = MOCK_TRENDING_REPOS.map(
+  (item) => ({
+    ...item,
+    platform: 'github',
+    techStack: MOCK_TECH_STACK[`${item.owner}/${item.name}`] ?? [item.language],
+    summary: `${item.description}。该项目主要使用 ${item.language}，适合需要相关能力的团队参考。`,
+    summarySource: 'description',
+    crawledAt: '2026-10-22',
+    isFavorited: false,
+  })
+)
+
+/** 详情页路径：owner/name 分段编码，避免斜杠被当成路径分隔符 */
+export function trendingDetailPath(owner: string, name: string): string {
+  return `/api/trending/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`
+}
+
+function mockDetail(owner: string, name: string): TrendingRepoDetail {
+  const found = MOCK_TRENDING_DETAILS.find(
+    (item) => item.owner === owner && item.name === name
+  )
+  if (found) return { ...found }
+  return {
+    id: `${owner}/${name}`,
+    owner,
+    name,
+    description: '演示项目',
+    language: 'Unknown',
+    stars: 0,
+    starsToday: 0,
+    url: `https://github.com/${owner}/${name}`,
+    platform: 'github',
+    techStack: [],
+    summary: '演示模式下暂无该项目的摘要。',
+    summarySource: 'empty',
+    crawledAt: null,
+    isFavorited: false,
+  }
+}
+
 export function fetchTrending(): Promise<TrendingRepo[]> {
   return fetchWithFallback<TrendingRepo[]>('/api/trending', MOCK_TRENDING_REPOS)
+}
+
+export async function fetchTrendingDetail(
+  owner: string,
+  name: string
+): Promise<TrendingRepoDetail> {
+  if (DEMO_MODE) return mockDetail(owner, name)
+  return apiFetch<TrendingRepoDetail>(trendingDetailPath(owner, name))
+}
+
+export async function favoriteTrending(
+  owner: string,
+  name: string
+): Promise<FavoriteResult> {
+  if (DEMO_MODE) {
+    return { favorited: true, created: true, repoId: `${owner}/${name}` }
+  }
+  return apiFetch<FavoriteResult>(`${trendingDetailPath(owner, name)}/favorite`, {
+    method: 'POST',
+  })
+}
+
+export async function unfavoriteTrending(
+  owner: string,
+  name: string
+): Promise<FavoriteResult> {
+  if (DEMO_MODE) {
+    return { favorited: false, removed: true, repoId: `${owner}/${name}` }
+  }
+  return apiFetch<FavoriteResult>(`${trendingDetailPath(owner, name)}/favorite`, {
+    method: 'DELETE',
+  })
 }

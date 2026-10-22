@@ -66,6 +66,9 @@ admin「同步仓库」→ POST /api/sync（edge）→ POST {VPS}/api/tasks/sync
 ```
 Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trending_repositories
 → 摘要/技术栈提取 → （M3）向量化 → 同步 Vectorize
+
+admin 热榜列表 → 详情页 GET /api/trending/{owner}/{name}（摘要 + 元信息 + 收藏态）
+→「一键收藏」POST /api/trending/{owner}/{name}/favorite → upsert my_repositories
 ```
 
 ### 3.4 推荐流（RAG）
@@ -87,6 +90,8 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 | `/api/auth/logout` | POST | 退出（204） |
 | `/api/repos` | GET | 仓库列表（`?q=` / `?categoryId=`） |
 | `/api/trending` | GET | 热榜（`?limit=`） |
+| `/api/trending/{owner}/{name}` | GET | 热榜详情（摘要 + 元信息 + 收藏态，登录可选） |
+| `/api/trending/{owner}/{name}/favorite` | POST / DELETE | 一键收藏 / 取消收藏（需登录） |
 | `/api/recommendations` | GET | 推荐列表 |
 | `/api/categories` | GET | 分类 + 标签 |
 | `/api/dashboard/stats` | GET | 仪表盘统计 |

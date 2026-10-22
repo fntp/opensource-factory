@@ -38,7 +38,8 @@ CREATE TABLE trending_repositories (
     -- 追加列（API 需要）
     owner TEXT,
     language TEXT,
-    stars INTEGER DEFAULT 0
+    stars INTEGER DEFAULT 0,
+    readme_summary TEXT
 );
 
 -- ── 分类 ────────────────────────────────────────────────────────
@@ -104,6 +105,7 @@ CREATE TABLE recommendations (
 CREATE INDEX idx_my_repositories_user_id ON my_repositories (user_id);
 CREATE INDEX idx_my_repositories_category_id ON my_repositories (category_id);
 CREATE INDEX idx_trending_repositories_stars_today ON trending_repositories (stars_today DESC);
+CREATE INDEX idx_trending_repositories_platform_stars_today ON trending_repositories (platform, stars_today DESC);
 CREATE INDEX idx_sessions_user_id ON sessions (user_id);
 CREATE INDEX idx_sessions_expires_at ON sessions (expires_at);
 CREATE INDEX idx_recommendations_user_id ON recommendations (user_id);
