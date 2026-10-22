@@ -14,11 +14,14 @@ export const DEMO_MODE: boolean =
 
 export class ApiHttpError extends Error {
   status: number
+  /** 后端错误码（响应体 `{ error: "<code>" }`），用于业务侧精确提示 */
+  code?: string
 
-  constructor(status: number, statusText: string) {
+  constructor(status: number, statusText: string, code?: string) {
     super(`API ${status}: ${statusText}`)
     this.name = 'ApiHttpError'
     this.status = status
+    this.code = code
   }
 }
 
@@ -36,7 +39,14 @@ export async function apiFetch<T>(
     },
   })
   if (!res.ok) {
-    throw new ApiHttpError(res.status, res.statusText)
+    let code: string | undefined
+    try {
+      const body = (await res.json()) as { error?: unknown }
+      if (typeof body.error === 'string') code = body.error
+    } catch {
+      // 响应体不是 JSON（如网关错误页）时忽略，仅保留状态码
+    }
+    throw new ApiHttpError(res.status, res.statusText, code)
   }
   if (res.status === 204) {
     return undefined as T

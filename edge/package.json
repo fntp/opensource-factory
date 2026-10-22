@@ -7,7 +7,9 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "db:migrate:local": "wrangler d1 migrations apply opensource-factory --local"
+    "test:scripts": "node --test scripts/*.test.mjs",
+    "db:migrate:local": "wrangler d1 migrations apply opensource-factory --local",
+    "test:categories": "node scripts/categories-e2e.mjs"
   },
   "dependencies": {
     "hono": "^4.6.0"
