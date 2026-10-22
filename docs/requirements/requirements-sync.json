@@ -1,0 +1,656 @@
+{
+  "source": "docs/requirements/backlog.md",
+  "project": {
+    "code": "OpensourceFactory",
+    "name": "开源项目工厂"
+  },
+  "requirementNo": "REQ-202610-0746",
+  "generatedAt": "2026-10-13",
+  "count": 92,
+  "items": [
+    {
+      "no": "M1-01",
+      "title": "本机运行环境与部署基线（运行目录 / Redis / 进程管理 / 环境模板对齐）",
+      "priority": "P0",
+      "deps": "本机资源就绪",
+      "note": "运行目录建议 `/opt/openfactory`（私有，见 resource-plan）"
+    },
+    {
+      "no": "M1-02",
+      "title": "D1 数据库创建与迁移应用（替换 `database_id`）",
+      "priority": "P0",
+      "deps": "人工：Cloudflare 账号（Q3）",
+      "note": "可先用 `wrangler --local` 完成本地验证"
+    },
+    {
+      "no": "M1-03",
+      "title": "GitHub OAuth App 注册与登录全链路联调",
+      "priority": "P0",
+      "deps": "人工：OAuth App（Q3）",
+      "note": "本地回调先行，正式域名后置"
+    },
+    {
+      "no": "M1-04",
+      "title": "会话安全加固（Secure Cookie / 过期清理 / 登出全端）",
+      "priority": "P1",
+      "deps": "M1-03",
+      "note": "安全红线见 code-constraints"
+    },
+    {
+      "no": "M1-05",
+      "title": "Starred 全量同步（分页 / 限流 / 重试 / 进度）",
+      "priority": "P0",
+      "deps": "M1-01~03",
+      "note": "vps `github_service` 已有基础"
+    },
+    {
+      "no": "M1-06",
+      "title": "自有仓库与组织仓库同步（fork / 归档过滤策略）",
+      "priority": "P1",
+      "deps": "M1-05",
+      "note": "过滤策略可配置"
+    },
+    {
+      "no": "M1-07",
+      "title": "增量同步策略（按 `pushed_at` / star 变化，避免全量）",
+      "priority": "P0",
+      "deps": "M1-05",
+      "note": "同步耗时与配额优化"
+    },
+    {
+      "no": "M1-08",
+      "title": "同步任务状态回传与可视化（任务表 + admin 进度）",
+      "priority": "P1",
+      "deps": "M1-05",
+      "note": "对齐 `/api/tasks/{taskId}` 契约"
+    },
+    {
+      "no": "M1-09",
+      "title": "分类树 CRUD（无限级、排序、移动）",
+      "priority": "P0",
+      "deps": "M1-02",
+      "note": "前端页面已有骨架"
+    },
+    {
+      "no": "M1-10",
+      "title": "标签体系 CRUD（重命名 / 合并 / 计数维护）",
+      "priority": "P1",
+      "deps": "M1-02",
+      "note": "`tags` / `repo_tags` 已建模"
+    },
+    {
+      "no": "M1-11",
+      "title": "仓库列表组合筛选与排序（分类 / 标签 / 语言 / Star / 时间）",
+      "priority": "P0",
+      "deps": "M1-05/09/10",
+      "note": "—"
+    },
+    {
+      "no": "M1-12",
+      "title": "秒级检索优化（索引与查询计划核对，P95 < 300ms）",
+      "priority": "P0",
+      "deps": "M1-11",
+      "note": "非功能要求见 spec §6"
+    },
+    {
+      "no": "M1-13",
+      "title": "README 摘要接入同步流程（Ollama 降级链、批量队列）",
+      "priority": "P1",
+      "deps": "M1-05；模型选型（M3-01）先行",
+      "note": "2G 预算内选型"
+    },
+    {
+      "no": "M1-14",
+      "title": "admin 关闭演示模式、真实接口联调（登录态 / 空态 / 错误态）",
+      "priority": "P0",
+      "deps": "M1-05~13",
+      "note": "—"
+    },
+    {
+      "no": "M1-15",
+      "title": "M1 验收：端到端走查 + 性能抽样 + 文档同步",
+      "priority": "P0",
+      "deps": "M1-14",
+      "note": "出口条件见 dev-cycle"
+    },
+    {
+      "no": "M1-16",
+      "title": "数据一致性巡检（D1 ↔ 本机镜像对账工具）",
+      "priority": "P2",
+      "deps": "M1-05",
+      "note": "运维辅助"
+    },
+    {
+      "no": "M2-01",
+      "title": "GitHub Trending 每日定时抓取（Celery beat，多语言页）",
+      "priority": "P0",
+      "deps": "M1-01",
+      "note": "解析器已就绪（fixture 驱动）"
+    },
+    {
+      "no": "M2-02",
+      "title": "抓取容错与页面结构变更告警",
+      "priority": "P1",
+      "deps": "M2-01",
+      "note": "降级：空列表 + 日志，不抛异常"
+    },
+    {
+      "no": "M2-03",
+      "title": "README 清洗强化（徽章 / 图片 / HTML 去除，技术栈提取）",
+      "priority": "P1",
+      "deps": "—",
+      "note": "`readme.py` 已有基础"
+    },
+    {
+      "no": "M2-04",
+      "title": "中文摘要批量生成（含质量抽检机制）",
+      "priority": "P1",
+      "deps": "M1-13",
+      "note": "抽检样本留存评估"
+    },
+    {
+      "no": "M2-05",
+      "title": "热榜快照入库与去重（按日快照 + 趋势字段）",
+      "priority": "P0",
+      "deps": "M2-01",
+      "note": "—"
+    },
+    {
+      "no": "M2-06",
+      "title": "热榜页联动（日期 / 语言筛选、趋势标注）",
+      "priority": "P0",
+      "deps": "M2-05",
+      "note": "前端骨架已有"
+    },
+    {
+      "no": "M2-07",
+      "title": "热榜详情页（摘要 + 元信息 + 一键收藏）",
+      "priority": "P1",
+      "deps": "M2-04/06",
+      "note": "—"
+    },
+    {
+      "no": "M2-08",
+      "title": "热榜数据保留策略（保留窗口 / 归档 / 清理）",
+      "priority": "P2",
+      "deps": "M2-05",
+      "note": "受磁盘预算约束"
+    },
+    {
+      "no": "M2-09",
+      "title": "Gitee 探索页抓取（待 Q2 确认）",
+      "priority": "P2",
+      "deps": "Q2 确认",
+      "note": "预留入口已存在"
+    },
+    {
+      "no": "M2-10",
+      "title": "M2 验收与回顾",
+      "priority": "P0",
+      "deps": "M2-01~08",
+      "note": "—"
+    },
+    {
+      "no": "M3-01",
+      "title": "模型选型与 2G 预算验证（bge-m3 量化 + ≤2B LLM，更新默认配置）",
+      "priority": "P0",
+      "deps": "—",
+      "note": "现默认 `qwen2.5:7b` 超预算，需切换（见 resource-plan §3）"
+    },
+    {
+      "no": "M3-02",
+      "title": "向量化管线（收藏库 + 热榜；批量 / 增量 / 断点续跑）",
+      "priority": "P0",
+      "deps": "M3-01",
+      "note": "—"
+    },
+    {
+      "no": "M3-03",
+      "title": "Vectorize 索引同步（批量 upsert / 失败重试 / 对账）",
+      "priority": "P0",
+      "deps": "M3-02；Q3",
+      "note": "—"
+    },
+    {
+      "no": "M3-04",
+      "title": "语义搜索接口与页面（自然语言检索）",
+      "priority": "P0",
+      "deps": "M3-03",
+      "note": "—"
+    },
+    {
+      "no": "M3-05",
+      "title": "每日推荐生成任务（阈值 / 去重已收藏 / 打分）",
+      "priority": "P0",
+      "deps": "M3-02",
+      "note": "—"
+    },
+    {
+      "no": "M3-06",
+      "title": "推荐理由生成（中文、依据字段）",
+      "priority": "P1",
+      "deps": "M3-05",
+      "note": "`reason` / `based_on` 已建模"
+    },
+    {
+      "no": "M3-07",
+      "title": "推荐页闭环（收藏 / 忽略 / 反馈回流）",
+      "priority": "P0",
+      "deps": "M3-05",
+      "note": "前端骨架已有"
+    },
+    {
+      "no": "M3-08",
+      "title": "推荐质量评估与调参（抽样评估集、阈值调优）",
+      "priority": "P1",
+      "deps": "M3-05/07",
+      "note": "—"
+    },
+    {
+      "no": "M3-09",
+      "title": "降级路径验证（模型缺失 / 超预算 → hash 向量 / 截断摘要）",
+      "priority": "P1",
+      "deps": "M3-02",
+      "note": "测试不依赖模型"
+    },
+    {
+      "no": "M3-10",
+      "title": "查询理解增强（同义词 / 技术栈词表）",
+      "priority": "P2",
+      "deps": "M3-04",
+      "note": "—"
+    },
+    {
+      "no": "M3-11",
+      "title": "M3 验收与回顾",
+      "priority": "P0",
+      "deps": "M3-01~09",
+      "note": "—"
+    },
+    {
+      "no": "M4-01",
+      "title": "每日评估任务（质量分 + 匹配度阈值）",
+      "priority": "P0",
+      "deps": "M3-05",
+      "note": "—"
+    },
+    {
+      "no": "M4-02",
+      "title": "站内通知中心（edge + admin）",
+      "priority": "P0",
+      "deps": "M4-01",
+      "note": "`recommendations.status` 已预留"
+    },
+    {
+      "no": "M4-03",
+      "title": "Bark 通道",
+      "priority": "P1",
+      "deps": "M4-02",
+      "note": "—"
+    },
+    {
+      "no": "M4-04",
+      "title": "Telegram 通道",
+      "priority": "P1",
+      "deps": "M4-02",
+      "note": "—"
+    },
+    {
+      "no": "M4-05",
+      "title": "Email 通道（SMTP）",
+      "priority": "P2",
+      "deps": "M4-02",
+      "note": "—"
+    },
+    {
+      "no": "M4-06",
+      "title": "推送偏好设置（时间 / 阈值 / 通道开关）",
+      "priority": "P1",
+      "deps": "M4-02",
+      "note": "—"
+    },
+    {
+      "no": "M4-07",
+      "title": "推送去重与静默策略",
+      "priority": "P1",
+      "deps": "M4-02",
+      "note": "避免打扰"
+    },
+    {
+      "no": "M4-08",
+      "title": "推送记录与回执（送达状态）",
+      "priority": "P2",
+      "deps": "M4-03~05",
+      "note": "—"
+    },
+    {
+      "no": "M4-09",
+      "title": "M4 验收与回顾",
+      "priority": "P0",
+      "deps": "M4-01~08",
+      "note": "—"
+    },
+    {
+      "no": "M5-01",
+      "title": "正式部署（Pages / Workers + 本机节点 + 域名 HTTPS）",
+      "priority": "P0",
+      "deps": "Q3；M1~M4",
+      "note": "—"
+    },
+    {
+      "no": "M5-02",
+      "title": "本机一体化部署模式评估与落地（离线自托管；Q9）",
+      "priority": "P1",
+      "deps": "Q9 确认",
+      "note": "满足「部署在本机」增强口径"
+    },
+    {
+      "no": "M5-03",
+      "title": "监控与告警（健康检查 / 资源监控 / 日志 / Workers Analytics）",
+      "priority": "P0",
+      "deps": "M5-01",
+      "note": "含 4G/15G 资源红线监控"
+    },
+    {
+      "no": "M5-04",
+      "title": "备份与恢复（D1 导出 / SQLite 快照 / 恢复演练）",
+      "priority": "P0",
+      "deps": "M5-01",
+      "note": "磁盘配额见 resource-plan"
+    },
+    {
+      "no": "M5-05",
+      "title": "接口限流与安全加固（限流 / 内部令牌轮换 / 登录防护）",
+      "priority": "P1",
+      "deps": "M5-01",
+      "note": "—"
+    },
+    {
+      "no": "M5-06",
+      "title": "资源预算实测验证（4G / 15G 红线；超限优化）",
+      "priority": "P0",
+      "deps": "M5-01~03",
+      "note": "见 resource-plan §6"
+    },
+    {
+      "no": "M5-07",
+      "title": "运维手册（部署 / 升级 / 回滚 / 故障处理 SOP）",
+      "priority": "P1",
+      "deps": "M5-01",
+      "note": "—"
+    },
+    {
+      "no": "M5-08",
+      "title": "安全审计（依赖漏洞扫描 / 配置检查 / 隐私边界复核）",
+      "priority": "P1",
+      "deps": "M5-01",
+      "note": "—"
+    },
+    {
+      "no": "M5-09",
+      "title": "M5 验收与发布 v1.0",
+      "priority": "P0",
+      "deps": "M5-01~08",
+      "note": "仓库级里程碑标签"
+    },
+    {
+      "no": "M6-01",
+      "title": "全文检索（README 全文索引，FTS）",
+      "priority": "P1",
+      "deps": "M1-12",
+      "note": "本地镜像先行"
+    },
+    {
+      "no": "M6-02",
+      "title": "相似项目推荐（向量近邻「看了又看」）",
+      "priority": "P1",
+      "deps": "M3-03",
+      "note": "—"
+    },
+    {
+      "no": "M6-03",
+      "title": "重复 / 相似项目检测与合并建议",
+      "priority": "P2",
+      "deps": "M6-02",
+      "note": "—"
+    },
+    {
+      "no": "M6-04",
+      "title": "技术栈图谱视图（语言 / 框架聚合）",
+      "priority": "P2",
+      "deps": "M1-11",
+      "note": "—"
+    },
+    {
+      "no": "M6-05",
+      "title": "项目健康度追踪（最后提交 / issue 活跃 / 归档标记）",
+      "priority": "P1",
+      "deps": "M1-05",
+      "note": "GitHub API 补充字段"
+    },
+    {
+      "no": "M6-06",
+      "title": "License 识别与合规提示",
+      "priority": "P2",
+      "deps": "M2-03",
+      "note": "—"
+    },
+    {
+      "no": "M6-07",
+      "title": "依赖分析（项目依赖 ↔ 个人技术栈关联）",
+      "priority": "P2",
+      "deps": "M6-04",
+      "note": "—"
+    },
+    {
+      "no": "M6-08",
+      "title": "知识库导出（Markdown / JSON / Obsidian）",
+      "priority": "P2",
+      "deps": "M9-04",
+      "note": "—"
+    },
+    {
+      "no": "M6-09",
+      "title": "多轮问答式检索（「我的收藏里有哪些支付相关项目？」）",
+      "priority": "P1",
+      "deps": "M3-04",
+      "note": "—"
+    },
+    {
+      "no": "M6-10",
+      "title": "检索体验精修（搜索建议 / 历史 / 快捷键）",
+      "priority": "P2",
+      "deps": "M6-01",
+      "note": "—"
+    },
+    {
+      "no": "M6-11",
+      "title": "主题聚类与自动标签",
+      "priority": "P2",
+      "deps": "M3-02",
+      "note": "—"
+    },
+    {
+      "no": "M6-12",
+      "title": "M6 验收与回顾",
+      "priority": "P0",
+      "deps": "M6-01~11",
+      "note": "—"
+    },
+    {
+      "no": "M7-01",
+      "title": "自动打标建议（基于摘要）",
+      "priority": "P1",
+      "deps": "M2-04",
+      "note": "—"
+    },
+    {
+      "no": "M7-02",
+      "title": "自动分类建议（按业务线）",
+      "priority": "P1",
+      "deps": "M1-09；M7-01",
+      "note": "—"
+    },
+    {
+      "no": "M7-03",
+      "title": "每周 / 月度精选报告（自动生成）",
+      "priority": "P1",
+      "deps": "M4-01",
+      "note": "—"
+    },
+    {
+      "no": "M7-04",
+      "title": "收藏项目更新提醒（新版本 / 重大变更）",
+      "priority": "P1",
+      "deps": "M1-07",
+      "note": "—"
+    },
+    {
+      "no": "M7-05",
+      "title": "Star 趋势与洞察视图",
+      "priority": "P2",
+      "deps": "M2-05",
+      "note": "—"
+    },
+    {
+      "no": "M7-06",
+      "title": "模型路由与升级（按任务选择模型）",
+      "priority": "P1",
+      "deps": "M3-01",
+      "note": "预算内多模型管理"
+    },
+    {
+      "no": "M7-07",
+      "title": "Rerank 精排（提升推荐质量）",
+      "priority": "P1",
+      "deps": "M3-05",
+      "note": "—"
+    },
+    {
+      "no": "M7-08",
+      "title": "个人数据微调评估（LoRA 可行性）",
+      "priority": "P2",
+      "deps": "M7-06",
+      "note": "预算与效果双评估"
+    },
+    {
+      "no": "M7-09",
+      "title": "Agent 工作流（自动整理 / 草稿生成）",
+      "priority": "P2",
+      "deps": "M7-01~03",
+      "note": "—"
+    },
+    {
+      "no": "M7-10",
+      "title": "M7 验收与回顾",
+      "priority": "P0",
+      "deps": "M7-01~09",
+      "note": "—"
+    },
+    {
+      "no": "M8-01",
+      "title": "PWA 与移动端适配",
+      "priority": "P1",
+      "deps": "M5-01",
+      "note": "—"
+    },
+    {
+      "no": "M8-02",
+      "title": "浏览器扩展（一键收藏当前页面）",
+      "priority": "P1",
+      "deps": "M5-05",
+      "note": "—"
+    },
+    {
+      "no": "M8-03",
+      "title": "Telegram Bot 查询入口（收藏 / 推荐 / 热榜）",
+      "priority": "P2",
+      "deps": "M4-04",
+      "note": "—"
+    },
+    {
+      "no": "M8-04",
+      "title": "快捷入口（Raycast / 快捷指令类）评估",
+      "priority": "P2",
+      "deps": "M8-05",
+      "note": "—"
+    },
+    {
+      "no": "M8-05",
+      "title": "开放 API（个人令牌）",
+      "priority": "P2",
+      "deps": "M5-05",
+      "note": "—"
+    },
+    {
+      "no": "M8-06",
+      "title": "CLI 工具（命令行查询 / 收藏）",
+      "priority": "P2",
+      "deps": "M8-05",
+      "note": "—"
+    },
+    {
+      "no": "M8-07",
+      "title": "离线可用（PWA 缓存 + 本地数据）",
+      "priority": "P2",
+      "deps": "M8-01",
+      "note": "—"
+    },
+    {
+      "no": "M8-08",
+      "title": "M8 验收与回顾",
+      "priority": "P0",
+      "deps": "M8-01~07",
+      "note": "—"
+    },
+    {
+      "no": "M9-01",
+      "title": "个人技术画像（语言 / 框架分布、活跃度）",
+      "priority": "P1",
+      "deps": "M1-05",
+      "note": "—"
+    },
+    {
+      "no": "M9-02",
+      "title": "资产报表（收录量 / 分类分布 / Star 趋势）",
+      "priority": "P1",
+      "deps": "M9-01",
+      "note": "—"
+    },
+    {
+      "no": "M9-03",
+      "title": "数据导入（外部收藏迁移）",
+      "priority": "P2",
+      "deps": "M1-05",
+      "note": "—"
+    },
+    {
+      "no": "M9-04",
+      "title": "全量导出与归档（备份格式规范）",
+      "priority": "P1",
+      "deps": "M5-04",
+      "note": "—"
+    },
+    {
+      "no": "M9-05",
+      "title": "数据质量治理（去重 / 失效链接 / 元数据补全）",
+      "priority": "P1",
+      "deps": "M1-16",
+      "note": "—"
+    },
+    {
+      "no": "M9-06",
+      "title": "数据保留与隐私策略落地",
+      "priority": "P1",
+      "deps": "M5-08",
+      "note": "—"
+    },
+    {
+      "no": "M9-07",
+      "title": "M9 验收与回顾",
+      "priority": "P0",
+      "deps": "M9-01~06",
+      "note": "—"
+    }
+  ]
+}

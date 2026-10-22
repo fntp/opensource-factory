@@ -1,0 +1,190 @@
+{
+  "meta": {
+    "branch": "feat/req-202610-0929-m3-acceptance",
+    "commit": "22da214",
+    "finishedAt": "2026-10-22T08:25:17+0000",
+    "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3"
+  },
+  "results": [
+    {
+      "id": "M3-01",
+      "title": "模型选型满足 2G 预算（bge-m3 int8 + ≤2B LLM）",
+      "status": "PASS",
+      "detail": "embedding=1100MB · llm=1300MB · peak=1300/2048MB",
+      "durationMs": 340.2
+    },
+    {
+      "id": "M3-02",
+      "title": "全量向量化 20 条并落库",
+      "status": "PASS",
+      "detail": "20 条（my 8 / trending 12）· backend=hash",
+      "durationMs": 274.9
+    },
+    {
+      "id": "M3-03",
+      "title": "单条向量详情可读取（dim=256）",
+      "status": "PASS",
+      "detail": "my/me/payment-gateway · dim=256",
+      "durationMs": 9.1
+    },
+    {
+      "id": "M3-04",
+      "title": "增量同步 upsert 20 条并按批提交",
+      "status": "PASS",
+      "detail": "upserted=20 · batches=3",
+      "durationMs": 125.6
+    },
+    {
+      "id": "M3-05",
+      "title": "重复增量同步跳过未变化向量",
+      "status": "PASS",
+      "detail": "upserted=0 / skipped=20（增量幂等）",
+      "durationMs": 45.0
+    },
+    {
+      "id": "M3-06",
+      "title": "索引对账全部命中（无缺失 / 过期）",
+      "status": "PASS",
+      "detail": "checked=20 / missing=0 / stale=0",
+      "durationMs": 33.8
+    },
+    {
+      "id": "M3-07",
+      "title": "语义搜索命中支付相关项目",
+      "status": "PASS",
+      "detail": "命中 5 条 · top=me/payment-gateway",
+      "durationMs": 13.1
+    },
+    {
+      "id": "M3-08",
+      "title": "语义搜索结果水合完整（描述 / 理由 / 链接）",
+      "status": "PASS",
+      "detail": "me/payment-gateway · score=0.398002",
+      "durationMs": 11.3
+    },
+    {
+      "id": "M3-09",
+      "title": "搜索 scope / topK 过滤生效",
+      "status": "PASS",
+      "detail": "scope=my · topK=2",
+      "durationMs": 11.2
+    },
+    {
+      "id": "M3-10",
+      "title": "搜索状态返回覆盖率与词表统计",
+      "status": "PASS",
+      "detail": "totalVectors=20 · vocabulary={'techEntries': 65, 'conceptEntries': 55, 'aliases': 328}",
+      "durationMs": 7.0
+    },
+    {
+      "id": "M3-11",
+      "title": "每日推荐任务生成结果并落库",
+      "status": "PASS",
+      "detail": "10 条推荐",
+      "durationMs": 144.9
+    },
+    {
+      "id": "M3-12",
+      "title": "推荐排除已收藏 / 已忽略项目",
+      "status": "PASS",
+      "detail": "10 条 · 已排除 saved/dismissed",
+      "durationMs": 6.9
+    },
+    {
+      "id": "M3-13",
+      "title": "每条推荐含中文理由与依据字段",
+      "status": "PASS",
+      "detail": "reason=「与你的收藏方向较为接近（相似度约 52%）；技术栈都涉及 Python；今日热榜…」· based_on=['相似度 52%', '语言 Python', '技术栈 Python', '今日 +850 stars']",
+      "durationMs": 4.8
+    },
+    {
+      "id": "M3-14",
+      "title": "即时语义推荐返回理由与依据",
+      "status": "PASS",
+      "detail": "5 条 · 首条 payment-gateway",
+      "durationMs": 15.7
+    },
+    {
+      "id": "M3-15",
+      "title": "反馈拉取 → 排除 → 推荐回写闭环",
+      "status": "PASS",
+      "detail": "反馈拉取 1 次 · 回写 10 条",
+      "durationMs": 0.0
+    },
+    {
+      "id": "M3-16",
+      "title": "推荐质量评估返回指标 / 扫描 / 调参建议",
+      "status": "PASS",
+      "detail": "samples=3 · F1=0.1905 · 推荐 minScore=0.2",
+      "durationMs": 34.3
+    },
+    {
+      "id": "M3-17",
+      "title": "降级状态接口 5 项自检全 PASS",
+      "status": "PASS",
+      "detail": "5 项全 PASS · expectedBackend=hash",
+      "durationMs": 10.2
+    },
+    {
+      "id": "M3-18",
+      "title": "降级自检 CLI 可独立执行",
+      "status": "PASS",
+      "detail": "python -m app.degradation check --json · exit 0",
+      "durationMs": 449.3
+    },
+    {
+      "id": "M3-19",
+      "title": "查询理解识别技术栈与同义词",
+      "status": "PASS",
+      "detail": "rewritten=「react 前端 frontend ui」",
+      "durationMs": 4.8
+    },
+    {
+      "id": "M3-20",
+      "title": "查询理解可关闭（expand=false）",
+      "status": "PASS",
+      "detail": "expand=false · 保持原查询",
+      "durationMs": 3.9
+    },
+    {
+      "id": "M3-21",
+      "title": "查询向量接口返回向量与理解结果",
+      "status": "PASS",
+      "detail": "dim=256 · understanding 已返回",
+      "durationMs": 6.7
+    },
+    {
+      "id": "M3-P01",
+      "title": "语义搜索 P95 < 500ms",
+      "status": "PASS",
+      "detail": "P50 8.5ms / P95 14.1ms",
+      "durationMs": 14.1
+    },
+    {
+      "id": "M3-P02",
+      "title": "推荐列表 P95 < 300ms",
+      "status": "PASS",
+      "detail": "P50 4.8ms / P95 6.1ms",
+      "durationMs": 6.1
+    }
+  ],
+  "perf": [
+    {
+      "path": "/api/search/query",
+      "samples": 30,
+      "p50": 8.5,
+      "p95": 14.1,
+      "max": 14.7,
+      "budget": 500.0
+    },
+    {
+      "path": "/api/recommend/list?user_id=2001&limit=50",
+      "samples": 30,
+      "p50": 4.8,
+      "p95": 6.1,
+      "max": 6.3,
+      "budget": 300.0
+    }
+  ]
+}
