@@ -19,6 +19,9 @@ trending_repositories        （最新状态，公共数据）
 trending_snapshots           （按日快照 + 趋势字段）
 summary_quality_samples      （摘要抽检样本，按批次留存）
 recommendations              （user_id 可空 = 全局推荐）
+  │ (recommendation_id)
+  ▼
+notifications                （站内通知，按用户隔离）
 ```
 
 ## 2. 核心表（需求原文，字段保持不变）
@@ -150,7 +153,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | score REAL | 综合得分 0~1（相似度 × 0.8 + 热榜热度 × 0.2） |
 | reason TEXT | 推荐理由（中文） |
 | based_on TEXT | 依据（JSON 数组，如 `["AI/LLM","Python"]`） |
-| status TEXT | `new` / `saved` / `dismissed` / `pushed` / `expired`（VPS 每日任务未入选或已收藏） |
+| status TEXT | `new` / `qualified` / `filtered` / `pushed` / `saved` / `dismissed` / `expired` |
 | created_at / updated_at | 生成 / 状态更新时间 |
 
 ### 3.6 `recommendation_feedback` 推荐反馈（M3-07）
@@ -201,6 +204,24 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | occurrences | 累计出现次数 |
 | first_seen_at / last_seen_at / acknowledged_at | 首次 / 最近 / 确认时间 |
 
+### 3.5 `notifications` 站内通知
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | 通知 id |
+| user_id | 接收用户 |
+| type TEXT | 通知类型（`recommendation` / `system`） |
+| title / body | 标题与正文 |
+| url | 跳转地址（通常为仓库 URL） |
+| repo_id / recommendation_id | 关联仓库 / 推荐（可空） |
+| dedupe_key TEXT | 去重键，同一用户内唯一 |
+| score / reason / language / stars | 推荐快照，便于列表直接渲染 |
+| status TEXT | `unread` / `read` / `dismissed` |
+| payload TEXT | 扩展 JSON（如 `{basedOn: string[]}`） |
+| created_at / read_at | 生成 / 阅读时间 |
+
+**生成规则**：`GET /api/notifications` 与 `/unread-count` 触发惰性物化——把当前用户（含全局）`recommendations.status = 'pushed'` 且尚未通知的记录写入 `notifications`，由唯一索引 `(user_id, recommendation_id)` / `(user_id, dedupe_key)` 保证幂等。通知忽略时同步把关联推荐置为 `dismissed`。
+
 ## 4. 索引策略
 
 | 表 | 索引 | 用途 |
@@ -214,6 +235,8 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | recommendations | `(user_id, score DESC)` | 推荐列表 |
 | crawl_alerts | `(dedupe_key)`、`(status)` | 告警去重与未确认列表 |
 | recommendation_feedback | `(user_id, recommendation_id, action)` UNIQUE、`(user_id, created_at)`、`(user_id, repo_id)` | 反馈幂等 / 回流查询 |
+| notifications | `(user_id, status, created_at DESC)` | 通知列表与未读数 |
+| notifications | `(user_id, recommendation_id)` UNIQUE、`(user_id, dedupe_key)` UNIQUE | 物化幂等 / 去重 |
 
 ## 5. 向量数据（M3）
 

@@ -122,7 +122,7 @@ export interface FavoriteResult {
 export interface RecommendationRow {
   id: string;
   user_id: string | null;
-  repo_id: string | null;
+  repo_id?: string | null;
   owner: string | null;
   name: string | null;
   description: string | null;
@@ -147,6 +147,26 @@ export interface RecommendationFeedbackRow {
   action: RecommendationFeedbackAction;
   reason: string | null;
   created_at: string;
+}
+
+export interface NotificationRow {
+  id: string;
+  user_id: string;
+  type: string | null;
+  title: string;
+  body: string | null;
+  url: string | null;
+  repo_id: string | null;
+  recommendation_id: string | null;
+  dedupe_key: string | null;
+  score: number | null;
+  reason: string | null;
+  language: string | null;
+  stars: number | null;
+  status: string | null;
+  payload: string | null;
+  created_at: string | null;
+  read_at: string | null;
 }
 
 export interface CategoryRow {
@@ -245,6 +265,34 @@ export interface RecommendationStats {
   dismissed: number;
   pushed: number;
   clicked: number;
+}
+
+/** GET /api/notifications 列表项 */
+export interface NotificationItem {
+  id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  url: string | null;
+  repoId: string | null;
+  recommendationId: string | null;
+  score: number | null;
+  reason: string | null;
+  language: string | null;
+  stars: number;
+  status: 'unread' | 'read' | 'dismissed';
+  createdAt: string;
+  readAt: string | null;
+}
+
+/** GET /api/notifications */
+export interface NotificationsPayload {
+  items: NotificationItem[];
+  total: number;
+  unread: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
 }
 
 /** GET /api/categories */

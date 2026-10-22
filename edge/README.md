@@ -33,7 +33,9 @@ edge/
 │   ├── 0001_init.sql     # 初始 D1 schema（表 + 索引）
 │   ├── 0002_trending_snapshots.sql  # 热榜按日快照（M2-05）
 │   ├── 0007_trending_summary.sql  # 热榜摘要列（M2-04）
-│   └── 0008_trending_detail.sql  # 热榜详情：平台/Star 查询索引（摘要列见 0007）
+│   ├── 0008_trending_detail.sql  # 热榜详情：平台/Star 查询索引（摘要列见 0007）
+│   ├── 0009_recommendation_feedback.sql  # 推荐反馈明细（M3-07）
+│   └── 0010_notifications.sql  # 站内通知表 + 去重/列表索引（M4-02）
 └── src/
     ├── index.ts          # Hono 入口：CORS、日志、/healthz、路由挂载、404/500
     ├── types.ts          # Env 绑定 + 数据库行 + API 响应实体
@@ -47,6 +49,7 @@ edge/
         ├── recommend.ts  # /api/recommendations
         ├── categories.ts # /api/categories
         ├── dashboard.ts  # /api/dashboard/stats
+        ├── notifications.ts  # /api/notifications + /api/internal/notifications
         ├── sync.ts       # /api/sync
         ├── search.ts     # /api/search/semantic（查询理解 + Vectorize → 本地向量 → 关键词三级降级）
         └── internal-vectors.ts # /api/internal/vectors/*（VPS → Vectorize，X-Internal-Token）
@@ -168,6 +171,11 @@ npm run test:m2 -- --strict \
 | `GET /api/internal/trending/retention` | 内部：D1 快照总数与最早 / 最新日期（`X-Internal-Token`） |
 | `POST /api/internal/trending/retention/cleanup` | 内部：按 `{beforeDate, dryRun?}` 删除过期快照（`X-Internal-Token`，M2-08） |
 | `GET /api/recommendations` | `Recommendation[]`（用户私有 + 全局，按 `score` 降序；需登录） |
+| `GET /api/notifications?status=&limit=&offset=` | `NotificationsPayload`（`all`/`unread`/`read`，limit ≤100；需登录；惰性物化 `pushed` 推荐） |
+| `GET /api/notifications/unread-count` | `{unread:number}`（侧边栏徽标） |
+| `POST /api/notifications/:id/read` | 单条标记已读（幂等；404 = 不存在或已忽略） |
+| `POST /api/notifications/read-all` | `{updated,unread:0}` |
+| `POST /api/notifications/:id/dismiss` | 忽略通知，并同步关联推荐状态为 `dismissed` |
 | `GET /api/categories` | `CategoriesPayload` |
 | `GET /api/dashboard/stats` | `DashboardStats` |
 | `POST /api/sync` | 202 `{"status":"queued"}`（已配置 VPS）或 `{"status":"accepted","note":"vps node not configured"}` |

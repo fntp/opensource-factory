@@ -202,6 +202,15 @@ summarize() → Ollama（超预算则跳过请求）→ DeepSeek → 截断原�
 
 查询理解结果（`query` / `rewritten` / `techStack` / `concepts` / `terms` / `keywordTerms`）随搜索响应返回：
 admin 搜索页展示「查询理解」标签，edge 关键词兜底使用扩展词提升召回。
+### 3.12 站内通知流（M4-02）
+
+```
+VPS 每日评估 → recommendations.status = 'pushed'
+→ admin 打开通知中心 / 轮询未读数 → edge 惰性物化 notifications（幂等）
+→ 用户标记已读 / 全部已读 / 忽略 → 未读数徽标同步刷新
+```
+
+通知正文与推荐快照同表存储，前端无需二次请求推荐接口；同一 `(user_id, recommendation_id)` 只生成一条通知。
 
 ## 4. 接口边界
 
@@ -229,6 +238,11 @@ admin 搜索页展示「查询理解」标签，edge 关键词兜底使用扩展
 | `/api/recommendations/:id/click` | POST | 记录查看点击（clicked 反馈） |
 | `/api/categories` | GET | 分类 + 标签 |
 | `/api/dashboard/stats` | GET | 仪表盘统计 |
+| `/api/notifications` | GET | 通知列表（`?status=` / `?limit=` / `?offset=`，需登录） |
+| `/api/notifications/unread-count` | GET | 未读数（侧边栏徽标轮询） |
+| `/api/notifications/:id/read` | POST | 单条标记已读（幂等） |
+| `/api/notifications/read-all` | POST | 全部标记已读 |
+| `/api/notifications/:id/dismiss` | POST | 忽略通知（同步推荐状态） |
 | `/api/sync` | POST | 触发同步任务（202） |
 | `/api/search/semantic` | POST | 语义搜索（`query` / `topK` / `scope`；vectorize → local → keyword 三级降级） |
 
@@ -252,6 +266,8 @@ admin 搜索页展示「查询理解」标签，edge 关键词兜底使用扩展
 | `/api/recommend/query` | POST | 语义查询（返回 `reason` + `based_on`） |
 | `/api/recommend/list` | GET | 本地已生成推荐（`reason` + `based_on`） |
 | `/api/tasks/vectorize` | POST | 入队向量化（批量 / 增量 / 断点续跑） |
+| `/api/internal/notifications` | POST | 批量写入站内通知（`X-Internal-Token`，单批 ≤100） |
+| `/api/internal/notifications/sync-recommendations` | POST | 物化指定用户的 `pushed` 推荐为通知 |
 | `/api/tasks/{taskId}` | GET | 任务状态 |
 | `/api/trending/retention` | GET | 热榜保留策略状态（窗口 / 过期数 / 库与归档占用） |
 | `/api/trending/retention/cleanup` | POST | 入队热榜归档与清理（`?dryRun=` / `?retentionDays=` / `?archive=`） |

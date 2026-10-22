@@ -25,7 +25,10 @@ export const sidebarData: SidebarData = {
   navGroups: [
     {
       title: '总览',
-      items: [{ title: '仪表盘', url: '/', icon: LayoutDashboard }],
+      items: [
+        { title: '仪表盘', url: '/', icon: LayoutDashboard },
+        { title: '通知中心', url: '/notifications', icon: Bell },
+      ],
     },
     {
       title: '开源资产',

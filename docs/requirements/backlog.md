@@ -86,7 +86,7 @@
 | 编号 | 需求 | 优先级 | 依赖 | 备注 |
 | --- | --- | --- | --- | --- |
 | M4-01 | 每日评估任务（质量分 + 匹配度阈值） | P0 | M3-05 | — |
-| M4-02 | 站内通知中心（edge + admin） | P0 | M4-01 | `recommendations.status` 已预留 |
+| M4-02 | 站内通知中心（edge + admin） | P0 | M4-01 | ✅ 已实现：迁移 0010 + `/api/notifications` + admin `/notifications`（惰性物化 `status='pushed'`） |
 | M4-03 | Bark 通道 | P1 | M4-02 | — |
 | M4-04 | Telegram 通道 | P1 | M4-02 | — |
 | M4-05 | Email 通道（SMTP） | P2 | M4-02 | — |
