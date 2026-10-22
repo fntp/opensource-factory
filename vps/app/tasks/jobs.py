@@ -492,6 +492,7 @@ def regenerate_recommendation_reasons(
 ) -> dict[str, Any]:
     """按当前模板重算存量推荐的中文理由与依据字段（模板升级 / 画像变化后使用）。"""
     from app.services.recommend_reason import build_reason_detail, build_user_profile
+    from app.services.recommendation_feedback import push_recommendations
 
     db = SessionLocal()
     try:
@@ -536,13 +537,13 @@ def regenerate_recommendation_reasons(
         db.commit()
 
         # 回写 edge D1（推荐页读取）；失败只记日志
-        for uid in target_users:
-            pushed[uid] = push_recommendations(db, uid)
+        target_users = sorted({str(row.user_id) for row in rows if row.user_id})
+        pushed = {uid: push_recommendations(db, uid) for uid in target_users}
     finally:
         db.close()
 
     logger.info("推荐理由回填完成: %d 条", updated)
-    return {"status": "ok", "updated": updated}
+    return {"status": "ok", "updated": updated, "pushed": pushed}
 
 
 @celery_app.task(name="app.tasks.jobs.daily_push")

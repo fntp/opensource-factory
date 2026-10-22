@@ -99,6 +99,12 @@ def _isolated_db(monkeypatch):
     monkeypatch.setattr(settings, "VECTORIZE_SYNC_MAX_ORPHANS", 100)
     yield settings
 
+    # 本模块用简化版 repo_vectors 表隔离 M3-02 依赖；用例结束后恢复完整模型表，
+    # 避免后续模块（如 test_vector_pipeline）因缺列失败。
+    with engine.begin() as conn:
+        conn.execute(text("DROP TABLE IF EXISTS repo_vectors"))
+    init_db()
+
 
 def _insert_vector(
     source: str = "my",
