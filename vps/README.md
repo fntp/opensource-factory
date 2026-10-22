@@ -105,7 +105,8 @@ pytest -q
 
 - **鉴权**：当服务端设置 `INTERNAL_TOKEN` 时，请求必须携带请求头 `X-Internal-Token: <token>`，否则返回 `401`；
 - **异步语义**：任务接口一律 `202` + `{"taskId": ...}`（camelCase），由边缘侧轮询 `GET /api/tasks/{task_id}` 获取结果；
-- **直接查询接口**（供边缘回源或调试）：`GET /api/repos`、`GET /api/trending`、`POST /api/recommend/query`；
+- **直接查询接口**（供边缘回源或调试）：`GET /api/repos`（`q` / `category_id` / `limit` / `offset`）、`GET /api/trending`、`POST /api/recommend/query`；
+- **检索索引**：`my_repositories` 建有 `(stars)` / `(category_id, stars)` 索引（`init_db()` 幂等补建），分类 + Star 排序无临时排序；5k 行 P95 预算见 `tests/test_search_perf.py`（< 300ms）；
 - **数据契约**：本地表结构与 D1 Schema 保持一致（`my_repositories` / `trending_repositories` / `categories` 字段名与语义镜像），边缘侧按 `id`（`owner/repo`）对齐；
 - **降级语义**：外部依赖不可用时任务返回 `{"status": "skipped"|"error", ...}` 而不是失败抛错，边缘侧可安全重试。
 
@@ -114,5 +115,6 @@ pytest -q
 ```bash
 cd vps
 .venv/bin/pytest -q
+.venv/bin/pytest -q tests/test_search_perf.py   # 检索索引 / P95 基线
 .venv/bin/python -c "from app.main import app; print('app ok')"
 ```

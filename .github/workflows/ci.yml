@@ -52,6 +52,8 @@ jobs:
         run: npm ci
       - name: Typecheck
         run: npm run typecheck
+      - name: Search perf (query plan + P95)
+        run: npm run perf:search
 
   vps:
     name: vps · pytest
