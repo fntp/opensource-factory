@@ -13,6 +13,7 @@
 | `/categories` | 分类与标签 | 无限级分类 + 标签云 |
 | `/trending` | 每日热榜 | GitHub Trending 抓取结果 |
 | `/recommend` | 智能推荐 | 语义匹配推荐（含匹配度与理由） |
+| `/search` | 项目搜索 | 语义检索 / README 全文检索切换，展示命中片段（M6-01） |
 | `/settings/*` | 设置 | 账号、外观等（模板内置） |
 | `/sign-in` | 登录 | 仅 GitHub 授权登录（+ 演示模式） |
 

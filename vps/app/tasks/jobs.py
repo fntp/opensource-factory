@@ -182,6 +182,39 @@ def summarize_readmes(
     return stats
 
 
+@celery_app.task(name="app.tasks.jobs.sync_readmes")
+def sync_readmes(
+    source: str = "all",
+    repo_ids: Optional[list[str]] = None,
+    limit: Optional[int] = None,
+    force: bool = False,
+) -> dict[str, Any]:
+    """为本地镜像仓库补抓 README 并写入 FTS5 全文索引（M6-01）。"""
+    from app.db import SessionLocal
+    from app.services.fulltext import sync_readmes as sync_readmes_service
+
+    db = SessionLocal()
+    try:
+        stats = sync_readmes_service(
+            db,
+            source=source,
+            repo_ids=repo_ids,
+            limit=limit,
+            force=force,
+        )
+    finally:
+        db.close()
+    logger.info(
+        "README 全文索引补录完成（source=%s）：共 %d 条（入库 %d / 跳过 %d / 失败 %d）",
+        stats.get("source", source),
+        stats.get("total", 0),
+        stats.get("indexed", 0),
+        stats.get("skipped", 0),
+        stats.get("failed", 0),
+    )
+    return stats
+
+
 @celery_app.task(name="app.tasks.jobs.crawl_trending")
 def crawl_trending(
     platform: str = "github",

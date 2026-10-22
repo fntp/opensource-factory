@@ -25,6 +25,11 @@ class MyRepository(Base):
     """我的仓库（GitHub / Gitee），镜像 D1 `my_repositories`。"""
 
     __tablename__ = "my_repositories"
+    # M1-12 检索索引：列表按 stars 排序，分类筛选后同样按 stars 排序
+    __table_args__ = (
+        Index("idx_my_repositories_stars", "stars"),
+        Index("idx_my_repositories_category_stars", "category_id", "stars"),
+    )
 
     id: Mapped[str] = mapped_column(String(255), primary_key=True)  # 例如 "owner/repo"
     platform: Mapped[str] = mapped_column(String(32), nullable=False, default="github")  # 'github' | 'gitee'
@@ -306,3 +311,23 @@ class VectorIndexRun(Base):
         DateTime, nullable=False, default=_utcnow, onupdate=_utcnow
     )
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class RepoReadme(Base):
+    """README 全文镜像（M6-01，VPS SQLite）。
+
+    与 `repo_vectors` 一样使用 `(source, repo_id)` 联合主键；内容为 `clean_readme`
+    清洗后的纯文本，供 FTS5 全文检索使用。D1 不保存全文，保持本地镜像先行。
+    """
+
+    __tablename__ = "repo_readmes"
+
+    source: Mapped[str] = mapped_column(String(16), primary_key=True)  # my | trending
+    repo_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    char_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=_utcnow, onupdate=_utcnow
+    )

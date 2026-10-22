@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  engineLabel,
   formatScore,
   isQueryValid,
   modeLabel,
@@ -8,7 +9,7 @@ import {
   understandingLabels,
 } from './utils'
 
-describe('语义搜索工具函数', () => {
+describe('搜索工具函数', () => {
   it('归一化查询：去首尾空白并压缩连续空白', () => {
     expect(normalizeQuery('  多租户   NestJS  ')).toBe('多租户 NestJS')
     expect(normalizeQuery('a\n\tb')).toBe('a b')
@@ -35,6 +36,10 @@ describe('语义搜索工具函数', () => {
     expect(modeLabel('vectorize')).toContain('Vectorize')
     expect(modeLabel('local')).toContain('本地')
     expect(modeLabel('keyword')).toContain('关键词')
+    expect(modeLabel('fts')).toContain('全文')
+    expect(modeLabel('like')).toContain('短词')
+    expect(engineLabel('semantic')).toBe('语义检索')
+    expect(engineLabel('fulltext')).toBe('全文检索')
   })
 
   it('查询理解标签：技术栈在前、概念在后并去重', () => {

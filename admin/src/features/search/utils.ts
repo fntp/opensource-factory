@@ -1,7 +1,8 @@
-/** 语义搜索的纯函数辅助：查询归一化、校验与展示格式化。 */
+/** 搜索的纯函数辅助：查询归一化、校验与展示格式化。 */
 
 export type SearchScope = 'my' | 'trending' | 'all'
-export type SearchMode = 'vectorize' | 'local' | 'keyword'
+export type SearchMode = 'vectorize' | 'local' | 'keyword' | 'fts' | 'like'
+export type SearchEngine = 'semantic' | 'fulltext'
 
 /** 查询理解结果（edge 透传 VPS 的同义词 / 技术栈词表）。 */
 export interface SearchUnderstanding {
@@ -45,7 +46,14 @@ export function scopeLabel(scope: SearchScope): string {
 export function modeLabel(mode: SearchMode): string {
   if (mode === 'vectorize') return 'Vectorize 向量检索'
   if (mode === 'local') return '本地向量检索'
+  if (mode === 'fts') return 'README 全文检索'
+  if (mode === 'like') return '全文短词回退（LIKE）'
   return '关键词降级检索'
+}
+
+/** 检索方式标签。 */
+export function engineLabel(engine: SearchEngine): string {
+  return engine === 'fulltext' ? '全文检索' : '语义检索'
 }
 
 /** 查询理解标签：技术栈在前、概念在后，去重并保持顺序。 */

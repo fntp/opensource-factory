@@ -1,11 +1,16 @@
 /**
- * 语义搜索路由（M3-04）
+ * 搜索路由（M3-04 语义 / M6-01 全文）
  * POST /api/search/semantic
+ * POST /api/search/fulltext
  *
- * 检索链路：
+ * 语义链路：
  *   1. VPS `/api/search/embed` 生成查询向量 → Cloudflare Vectorize 近邻检索（mode=vectorize）
  *   2. Vectorize 不可用 / 无命中 → VPS `/api/search/query` 本地向量余弦检索（mode=local）
  *   3. VPS 不可达 → D1 关键词 LIKE 检索（mode=keyword，保证页面可用）
+ *
+ * 全文链路：
+ *   1. VPS `/api/search/fulltext` 查询 SQLite FTS5（mode=fts，短词回退 mode=like）
+ *   2. VPS 不可用 / 无命中 → D1 关键词 LIKE 检索（mode=keyword）
  *
  * 权限：`my` 来源的结果只保留当前登录用户的行；`trending` 为全局数据。
  */
@@ -51,6 +56,28 @@ interface VpsQueryResponse {
   backend?: string;
   dim?: number;
   understanding?: SearchUnderstanding;
+}
+
+interface VpsFulltextItem {
+  id?: string;
+  source?: string;
+  fullName?: string;
+  name?: string;
+  description?: string;
+  language?: string;
+  stars?: number;
+  starsToday?: number;
+  url?: string;
+  score?: number;
+  reason?: string;
+  snippet?: string;
+  matchedTerms?: string[];
+}
+
+interface VpsFulltextResponse {
+  mode?: string;
+  items?: VpsFulltextItem[];
+  terms?: string[];
 }
 
 interface Hit {
@@ -177,6 +204,59 @@ async function hydrate(
     const entry = rows.get(`${hit.source}:${hit.repoId}`);
     if (!entry) continue;
     items.push(toItem(entry.row, entry.source, hit.score));
+  }
+  return items;
+}
+
+/** 全文检索命中：仍以 D1 行为准做用户隔离 / 存在性校验，并保留 README 片段。 */
+async function hydrateFulltext(
+  env: Env,
+  userId: string,
+  hits: VpsFulltextItem[],
+  limit: number
+): Promise<SearchResultItem[]> {
+  const wanted = hits
+    .filter(
+      (hit): hit is VpsFulltextItem & { source: 'my' | 'trending'; id: string } =>
+        (hit.source === 'my' || hit.source === 'trending') && typeof hit.id === 'string'
+    )
+    .slice(0, Math.max(limit * 4, limit));
+  const myIds = [...new Set(wanted.filter((hit) => hit.source === 'my').map((hit) => hit.id))];
+  const trendingIds = [
+    ...new Set(wanted.filter((hit) => hit.source === 'trending').map((hit) => hit.id)),
+  ];
+
+  const rows = new Map<string, { row: RepoRow | TrendingRow; source: 'my' | 'trending' }>();
+  for (const group of chunk(myIds, HYDRATE_CHUNK)) {
+    const found = await all<RepoRow>(
+      env.DB,
+      `SELECT * FROM my_repositories WHERE id IN (${placeholders(group.length)}) AND user_id = ?`,
+      [...group, userId]
+    );
+    for (const row of found) rows.set(`my:${row.id}`, { row, source: 'my' });
+  }
+  for (const group of chunk(trendingIds, HYDRATE_CHUNK)) {
+    const found = await all<TrendingRow>(
+      env.DB,
+      `SELECT * FROM trending_repositories WHERE id IN (${placeholders(group.length)})`,
+      group
+    );
+    for (const row of found) rows.set(`trending:${row.id}`, { row, source: 'trending' });
+  }
+
+  const items: SearchResultItem[] = [];
+  for (const hit of wanted) {
+    if (items.length >= limit) break;
+    const entry = rows.get(`${hit.source}:${hit.id}`);
+    if (!entry) continue;
+    const base = toItem(entry.row, entry.source, hit.score ?? 0);
+    items.push({
+      ...base,
+      score: typeof hit.score === 'number' ? Math.round(hit.score * 10000) / 10000 : base.score,
+      reason: hit.reason || base.reason,
+      snippet: hit.snippet ?? '',
+      matchedTerms: hit.matchedTerms ?? [],
+    });
   }
   return items;
 }
@@ -347,6 +427,67 @@ search.post('/semantic', async (c) => {
     dim: 0,
     items,
     ...(understanding ? { understanding } : {}),
+  } satisfies SearchResponse);
+});
+
+/** README 全文检索（M6-01）：VPS FTS5 优先，不可用 / 无命中回退 D1 关键词。 */
+search.post('/fulltext', async (c) => {
+  const user = c.get('user');
+  if (!user) return c.json({ error: 'unauthorized' }, 401);
+
+  const body = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
+  if (!body || typeof body.query !== 'string') {
+    return c.json({ error: 'invalid_body', message: 'query 必填' }, 400);
+  }
+  const query = body.query.trim().replace(/\s+/g, ' ');
+  if (!query || query.length > MAX_QUERY_LENGTH) {
+    return c.json({ error: 'invalid_query', message: `query 长度需为 1~${MAX_QUERY_LENGTH}` }, 400);
+  }
+  const scope = normalizeScope(body.scope);
+  if (!scope) {
+    return c.json({ error: 'invalid_scope', message: 'scope 仅支持 my / trending / all' }, 400);
+  }
+  const topK = clampTopK(body.topK);
+  const offsetValue = Number.parseInt(String(body.offset ?? '0'), 10);
+  const offset = Number.isFinite(offsetValue) ? Math.min(10000, Math.max(0, offsetValue)) : 0;
+  const started = Date.now();
+
+  const remote = await postVps<VpsFulltextResponse>(c.env, '/api/search/fulltext', {
+    query,
+    scope,
+    topK,
+    offset,
+  });
+  if (remote?.items?.length) {
+    const items = await hydrateFulltext(c.env, user.id, remote.items, topK);
+    if (items.length > 0) {
+      return c.json({
+        query,
+        scope,
+        mode: remote.mode === 'fts' ? 'fts' : 'like',
+        count: items.length,
+        tookMs: Date.now() - started,
+        backend: 'sqlite-fts5',
+        model: '',
+        dim: 0,
+        terms: remote.terms ?? [],
+        items,
+      } satisfies SearchResponse);
+    }
+  }
+
+  // VPS 不可用 / 无命中：回退现有 D1 关键词检索
+  const items = await keywordSearch(c.env, user.id, query, scope, topK);
+  return c.json({
+    query,
+    scope,
+    mode: 'keyword',
+    count: items.length,
+    tookMs: Date.now() - started,
+    backend: '',
+    model: '',
+    dim: 0,
+    items,
   } satisfies SearchResponse);
 });
 

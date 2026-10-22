@@ -27,6 +27,7 @@ from app.tasks.jobs import (
     generate_recommendations,
     regenerate_recommendation_reasons,
     summarize_readmes,
+    sync_readmes,
     sync_repositories,
     vectorize_repositories,
 )
@@ -73,6 +74,28 @@ async def enqueue_summarize(
         force=force,
         max_chars=max_chars,
         source=source,
+    )
+    return TaskEnqueued(taskId=task.id)
+
+
+@router.post(
+    "/sync-readmes",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=TaskEnqueued,
+    dependencies=[Depends(require_internal_token)],
+    summary="入队：README 全文索引补录（FTS）",
+)
+async def enqueue_sync_readmes(
+    repo_id: list[str] | None = Query(default=None, description="仅处理指定仓库，可重复传"),
+    limit: int = Query(default=200, ge=1, le=5000),
+    force: bool = Query(default=False, description="已入库的 README 也重新抓取"),
+    source: str = Query(default="all", pattern="^(my|trending|all)$", description="索引来源"),
+) -> TaskEnqueued:
+    task = sync_readmes.delay(
+        source=source,
+        repo_ids=repo_id,
+        limit=limit,
+        force=force,
     )
     return TaskEnqueued(taskId=task.id)
 

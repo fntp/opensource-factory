@@ -45,6 +45,7 @@ vps/
 │   │   ├── vector_index.py       # Vectorize 批量 upsert / 重试 / 对账 / 孤儿清理
 │   │   ├── query_understanding.py # 同义词 / 技术栈词表查询理解（离线、确定性）
 │   │   ├── semantic_search.py    # 查询向量化 + repo_vectors 余弦检索 + 结果水合
+│   │   ├── fulltext.py           # README 全文镜像 + FTS5 trigram 检索（短词 LIKE 回退）
 │   │   └── degradation.py        # 降级路径自检（模型缺失 / 超预算，离线可跑）
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
@@ -52,7 +53,7 @@ vps/
 │   │   ├── recommend.py          # POST /api/recommend/query、POST /api/recommend/generate
 │   │   ├── vector_index.py       # /api/vector-index/*（同步入队、对账、状态、运行记录）
 │   │   ├── vectors.py            # GET /api/vectors/stats、runs、单条向量
-│   │   ├── search.py             # /api/search/*（understand / embed / query / semantic / status）
+│   │   ├── search.py             # /api/search/*（understand / embed / query / semantic / fulltext / status）
 │   │   ├── degradation.py        # GET /api/degradation/status（降级自检）
 │   │   └── tasks.py              # /api/tasks/*（与边缘 Worker 的集成契约，X-Internal-Token 鉴权）
 │   └── tasks/                # Celery 任务（薄封装，调用 services + 落库）
@@ -164,6 +165,15 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | `SEARCH_MAX_VECTORS` | `50000` | 本地全量余弦扫描上限，超过后依赖 Vectorize |
 | `SEARCH_QUERY_EXPANSION_ENABLED` | `true` | 是否启用查询理解（同义词 / 技术栈词表扩展） |
 | `SEARCH_QUERY_EXPANSION_MAX_TERMS` | `12` | 单次查询最多扩展词数（1~50） |
+| `FTS_ENABLED` | `true` | README 全文检索开关 |
+| `FTS_DEFAULT_TOP_K` | `10` | 全文检索默认返回条数 |
+| `FTS_MAX_TOP_K` | `50` | 全文检索单次最大返回条数 |
+| `FTS_SNIPPET_TOKENS` | `32` | 命中片段 token 数 |
+| `FTS_MAX_README_CHARS` | `50000` | 单篇 README 入库上限（字符） |
+| `FTS_SYNC_BATCH_SIZE` | `10` | 补索引任务每批提交条数 |
+| `FTS_SYNC_MAX_PER_RUN` | `200` | 单次补索引上限 |
+| `FTS_AUTO_INDEX` | `true` | 摘要 / 抓取后自动落 README 镜像 |
+| `FTS_SYNC_HOUR` / `FTS_SYNC_MINUTE` | `4` / `47` | 每日补索引时刻（Asia/Shanghai） |
 | `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/vector-index/*`、`/api/search/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
 | `INTERNAL_TOKEN_PREVIOUS` | 空 | 令牌轮换过渡位：与 `INTERNAL_TOKEN` 同时被接受，验证完成后清空 |
 | `RATE_LIMIT_ENABLED` | `true` | 进程内限流开关；`false` 时完全放行 |
@@ -287,8 +297,12 @@ Celery beat 每日 04:37 自动增量同步、05:17 自动对账；也可通过�
 | POST | `/api/search/embed` | 查询理解 + 查询向量化（`{query,expand?}`） | `200 {vector,dim,model,backend,understanding}` |
 | POST | `/api/search/query` | 本地向量余弦检索（`{query,topK,scope,minScore,expand?}`） | `200 {items:[{source,repoId,score}],understanding,...}` |
 | POST | `/api/search/semantic` | 本地检索并水合完整项目信息 | `200 {items:[...],understanding}` |
+| POST | `/api/search/fulltext` | README 全文检索（`{query,topK?,scope?,offset?}`，FTS5 / LIKE 回退） | `200 {mode,terms,index,items:[{...snippet,matchedTerms}]}` |
+| GET | `/api/search/fulltext/status` | README 全文索引覆盖率与来源分布 | `200 {enabled,totalDocs,bySource,ftsDocs,...}` |
+| POST | `/api/search/fulltext/rebuild` | 全量重建 FTS 索引 | `200 {rebuilt}` |
 | GET | `/api/search/status` | 向量覆盖率、模型分布、最近运行与词表规模 | `200 {...}` |
 | POST | `/api/recommend/eval` | 推荐质量评估与调参（`sampleSize` / `topK` / `holdoutRatio` / `negativesPerPositive` / `seed` / `userId`） | `200 {status,metrics,thresholds,weights,recommended,...}` |
+| POST | `/api/tasks/sync-readmes` | 入队 README 全文索引补录（`source` / `repoId` / `limit` / `force`） | `202 {"taskId"}` |
 
 Vectorize 索引维护接口（同样使用 `X-Internal-Token`）：
 
@@ -419,6 +433,30 @@ curl -sS -X POST 'http://127.0.0.1:8000/api/search/semantic' \
 
 # 覆盖率 / 模型分布
 curl -sS 'http://127.0.0.1:8000/api/search/status'
+```
+
+## README 全文检索（M6-01）
+
+本地镜像先行：README 清洗后写入 `repo_readmes`，由 SQLite 触发器同步到 FTS5 虚表
+`repo_readme_fts`（`tokenize='trigram'`），D1 不保存全文。
+
+- **写入**：摘要管线抓到 README 时自动落镜像（`FTS_AUTO_INDEX=true`）；历史数据用
+  `POST /api/tasks/sync-readmes` 或每日 04:47 的 `sync_readmes` beat 任务补录；
+- **检索**：`POST /api/search/fulltext` 使用 `bm25()` 排序，返回 `snippet` 命中片段与
+  `matchedTerms`；`scope=my|trending|all` 过滤来源；
+- **短词回退**：trigram 要求查询词 ≥3 字符，1~2 字中文词自动回退 `LIKE`（`mode=like`）；
+- **运维**：`GET /api/search/fulltext/status` 查看覆盖率，`POST /api/search/fulltext/rebuild`
+  全量重建索引。
+
+```bash
+# 全文检索
+curl -sS -X POST 'http://127.0.0.1:8000/api/search/fulltext' \
+  -H 'X-Internal-Token: <token>' -H 'Content-Type: application/json' \
+  -d '{"query":"分布式事务 支付网关","topK":5,"scope":"all"}'
+
+# 索引状态 / 重建
+curl -sS 'http://127.0.0.1:8000/api/search/fulltext/status'
+curl -sS -X POST 'http://127.0.0.1:8000/api/search/fulltext/rebuild'
 ```
 
 ## 每日推荐生成（M3-05）

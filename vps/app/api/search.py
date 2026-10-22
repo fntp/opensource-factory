@@ -5,6 +5,9 @@
 - `POST /api/search/embed`：只生成查询向量，edge 拿到后调用 Cloudflare Vectorize；
 - `POST /api/search/query`：本地 `repo_vectors` 余弦检索（Vectorize 不可用时的降级）；
 - `POST /api/search/semantic`：本地检索并水合完整项目信息（调试 / CLI / 直连场景）；
+- `POST /api/search/fulltext`：README 全文检索（M6-01，FTS5 trigram + LIKE 回退）；
+- `GET  /api/search/fulltext/status`：README 全文索引覆盖率；
+- `POST /api/search/fulltext/rebuild`：全量重建 FTS 索引；
 - `GET  /api/search/status`：向量覆盖率与最近向量化运行。
 """
 from __future__ import annotations
@@ -15,7 +18,11 @@ from sqlalchemy.orm import Session
 from app.security import require_internal_token
 from app.db import get_db
 from app.schemas import (
+    FulltextIndexStats,
+    FulltextRebuildResponse,
     SearchEmbedResponse,
+    SearchFulltextRequest,
+    SearchFulltextResponse,
     SearchQuery,
     SearchQueryResponse,
     SearchSemanticResponse,
@@ -23,6 +30,13 @@ from app.schemas import (
     SearchUnderstandingOut,
 )
 from app.services.embedding import get_embedding_service
+from app.services.fulltext import (
+    FulltextDisabled,
+    FulltextError,
+    get_index_status,
+    rebuild_index,
+    search_fulltext,
+)
 from app.services.query_understanding import QueryUnderstandingError, understand_query
 from app.services.semantic_search import (
     SearchError,
@@ -100,6 +114,61 @@ def semantic_search(payload: SearchQuery, db: Session = Depends(get_db)) -> Sear
     except SearchError as exc:
         raise _bad_request(exc) from exc
     return SearchSemanticResponse(**result)
+
+
+@router.post(
+    "/fulltext",
+    response_model=SearchFulltextResponse,
+    summary="README 全文检索（FTS5）",
+)
+def fulltext_search(
+    payload: SearchFulltextRequest, db: Session = Depends(get_db)
+) -> SearchFulltextResponse:
+    try:
+        result = search_fulltext(
+            db,
+            payload.query,
+            scope=payload.scope,
+            top_k=payload.topK,
+            offset=payload.offset,
+        )
+    except FulltextDisabled as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        ) from exc
+    except FulltextError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    return SearchFulltextResponse(**result)
+
+
+@router.get(
+    "/fulltext/status",
+    response_model=FulltextIndexStats,
+    summary="README 全文索引状态",
+)
+def fulltext_status(db: Session = Depends(get_db)) -> FulltextIndexStats:
+    return FulltextIndexStats(**get_index_status(db))
+
+
+@router.post(
+    "/fulltext/rebuild",
+    response_model=FulltextRebuildResponse,
+    summary="全量重建 README 全文索引",
+)
+def fulltext_rebuild(db: Session = Depends(get_db)) -> FulltextRebuildResponse:
+    try:
+        result = rebuild_index(db)
+    except FulltextDisabled as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        ) from exc
+    except FulltextError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    return FulltextRebuildResponse(**result)
 
 
 @router.get("/status", response_model=SearchStatusResponse, summary="语义搜索可用性")

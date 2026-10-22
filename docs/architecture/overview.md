@@ -163,6 +163,25 @@ Vectorize 未绑定 / 查询失败 / 水合 0 条 → VPS POST /api/search/query
 → VPS 不可达 → edge D1 关键词 LIKE 检索（mode=keyword，使用 understanding.keywordTerms 多词 OR 召回）
 ```
 
+### 3.8.1 README 全文检索流（M6-01）
+
+```
+README 抓取（同步 / 摘要管线 / 每日补索引任务）
+→ clean_readme 清洗 → repo_readmes（VPS SQLite 全文镜像，source + repo_id 联合主键）
+→ SQLite 触发器 repo_readmes_ai/au/ad 同步 repo_readme_fts（FTS5 trigram）
+
+admin 搜索页 POST /api/search/fulltext（登录态，全文 / 语义切换）
+→ edge 调 VPS POST /api/search/fulltext（X-Internal-Token）
+   ↳ bm25 排序 + 原文命中片段 + 水合项目元信息
+→ edge 按 D1 user_id 过滤 my 结果 / 校验 trending 存在性
+→ 返回 mode=fts（短词回退 mode=like）
+→ VPS 不可用 / 无命中 → edge D1 关键词 LIKE 检索（mode=keyword）
+```
+
+- trigram 要求查询词 ≥3 字符；1~2 字短词自动回退 LIKE，不返回 500；
+- `GET /api/search/fulltext/status` 可观测索引覆盖率，`POST /api/search/fulltext/rebuild` 支持灾备重建；
+- D1 不保存 README 全文，保持「本地镜像先行」；索引随 `repo_readmes` 增删改自动同步。
+
 ### 3.9 推荐理由生成流（M3-06）
 
 ```
@@ -253,6 +272,7 @@ GitHub OAuth callback → login_attempts / security_events
 | `/api/dashboard/stats` | GET | 仪表盘统计 |
 | `/api/sync` | POST | 触发同步任务（202） |
 | `/api/search/semantic` | POST | 语义搜索（`query` / `topK` / `scope`；vectorize → local → keyword 三级降级） |
+| `/api/search/fulltext` | POST | README 全文检索（`query` / `topK` / `scope` / `offset`；VPS FTS → D1 关键词回退） |
 
 ### 4.2 edge ↔ vps（内部 API，`X-Internal-Token`）
 
@@ -268,6 +288,7 @@ GitHub OAuth callback → login_attempts / security_events
 | `/api/summaries/quality/stats` | GET | 抽检质量统计（通过率 / 均分 / 来源分布） |
 | `/api/summaries/quality/sample-existing` | POST | 对存量摘要补抽样 |
 | `/api/tasks/crawl-trending` | POST | 入队热榜抓取 |
+| `/api/tasks/sync-readmes` | POST | 入队 README 全文索引补录（`source` / `repoIds` / `limit` / `force`） |
 | `/api/tasks/generate-recommendations` | POST | 入队推荐生成 |
 | `/api/tasks/regenerate-recommendation-reasons` | POST | 入队重算存量推荐理由与依据字段 |
 | `/api/tasks/daily-push` | POST | 入队每日推送 |
@@ -288,6 +309,9 @@ GitHub OAuth callback → login_attempts / security_events
 | `/api/search/embed` | POST | 查询向量化（供 edge 调用 Vectorize） |
 | `/api/search/query` | POST | 本地 `repo_vectors` 余弦检索（降级路径） |
 | `/api/search/semantic` | POST | 本地检索并水合完整项目信息 |
+| `/api/search/fulltext` | POST | README 全文检索（FTS5 trigram，短词 LIKE 回退，返回 snippet） |
+| `/api/search/fulltext/status` | GET | README 全文索引覆盖率与来源分布 |
+| `/api/search/fulltext/rebuild` | POST | 全量重建 README 全文索引 |
 | `/api/search/status` | GET | 向量覆盖率、模型分布与最近向量化运行 |
 | `/api/vectors/stats` | GET | 向量覆盖率与最近运行 |
 | `/api/vectors/runs/{runId}` | GET | 向量化运行详情 |
