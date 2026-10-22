@@ -21,6 +21,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
+from app.services.model_budget import DEFAULT_BUDGET_MB, build_model_budget_report
+
 DEFAULT_HOME = Path(os.environ.get("OPENFACTORY_HOME", "/opt/openfactory"))
 
 SUBDIRS: tuple[str, ...] = ("etc", "data", "data/redis", "logs", "backups", "run")
@@ -39,6 +41,9 @@ REQUIRED_ENV_KEYS: tuple[str, ...] = (
     "DEEPSEEK_BASE_URL",
     "DEEPSEEK_MODEL",
     "EMBEDDING_MODEL",
+    "EMBEDDING_QUANTIZATION",
+    "EMBEDDING_DEVICE",
+    "MODEL_BUDGET_MB",
     "INTERNAL_TOKEN",
     "CELERY_TASK_ALWAYS_EAGER",
     "GITHUB_TOKEN",
@@ -113,6 +118,31 @@ def check_runtime(home: Path = DEFAULT_HOME, *, services: bool = False) -> list[
             "env_keys",
             not missing_keys,
             "齐全" if not missing_keys else f"缺少：{', '.join(missing_keys)}",
+        )
+    )
+
+    # M3-01：模型预算自检。未识别的模型（如测试占位值 / 自定义模型）跳过，
+    # 已登记的模型超预算则直接失败，避免部署机继续加载 7B 级别模型。
+    try:
+        budget_mb = int(env.get("MODEL_BUDGET_MB", "") or DEFAULT_BUDGET_MB)
+    except ValueError:
+        budget_mb = DEFAULT_BUDGET_MB
+    report = build_model_budget_report(
+        embedding_model=env.get("EMBEDDING_MODEL", ""),
+        ollama_model=env.get("OLLAMA_MODEL", ""),
+        embedding_quantization=env.get("EMBEDDING_QUANTIZATION", "int8"),
+        budget_mb=budget_mb,
+    )
+    known_over_budget = any(
+        item.resident_mb is not None and not item.within_budget for item in report.items
+    )
+    results.append(
+        CheckResult(
+            "model_budget",
+            not known_over_budget,
+            report.summary
+            if report.verified or known_over_budget
+            else "未识别的模型，跳过预算校验",
         )
     )
 

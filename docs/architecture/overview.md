@@ -96,6 +96,17 @@ admin 热榜列表 → 详情页 GET /api/trending/{owner}/{name}（摘要 + 元
 → 结果聚合排序 → 返回（含匹配度与理由）；每日推送任务见 M4
 ```
 
+### 3.5 模型选型与推理预算（M3-01）
+
+```
+摘要任务 → Ollama qwen2.5:1.5b-instruct-q4_K_M（~1.3G，q4_K_M）
+向量化任务 → BAAI/bge-m3（~1.1G，int8；fp16 ~2.3G 超预算）
+```
+
+- 同一时刻仅加载 1 个模型（摘要与向量化分队列串行），峰值驻留 ≤ `MODEL_BUDGET_MB`（默认 2048）；
+- `vps/app/services/model_budget.py` 维护选型表与预算报告，CLI `python -m app.model_budget check` 可离线复跑；
+- 部署自检 `deploy/scripts/doctor.sh` 包含 `model_budget` 检查项；模型不可用时仍走 hash 向量 / 截断摘要降级。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）

@@ -30,7 +30,8 @@ class Settings(BaseSettings):
 
     # LLM：本地 Ollama（首选）
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "qwen2.5:7b"
+    # M3-01 选型：≤2B 量化模型（q4_K_M），替代超预算的 qwen2.5:7b
+    OLLAMA_MODEL: str = "qwen2.5:1.5b-instruct-q4_K_M"
     # 批量摘要结束后自动卸载模型的时间（2m 内无请求即释放 2G 推理预算）
     OLLAMA_KEEP_ALIVE: str = "2m"
 
@@ -52,8 +53,13 @@ class Settings(BaseSettings):
     SUMMARY_QUALITY_PASS_SCORE: float = 70.0
     SUMMARY_QUALITY_MIN_CHARS: int = 40
 
-    # 向量模型
+    # 向量模型（M3-01 选型：bge-m3 + int8 量化；fp16 约 2.3G 超预算）
     EMBEDDING_MODEL: str = "BAAI/bge-m3"
+    EMBEDDING_QUANTIZATION: str = "int8"
+    EMBEDDING_DEVICE: str = "cpu"
+
+    # AI 推理侧内存预算（MB）；同一时刻仅加载 1 个模型
+    MODEL_BUDGET_MB: int = 2048
 
     # 内部接口鉴权（设置后 /api/tasks/* 校验 X-Internal-Token）
     INTERNAL_TOKEN: str = ""
