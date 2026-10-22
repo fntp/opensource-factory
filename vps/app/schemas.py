@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -68,6 +68,86 @@ class RecommendResponse(BaseModel):
     items: list[RecommendItem]
 
 
+class EvaluationRunOut(BaseModel):
+    """单次推荐评估运行输出（M4-01）。"""
+
+    runId: str
+    userId: Optional[str] = None
+    status: str
+    matchThreshold: float
+    qualityThreshold: float
+    total: int = 0
+    qualified: int = 0
+    filtered: int = 0
+    skipped: int = 0
+    failed: int = 0
+    error: Optional[str] = None
+    createdAt: Optional[datetime] = None
+    finishedAt: Optional[datetime] = None
+
+
+class EvaluationRunListResponse(BaseModel):
+    """评估运行列表。"""
+
+    count: int
+    items: list[EvaluationRunOut]
+
+
+class QualifiedRecommendationOut(BaseModel):
+    """通过每日评估、等待推送的推荐。"""
+
+    id: str
+    userId: str
+    repoId: str
+    score: float
+    matchScore: float
+    qualityScore: float
+    qualityDetail: Optional[dict[str, Any]] = None
+    reason: Optional[str] = None
+    status: str
+    evaluatedAt: Optional[datetime] = None
+
+
+class QualifiedListResponse(BaseModel):
+    """合格推荐列表。"""
+
+    count: int
+    items: list[QualifiedRecommendationOut]
+
+
+class BarkStatusOut(BaseModel):
+    """Bark 推送通道状态（不包含 device key）。"""
+
+    enabled: bool
+    configured: bool
+    serverUrl: str
+    group: str
+    level: str
+    maxPerRun: int
+    dryRun: bool
+    pending: int = 0
+    sent: int = 0
+    failed: int = 0
+    lastError: Optional[str] = None
+    lastSentAt: Optional[datetime] = None
+
+
+class BarkTestRequest(BaseModel):
+    """Bark 测试通知请求。"""
+
+    title: Optional[str] = Field(default=None, max_length=120)
+    body: Optional[str] = Field(default=None, max_length=2000)
+    url: Optional[str] = Field(default=None, max_length=2000)
+
+
+class BarkTestOut(BaseModel):
+    """Bark 测试通知结果。"""
+
+    ok: bool
+    statusCode: Optional[int] = None
+    error: Optional[str] = None
+
+
 class TaskEnqueued(BaseModel):
     """任务入队响应（与边缘 Worker 的契约，字段名保持 camelCase）。"""
 
@@ -81,3 +161,125 @@ class TaskStatus(BaseModel):
     status: str  # pending | started | success | failure
     result: Any = None
     error: Optional[str] = None
+
+
+class VectorSyncRequest(BaseModel):
+    """Vectorize 索引同步请求。"""
+
+    kind: Literal["sync", "reconcile"] = "sync"
+    scope: Literal["my", "trending", "all"] = "all"
+    limit: Optional[int] = Field(default=None, ge=1, le=100000, description="本次最多处理的向量数")
+    batchSize: Optional[int] = Field(default=None, ge=1, le=1000, description="单批 upsert 条数")
+    force: bool = Field(default=False, description="忽略增量状态，全量重传")
+
+
+class VectorSyncRunOut(BaseModel):
+    """一次同步运行的统计输出。"""
+
+    runId: str
+    kind: str
+    scope: str
+    status: str
+    batchSize: int
+    maxRetries: int
+    force: bool
+    limit: int
+    total: int
+    processed: int
+    synced: int
+    skipped: int
+    failed: int
+    deleted: int
+    checked: int
+    missing: int
+    repaired: int
+    orphanScan: str = ""
+    cursorSource: str = ""
+    cursorRepoId: str = ""
+    error: Optional[str] = None
+    createdAt: Optional[datetime] = None
+    updatedAt: Optional[datetime] = None
+    finishedAt: Optional[datetime] = None
+
+
+class VectorizeEnqueued(TaskEnqueued):
+    """向量化任务入队响应（附带运行 id，可用于续跑 / 查询）。"""
+
+    runId: str
+
+
+class VectorRunOut(BaseModel):
+    """向量化运行状态。"""
+
+    runId: str
+    scope: str
+    status: str  # running | completed | failed
+    model: str = ""
+    backend: str = ""
+    dim: int = 0
+    force: bool = False
+    limit: int = 0
+    batchSize: int = 0
+    total: int = 0
+    processed: int = 0
+    vectorized: int = 0
+    skipped: int = 0
+    failed: int = 0
+    cursorSource: str = ""
+    cursorRepoId: str = ""
+    error: Optional[str] = None
+    createdAt: Optional[datetime] = None
+    updatedAt: Optional[datetime] = None
+    finishedAt: Optional[datetime] = None
+
+
+class VectorSyncStatusOut(BaseModel):
+    """索引同步状态：本地覆盖率、状态分布与最近运行。"""
+
+    enabled: bool
+    configured: bool
+    indexName: str
+    dim: int
+    localVectors: int
+    states: dict[str, int]
+    pending: int
+    lastRuns: list[VectorSyncRunOut]
+
+
+class VectorModelStats(BaseModel):
+    """按模型 / 后端分组的向量数量。"""
+
+    model: str
+    backend: str
+    count: int
+
+
+class VectorSourceStats(BaseModel):
+    """单个来源的向量覆盖情况。"""
+
+    total: int
+    vectorized: int
+    pending: int
+
+
+class VectorStatsResponse(BaseModel):
+    """向量化统计响应。"""
+
+    totalVectors: int
+    bySource: dict[str, int]
+    byModel: list[VectorModelStats]
+    repositories: dict[str, VectorSourceStats]
+    latestRuns: list[VectorRunOut]
+
+
+class VectorDetail(BaseModel):
+    """单条向量详情（调试 / 后续 Vectorize 同步使用）。"""
+
+    source: str
+    repoId: str
+    model: str
+    backend: str
+    dim: int
+    textHash: str
+    vector: list[float]
+    updatedAt: Optional[datetime] = None

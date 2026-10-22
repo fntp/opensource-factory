@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     APP_NAME: str = "OpenFactory VPS Node"
     VERSION: str = "0.1.0"
     LOG_LEVEL: str = "INFO"
+    # 日志目录：留空时仅输出到 stdout（开发 / 测试）；生产指向运行目录 logs/
+    LOG_DIR: str = ""
 
     # 数据库与队列
     DATABASE_URL: str = "sqlite:///./data/opensource_factory.db"
@@ -36,6 +38,65 @@ class Settings(BaseSettings):
 
     # 向量模型
     EMBEDDING_MODEL: str = "BAAI/bge-m3"
+    # 强制使用确定性 hash 兜底向量（CI / 2G 预算紧张 / 未安装重型依赖时）
+    EMBEDDING_FORCE_FALLBACK: bool = False
+
+    # 向量化管线
+    VECTORIZE_BATCH_SIZE: int = 32  # 每批编码 / 提交条数
+    VECTORIZE_MAX_PER_RUN: int = 1000  # 单次默认上限
+    VECTORIZE_AUTO: bool = True  # 同步 / 抓取完成后自动入队增量任务
+
+    # Vectorize 索引同步（M3-03）
+    # edge 地址与内部令牌：两者都配置后才能同步（VPS 不持有 Cloudflare 凭据）
+    EDGE_BASE_URL: str = ""
+    VECTORIZE_SYNC_ENABLED: bool = True
+    VECTORIZE_INDEX_NAME: str = "opensource-factory-vectors"
+    # 索引维度需与 Cloudflare Vectorize 索引一致（BGE-M3 = 1024；0 表示不校验）
+    VECTORIZE_INDEX_DIM: int = 1024
+    VECTORIZE_SYNC_BATCH_SIZE: int = 100
+    VECTORIZE_SYNC_MAX_PER_RUN: int = 1000
+    VECTORIZE_SYNC_MAX_RETRIES: int = 3
+    VECTORIZE_SYNC_RETRY_BASE_MS: int = 500
+    VECTORIZE_SYNC_TIMEOUT_SECONDS: float = 30.0
+    VECTORIZE_SYNC_DELETE_ORPHANS: bool = False
+    VECTORIZE_SYNC_MAX_ORPHANS: int = 100
+
+    # 推荐生成（M3-05）
+    # 最终得分最低阈值（0~1）：相似度 × 权重 + 热榜热度 × 权重
+    RECOMMEND_MIN_SCORE: float = 0.30
+    # 每日任务每个用户最多生成的推荐数
+    RECOMMEND_DAILY_TOP_K: int = 20
+    # 单次参与打分的热榜候选上限
+    RECOMMEND_CANDIDATE_LIMIT: int = 500
+    # 相似度 / 热榜热度权重（均为 0 时退化为纯相似度）
+    RECOMMEND_SIMILARITY_WEIGHT: float = 0.8
+    RECOMMEND_TRENDING_WEIGHT: float = 0.2
+
+    # 每日评估（M4-01）
+    # 匹配度硬门槛：原始余弦相似度低于该值的推荐直接 filtered
+    EVAL_MATCH_THRESHOLD: float = 0.35
+    # 综合质量分门槛：仓库内容质量 × 权重 + 推荐理由质量 × 权重
+    EVAL_QUALITY_THRESHOLD: float = 0.55
+    EVAL_REPO_WEIGHT: float = 0.7
+    EVAL_REASON_WEIGHT: float = 0.3
+
+    # Bark 推送通道（M4-03）
+    # 总开关；关闭时定时任务直接 skipped，不发起任何外部请求
+    BARK_ENABLED: bool = False
+    # Bark 服务地址（默认官方服务；自建服务同样走 POST {server}/push）
+    BARK_SERVER_URL: str = "https://api.day.app"
+    # Bark device key（密钥，仅存 .env，接口不回显）
+    BARK_DEVICE_KEY: str = ""
+    BARK_GROUP: str = "OpenFactory"
+    BARK_SOUND: str = ""
+    BARK_ICON: str = ""
+    # active | timeSensitive | passive | critical
+    BARK_LEVEL: str = "active"
+    BARK_TIMEOUT_SECONDS: float = 10.0
+    # 单次任务最多投递条数，避免一次刷屏
+    BARK_MAX_PER_RUN: int = 5
+    # 试运行：只生成消息不发送、不写投递标记
+    BARK_DRY_RUN: bool = False
 
     # 内部接口鉴权（设置后 /api/tasks/* 校验 X-Internal-Token）
     INTERNAL_TOKEN: str = ""

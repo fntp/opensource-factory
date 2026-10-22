@@ -1,0 +1,24 @@
+# OpenFactory Redis（Celery broker / 结果后端）
+# 配置由 bootstrap 渲染到 @RUNTIME_DIR@/etc/redis.conf；仅监听回环地址。
+[Unit]
+Description=OpenFactory Redis (Celery broker/cache)
+Documentation=file://@APP_DIR@/deploy/README.md
+After=network.target
+
+[Service]
+Type=notify
+User=@SERVICE_USER@
+Group=@SERVICE_USER@
+ExecStart=/usr/bin/redis-server @RUNTIME_DIR@/etc/redis.conf --supervised systemd
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+MemoryMax=320M
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=@RUNTIME_DIR@
+
+[Install]
+WantedBy=multi-user.target
