@@ -13,7 +13,7 @@ from typing import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import recommend, repos, tasks, trending
+from app.api import recommend, repos, summaries, tasks, trending
 from app.config import get_settings
 from app.db import init_db
 
@@ -73,6 +73,7 @@ app.add_middleware(
 app.include_router(tasks.router)
 app.include_router(repos.router)
 app.include_router(trending.router)
+app.include_router(summaries.router)
 app.include_router(recommend.router)
 
 

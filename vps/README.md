@@ -10,6 +10,8 @@
 
 本节点负责：GitHub 数据同步、热榜抓取（GitHub Trending / Gitee）、README 清洗与摘要、向量生成与语义推荐、每日推送准备。
 
+README 清洗（`app/services/readme.py`）会去除 HTML 注释 / 脚本块 / 徽章 / 图片 / HTML 标签与链接地址，解码 HTML 实体并折叠空行；技术栈提取支持别名归并（Golang → Go、K8s → Kubernetes）、语言字段优先与 topics 提示。
+
 ## 目录结构
 
 ```
@@ -27,18 +29,21 @@ vps/
 │   ├── services/             # 业务逻辑（单一职责，可独立单测）
 │   │   ├── github_service.py     # GitHub REST v3 异步客户端（分页、README base64 解码）
 │   │   ├── trending_crawler.py   # GitHub Trending 解析/抓取 + Gitee 探索页（尽力而为）
-│   │   ├── readme.py             # README 清洗 + 技术栈启发式提取
+│   │   ├── trending_snapshot.py  # 按日快照去重 / 排名 / 趋势字段 + D1 批量回写
+│   │   ├── crawl_guard.py        # 抓取重试、页面结构变更判定与告警落库（M2-02）
+│   │   ├── trending_retention.py # 热榜保留窗口 / gzip JSONL 归档 / 本地与 D1 清理
+│   │   ├── readme.py             # README 去噪（徽章 / 图片 / HTML）+ 技术栈别名归并
 │   │   ├── embedding.py          # BGE-M3（懒加载）与确定性 hash 降级向量
 │   │   ├── summarizer.py         # Ollama → DeepSeek → 截断降级 的摘要生成
 │   │   └── recommender.py        # 余弦排序 + 中文推荐理由模板
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
-│   │   ├── trending.py           # GET /api/trending、POST /api/trending/crawl
+│   │   ├── trending.py           # GET /api/trending、/snapshots、/dates、/history、/retention、POST /crawl、/retention/cleanup
 │   │   ├── recommend.py          # POST /api/recommend/query、POST /api/recommend/generate
 │   │   └── tasks.py              # /api/tasks/*（与边缘 Worker 的集成契约，X-Internal-Token 鉴权）
 │   └── tasks/                # Celery 任务（薄封装，调用 services + 落库）
 │       ├── celery_app.py         # Celery 应用与 beat 定时计划
-│       └── jobs.py               # sync / crawl / generate / daily_push 四个任务
+│       └── jobs.py               # sync / crawl / generate / daily_push / cleanup_trending_data 任务
 └── tests/                    # pytest（不访问网络）
 ```
 
@@ -96,34 +101,112 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | `DATABASE_URL` | `sqlite:///./data/opensource_factory.db` | 本地镜像库（SQLite 起步，可换 PostgreSQL） |
 | `REDIS_URL` | `redis://localhost:6379/0` | Celery broker / result backend |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | 本地 Ollama 服务地址 |
-| `OLLAMA_MODEL` | `qwen2.5:7b` | Ollama 摘要模型 |
+| `OLLAMA_MODEL` | `qwen2.5:7b` | Ollama 摘要模型（M3-01 选型后切换 ≤2B 量化模型） |
+| `OLLAMA_KEEP_ALIVE` | `2m` | 模型空闲卸载时间，控制 2G 推理预算 |
 | `DEEPSEEK_API_KEY` | 空 | 可选；配置后作为 LLM 云端降级（OpenAI 兼容） |
+| `SUMMARY_BATCH_SIZE` | `10` | 摘要任务每批提交条数 |
+| `SUMMARY_MAX_PER_RUN` | `200` | 单次摘要任务最多处理条数 |
+| `SUMMARY_DELAY_MS` | `500` | 每条摘要之间的间隔（毫秒），给 Ollama 留出余量 |
+| `SUMMARY_MAX_CHARS` | `800` | 摘要最大字符数 |
+| `SUMMARY_SAMPLE_RATE` | `0.1` | 摘要抽检比例（按批次 + 仓库确定性抽样） |
+| `SUMMARY_SAMPLE_MAX_PER_RUN` | `50` | 单次任务最多留存样本数 |
+| `SUMMARY_SAMPLE_ALWAYS_BELOW` | `60` | 质量分低于该值时强制留存样本 |
+| `SUMMARY_QUALITY_PASS_SCORE` | `70` | 质量判定通过分数线 |
+| `SUMMARY_QUALITY_MIN_CHARS` | `40` | 摘要长度检查下限 |
 | `EMBEDDING_MODEL` | `BAAI/bge-m3` | 向量模型名（sentence-transformers / FlagEmbedding） |
 | `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
+| `EDGE_BASE_URL` | 空 | 边缘 API 地址；配置后摘要任务与热榜快照批量回写 D1，留空只写本地镜像 |
 | `CELERY_TASK_ALWAYS_EAGER` | `0` | 置 `1` 时任务同步执行（本地调试 / 测试用） |
 | `GITHUB_TOKEN` | 空 | GitHub PAT（仅需 read 权限）；为空时同步任务跳过 |
+| `TRENDING_LANGUAGES` | `python,javascript,typescript,go,rust,java,cpp,c,php,ruby,swift,kotlin` | 每日抓取的 Trending 语言页（逗号分隔；留空只抓全局页） |
+| `TRENDING_CRAWL_HOUR` | `3` | 每日抓取小时（Asia/Shanghai，0–23） |
+| `TRENDING_CRAWL_MINUTE` | `27` | 每日抓取分钟（0–59） |
+| `TRENDING_RETRY_MAX` | `3` | 单页抓取最大尝试次数（仅超时 / 429 / 5xx 重试） |
+| `TRENDING_RETRY_BASE_DELAY` | `1.0` | 指数退避基数（秒） |
+| `TRENDING_RETRY_MAX_DELAY` | `8.0` | 单次重试等待上限（秒） |
+| `TRENDING_COUNT_DROP_RATIO` | `0.3` | 条数低于上次成功的比例时判定「骤降」 |
+| `TRENDING_COUNT_DROP_MIN_BASELINE` | `5` | 基线少于该条数不做骤降判定 |
+| `TRENDING_ALERT_COOLDOWN_MINUTES` | `360` | 同页同类告警去重窗口（分钟） |
+| `TRENDING_ALERT_WEBHOOK_URL` | 空 | 可选告警 webhook；留空只落库 + 日志 |
+| `TRENDING_RETENTION_DAYS` | `90` | 快照保留天数（含当天）；`0` = 暂停自动清理 |
+| `TRENDING_ARCHIVE_ENABLED` | `true` | 清理前归档为 gzip JSONL；关闭后直接删除（不推荐） |
+| `TRENDING_ARCHIVE_DIR` | `./data/archives` | 归档目录（相对路径按 `vps/` 解析） |
+| `TRENDING_ARCHIVE_KEEP_DAYS` | `365` | 归档文件保留天数；`0` = 永久保留 |
+| `TRENDING_RETENTION_HOUR` / `TRENDING_RETENTION_MINUTE` | `4` / `17` | 每日清理时刻（Asia/Shanghai） |
 
 完整清单见 `.env.example`。所有真实密钥只存在于本地 `.env`（git 忽略）或平台密钥托管，**不得提交**。
 
 ## 与 Cloudflare 边缘的接口约定
 
-边缘 Worker 通过内部 API 调度本节点，全部任务接口位于 `/api/tasks/*`：
+边缘 Worker 通过内部 API 调度本节点，任务接口位于 `/api/tasks/*`；热榜保留策略接口位于 `/api/trending/retention*`：
 
 | 方法 | 路径 | 说明 | 返回 |
 | --- | --- | --- | --- |
-| POST | `/api/tasks/sync` | 入队 GitHub 仓库同步（自己的 + Starred） | `202 {"taskId": "..."}` |
-| POST | `/api/tasks/crawl-trending` | 入队热榜抓取（`platform=github\|gitee\|all`，可选 `language`） | `202 {"taskId": "..."}` |
+| POST | `/api/tasks/sync` | 入队 GitHub 仓库同步（自己的 + Starred，`with_summary=1` 时完成后自动排队摘要） | `202 {"taskId": "..."}` |
+| POST | `/api/tasks/summarize` | 入队 README 摘要批量生成（可选 `repo_id` 重复传、`limit`、`batch_size`、`force`、`max_chars`、`source=my\|trending\|all`） | `202 {"taskId": "..."}` |
+| POST | `/api/trending/summarize` | 入队热榜摘要生成（等价 `source=trending`，可选 `repo_id`、`limit`） | `202 {"taskId": "..."}` |
+| POST | `/api/tasks/crawl-trending` | 入队热榜抓取（`platform=github\|gitee\|all`；可选 `language` 单页、`languages` 多页 CSV、`since=daily\|weekly\|monthly`、`with_summary`、`summary_limit`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/generate-recommendations` | 入队推荐生成（可选 `user_id`、`top_k`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/daily-push` | 入队每日推送准备（将 `new` 推荐标记为 `pushed`） | `202 {"taskId": "..."}` |
-| GET | `/api/tasks/{task_id}` | 查询任务状态（`pending/started/success/failure`） | `200 {"taskId","status","result"}` |
+| GET | `/api/tasks/{task_id}` | 查询任务状态（`pending/started/progress/success/failure`，PROGRESS 时带 `progress`） | `200 {"taskId","status","result","progress"}` |
+| GET | `/api/trending/{owner}/{repo}` | 热榜详情（摘要 + 元信息；摘要回退 readme_summary → description → tech_stack） | `200 TrendingRepoDetail` / `404` |
+| GET | `/api/trending/retention` | 热榜保留策略状态（窗口 / 过期数 / SQLite 与归档占用） | `200 {...}` |
+| POST | `/api/trending/retention/cleanup` | 入队热榜归档与清理（`dryRun` / `retentionDays` / `archive`） | `202 {"taskId": "..."}` |
 
 约定：
 
 - **鉴权**：当服务端设置 `INTERNAL_TOKEN` 时，请求必须携带请求头 `X-Internal-Token: <token>`，否则返回 `401`；
 - **异步语义**：任务接口一律 `202` + `{"taskId": ...}`（camelCase），由边缘侧轮询 `GET /api/tasks/{task_id}` 获取结果；
-- **直接查询接口**（供边缘回源或调试）：`GET /api/repos`、`GET /api/trending`、`POST /api/recommend/query`；
-- **数据契约**：本地表结构与 D1 Schema 保持一致（`my_repositories` / `trending_repositories` / `categories` 字段名与语义镜像），边缘侧按 `id`（`owner/repo`）对齐；
+- **直接查询接口**（供边缘回源或调试）：`GET /api/repos`、`GET /api/trending?date=&language=&limit=`、`GET /api/trending/{owner}/{repo}`、`GET /api/trending/snapshots`、`GET /api/trending/dates`、`GET /api/trending/languages?date=`、`GET /api/trending/history`、`POST /api/recommend/query`；
+- **抓取告警**：`GET /api/trending/alerts?status=open|acknowledged|all`、`POST /api/trending/alerts/{id}/ack`；
+- **热榜快照**：抓取任务同时写入 `trending_repositories`（最新状态）与 `trending_snapshots`（按日，主键 `(snapshot_date, repo_id)`）；快照含 `rank` / `language_rank` / `star_delta` / `rank_delta` / `appearances` / `is_new` / `trend`，趋势基线最多回看 7 天；
+- **数据契约**：本地表结构与 D1 Schema 保持一致（`my_repositories` / `trending_repositories` / `trending_snapshots` / `categories` 字段名与语义镜像），边缘侧按 `id`（`owner/repo`）对齐；
 - **降级语义**：外部依赖不可用时任务返回 `{"status": "skipped"|"error", ...}` 而不是失败抛错，边缘侧可安全重试。
+
+### README 摘要批量队列（M1-13）
+
+```
+同步任务 upsert → summarize_readmes.delay(变化仓库) → 逐条抓 README / 清洗
+→ Ollama（首选）→ DeepSeek（可选）→ 截断原文（兜底）
+→ 分批写本地 SQLite →（配置 EDGE_BASE_URL 时）POST {edge}/api/repos/summaries 回写 D1
+```
+
+- 只处理 `readme_summary` 为空的仓库；`force=1` 可重算；
+- `SUMMARY_BATCH_SIZE` / `SUMMARY_MAX_PER_RUN` / `SUMMARY_DELAY_MS` / `OLLAMA_KEEP_ALIVE` 共同控制 2G 推理预算；
+- 任务通过 Celery `PROGRESS` 上报 `{phase, processed, total, percent, current}`，边缘侧可轮询 `/api/tasks/{taskId}`；
+- 摘要回写失败不影响本地落库，任务结果里 `writeback` 字段会标明 `ok / skipped / error`。
+
+### 摘要质量抽检（M2-04）
+
+- 每条摘要都做启发式评分：非空 / 长度 / 中文占比 / 功能·技术·场景三要素覆盖 / 非降级 / 无噪声 / 无重复；
+- 样本按 `sha256(batch_id:repo_source:repo_id)` 确定性抽取，同一批次重跑样本稳定；低于 `SUMMARY_SAMPLE_ALWAYS_BELOW` 的摘要强制留存；
+- 样本写入 `summary_quality_samples`，支持人工复核与统计（均为内部接口，需 `X-Internal-Token`）：
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/api/summaries/quality/samples` | 样本列表（`status` / `repoSource` / `batchId` / `limit` / `offset`） |
+| POST | `/api/summaries/quality/samples/{id}/review` | 人工复核：`{"result":"passed\|failed","reviewer":"...","note":"..."}` |
+| GET | `/api/summaries/quality/stats` | 总量 / 待复核 / 通过率 / 平均分 / 来源分布 / 最近批次 |
+| POST | `/api/summaries/quality/sample-existing` | 存量摘要补抽样：`{"source":"my\|trending\|all","limit":200,"rate":0.1}` |
+
+## 热榜每日抓取
+
+- Celery beat `crawl-trending-daily` 每天 `03:27`（Asia/Shanghai，可用 `TRENDING_CRAWL_HOUR` / `TRENDING_CRAWL_MINUTE` 覆盖）触发 `crawl_trending`；
+- 抓取全局页 + `TRENDING_LANGUAGES` 列出的语言页，页间串行并默认间隔 1 秒，避免触发 GitHub 限流；
+- 同一仓库跨页去重，`stars` / `stars_today` 取最大值，`owner` / `language` / `stars` 一并落库；
+- 单页失败不中断整轮，任务结果包含 `pages[]` 与 `failedPages[]`（`status=partial` / `error`），作为 M2-02 告警的基础信号；
+- 每次抓取同时写 `trending_snapshots`（主键 `snapshot_date + repo_id`）：同一日重复执行幂等，趋势字段对比上一有效快照（最多回看 7 天）计算 `star_delta` / `rank_delta` / `appearances` / `is_new` / `trend`；
+- 配置 `EDGE_BASE_URL` + `INTERNAL_TOKEN` 时，快照按批（默认 200 条）回写 `POST /api/internal/trending/snapshots`；回写失败只记日志，不影响本地入库；
+- 手动触发示例：`curl -X POST 'http://127.0.0.1:8000/api/tasks/crawl-trending?platform=github&languages=python,rust' -H "X-Internal-Token: <token>"`。
+
+## 热榜数据保留（M2-08）
+
+- Celery beat `cleanup-trending-daily` 每天 `04:17`（Asia/Shanghai，可用 `TRENDING_RETENTION_HOUR` / `TRENDING_RETENTION_MINUTE` 覆盖）触发 `cleanup_trending_data`；
+- 保留窗口默认 90 天（`TRENDING_RETENTION_DAYS`，`0` 暂停）：删除 `snapshot_date < today - N` 的快照；
+- **先归档后删除**：过期快照写成 `TRENDING_ARCHIVE_DIR` 下的 `trending-snapshots-<起>_<止>.jsonl.gz`（gzip JSONL，首行为格式头）；归档失败时不删除任何行；
+- 本地删除成功后调用 edge `POST /api/internal/trending/retention/cleanup` 删除 D1 同日期范围；未配置 `EDGE_BASE_URL` / `INTERNAL_TOKEN` 时跳过，失败标记 `status=partial`；
+- 归档文件按 `TRENDING_ARCHIVE_KEEP_DAYS`（默认 365 天）滚动清理；状态与手动触发见 `GET/POST /api/trending/retention*`；
+- 完整操作手册：`docs/guides/trending-retention.md`。
 
 ## 常用检查
 

@@ -26,11 +26,14 @@
 
 ```
 edge/
-├── package.json          # 依赖与脚本（dev / deploy / typecheck / db:migrate:local）
+├── package.json          # 依赖与脚本（dev / deploy / typecheck / test:m2 / db:migrate:local）
 ├── tsconfig.json         # strict TypeScript 配置（@cloudflare/workers-types）
 ├── wrangler.toml         # Worker 名称、D1 绑定、vars（机密不在此处）
 ├── migrations/
-│   └── 0001_init.sql     # 初始 D1 schema（表 + 索引）
+│   ├── 0001_init.sql     # 初始 D1 schema（表 + 索引）
+│   ├── 0002_trending_snapshots.sql  # 热榜按日快照（M2-05）
+│   ├── 0007_trending_summary.sql  # 热榜摘要列（M2-04）
+│   └── 0008_trending_detail.sql  # 热榜详情：平台/Star 查询索引（摘要列见 0007）
 └── src/
     ├── index.ts          # Hono 入口：CORS、日志、/healthz、路由挂载、404/500
     ├── types.ts          # Env 绑定 + 数据库行 + API 响应实体
@@ -39,7 +42,8 @@ edge/
     └── routes/
         ├── auth.ts       # /api/auth/*（login / callback / me / logout）
         ├── repos.ts      # /api/repos
-        ├── trending.ts   # /api/trending
+        ├── trending.ts   # /api/trending（按日快照 / 日期 / 历史）
+        ├── internal-trending.ts # /api/internal/trending/*（VPS 快照回写 / 保留清理）
         ├── recommend.ts  # /api/recommendations
         ├── categories.ts # /api/categories
         ├── dashboard.ts  # /api/dashboard/stats
@@ -66,6 +70,18 @@ npm run db:migrate:local
 ```bash
 npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FROM categories;"
 ```
+
+### 检查与验收
+
+```bash
+npm run typecheck        # TypeScript 全量类型检查
+npm run test:trending    # 热榜查询 / 详情纯函数用例（11 个）
+npm run test:m2 -- --strict \
+  --report-md docs/planning/acceptance-m2-report.md \
+  --report-json docs/planning/acceptance-m2-report.json
+```
+
+`test:m2` 会自动应用本地 D1 迁移、种入固定热榜数据集并启动 `wrangler dev`，覆盖 M2 列表 / 筛选 / 趋势 / 详情 / 收藏 / 摘要回写 / 快照 upsert / 保留清理 24 项断言。
 
 ## 部署步骤
 
@@ -107,7 +123,7 @@ npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FR
 | `VPS_NODE_URL` | vars | VPS 节点地址；留空时 `/api/sync` 返回 202 accepted 而不转发 |
 | `GITHUB_CLIENT_SECRET` | **secret** | `wrangler secret put GITHUB_CLIENT_SECRET` |
 | `SESSION_SECRET` | **secret** | `wrangler secret put SESSION_SECRET` |
-| `INTERNAL_TOKEN` | secret（可选） | 边缘调用 VPS 的 `X-Internal-Token` |
+| `INTERNAL_TOKEN` | secret（可选） | 边缘 ↔ VPS 内部调用令牌（边缘 → VPS 调度、VPS → 边缘摘要回写共用） |
 
 ## 接口约定
 
@@ -128,8 +144,19 @@ npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FR
 
 | 方法/路径 | 返回 |
 | --- | --- |
-| `GET /api/repos?q=&categoryId=` | `RepoItem[]`（会话用户自己的仓库；`q` 模糊匹配名称/描述，`categoryId` 过滤分类） |
-| `GET /api/trending?limit=20` | `TrendingRepo[]`（公开；按 `stars_today` 降序，limit 上限 100） |
+| `GET /api/repos?q=&categoryId=` | `RepoItem[]`（会话用户自己的仓库；`q` 模糊匹配名称/描述/摘要，`categoryId` 过滤分类） |
+| `POST /api/repos/summaries` | 内部接口：VPS 批量回写 README 摘要，body `{items:[{repoId,summary}]}`，返回 `{total,updated,skipped}` |
+| `GET /api/trending?date=&language=&limit=20` | `TrendingRepo[]`（公开；优先读按日快照，按 `rank` 升序，默认最近一天，可按日期 / 语言筛选；返回 `rank` / `rankChange` / `trend`，无快照时回退最新状态表，含 `summary`） |
+| `GET /api/trending/dates?limit=30` | `[{date, count}]`（可用快照日期，倒序） |
+| `GET /api/trending/languages?date=` | `{date, languages: [{language, count}]}`（指定日期的语言分布） |
+| `GET /api/trending/history?repoId=&days=30` | `TrendingRepo[]`（单仓库 Star / 排名历史） |
+| `GET /api/trending/:owner/:name` | `TrendingRepoDetail`（公开；登录时回显 `isFavorited`；不存在 404） |
+| `POST /api/trending/:owner/:name/favorite` | `{favorited:true, created, repoId}`（需登录；幂等，他人同 id 资产返回 409） |
+| `DELETE /api/trending/:owner/:name/favorite` | `{favorited:false, removed, repoId}`（需登录） |
+| `POST /api/trending/summaries` | 内部接口：VPS 批量回写热榜摘要，body `{items:[{repoId,summary}]}`，返回 `{total,updated,skipped}` |
+| `POST /api/internal/trending/snapshots` | 内部：VPS 批量 upsert 快照（`X-Internal-Token`，单批 ≤ 500） |
+| `GET /api/internal/trending/retention` | 内部：D1 快照总数与最早 / 最新日期（`X-Internal-Token`） |
+| `POST /api/internal/trending/retention/cleanup` | 内部：按 `{beforeDate, dryRun?}` 删除过期快照（`X-Internal-Token`，M2-08） |
 | `GET /api/recommendations` | `Recommendation[]`（用户私有 + 全局，按 `score` 降序；需登录） |
 | `GET /api/categories` | `CategoriesPayload` |
 | `GET /api/dashboard/stats` | `DashboardStats` |
@@ -139,8 +166,11 @@ npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FR
 JSON 形状（前端契约，勿改字段名）：
 
 ```ts
-RepoItem        { id, fullName, description, language, stars, forks, category, tags: string[], updatedAt, url }
-TrendingRepo    { id, owner, name, description, language, stars, starsToday, url }
+RepoItem        { id, fullName, description, summary, language, stars, forks, category, tags: string[], updatedAt, url }
+TrendingRepo    { id, owner, name, description, summary, language, stars, starsToday, url,
+                  snapshotDate, rank, rankChange, trend,
+                  languageRank?, starDelta?, rankDelta?, appearances?, isNew? }
+TrendingRepoDetail { ...TrendingRepo, platform, techStack: string[], summary, summarySource, crawledAt, isFavorited }
 Recommendation  { id, owner, name, description, language, stars, score, reason, basedOn: string[], url }
 CategoriesPayload { categories: [{id, name, count, description}], tags: [{name, count}] }
 DashboardStats  { totalRepos, trendingToday, pendingRecommendations, categoryCount }
@@ -149,6 +179,12 @@ DashboardStats  { totalRepos, trendingToday, pendingRecommendations, categoryCou
 ### 与 VPS 节点的约定
 
 `POST /api/sync` 转发到 `${VPS_NODE_URL}/api/tasks/sync`，请求头 `X-Internal-Token: <INTERNAL_TOKEN>`，body 为 `{requestedBy, requestedAt}`；VPS 侧应校验内部令牌并以 2xx 表示已入队。
+
+摘要回写方向相反：VPS 配置 `EDGE_BASE_URL` 后，批量任务调用 `POST {edge}/api/repos/summaries` 或 `POST {edge}/api/trending/summaries`，同样携带 `X-Internal-Token`；边缘侧逐条更新 `my_repositories.readme_summary` / `trending_repositories.readme_summary`，单批最多 500 条。热榜摘要列由 `0007_trending_summary.sql` 迁移添加。
+
+反向（VPS → edge）：热榜任务每日写快照后调用 `POST /api/internal/trending/snapshots`，body 为 `{snapshotDate, items:[{repoId, name, htmlUrl, ...趋势字段}]}`。未配置 `INTERNAL_TOKEN` 时该接口返回 503（默认关闭），令牌不匹配返回 401；单批最多 500 条，按 `(snapshot_date, repo_id)` upsert。
+
+保留清理（M2-08）：VPS 每日归档本地过期快照后调用 `POST /api/internal/trending/retention/cleanup`，body 为 `{beforeDate: "YYYY-MM-DD", dryRun?: boolean}`，删除 `trending_snapshots.snapshot_date < beforeDate` 的行；`dryRun=true` 只返回将删除的行数。D1 只是展示镜像，权威归档在 VPS `TRENDING_ARCHIVE_DIR`。
 
 ### 会话与安全
 

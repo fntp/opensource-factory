@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import Iterator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import get_settings
@@ -40,11 +40,35 @@ engine = create_engine(settings.DATABASE_URL, connect_args=_connect_args, future
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
 
 
+def _ensure_sqlite_columns() -> None:
+    """为既有 SQLite 库幂等补齐新增列（create_all 不会修改已有表）。"""
+    if not settings.DATABASE_URL.startswith("sqlite"):
+        return
+    inspector = inspect(engine)
+    if "trending_repositories" not in inspector.get_table_names():
+        return
+    existing = {column["name"] for column in inspector.get_columns("trending_repositories")}
+    additions = {
+        "readme_summary": "TEXT",
+        "owner": "TEXT",
+        "language": "TEXT",
+        "stars": "INTEGER NOT NULL DEFAULT 0",
+    }
+    missing = {name: ddl for name, ddl in additions.items() if name not in existing}
+    if not missing:
+        return
+    with engine.begin() as connection:
+        for name, ddl in missing.items():
+            connection.execute(text(f"ALTER TABLE trending_repositories ADD COLUMN {name} {ddl}"))
+    logger.info("trending_repositories 已补齐列: %s", ", ".join(sorted(missing)))
+
+
 def init_db() -> None:
     """建表（幂等）。在应用启动与任务执行前调用。"""
     from app import models  # noqa: F401  确保所有模型已注册到 Base.metadata
 
     Base.metadata.create_all(bind=engine)
+    _ensure_sqlite_columns()
     logger.info("数据库已就绪: %s", settings.DATABASE_URL)
 
 
