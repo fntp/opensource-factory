@@ -1,12 +1,13 @@
 /**
- * 热榜快照内部回写路由（VPS → D1）
- * POST /api/internal/trending/snapshots
- * - 仅内部调用：校验 X-Internal-Token；未配置 INTERNAL_TOKEN 时返回 503（默认关闭）；
- * - 按 (snapshot_date, repo_id) upsert，单批最多 500 条。
+ * 热榜快照内部路由（VPS → D1）
+ * - POST /api/internal/trending/snapshots：按 (snapshot_date, repo_id) upsert，单批最多 500 条；
+ * - GET  /api/internal/trending/retention：D1 快照总数与最早 / 最新日期；
+ * - POST /api/internal/trending/retention/cleanup：按 beforeDate 删除过期快照（M2-08）。
+ * 仅内部调用：校验 X-Internal-Token；未配置 INTERNAL_TOKEN 时返回 503（默认关闭）。
  */
 import { Hono } from 'hono';
 import type { Env, Variables } from '../types';
-import { run } from '../db';
+import { count, first, run } from '../db';
 
 const internalTrending = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -143,6 +144,67 @@ internalTrending.post('/snapshots', async (c) => {
   }
 
   return c.json({ total: items.length, upserted, skipped });
+});
+
+internalTrending.get('/retention', async (c) => {
+  const expected = (c.env.INTERNAL_TOKEN ?? '').trim();
+  if (!expected) {
+    return c.json({ error: 'internal_token_not_configured' }, 503);
+  }
+  const provided = c.req.header('X-Internal-Token') ?? '';
+  if (provided !== expected) {
+    return c.json({ error: 'unauthorized' }, 401);
+  }
+
+  const total = await count(c.env.DB, 'SELECT COUNT(*) AS n FROM trending_snapshots');
+  const bounds = await first<{ oldest: string | null; newest: string | null }>(
+    c.env.DB,
+    'SELECT MIN(snapshot_date) AS oldest, MAX(snapshot_date) AS newest FROM trending_snapshots'
+  );
+  return c.json({
+    total,
+    oldest: bounds?.oldest ?? null,
+    newest: bounds?.newest ?? null,
+  });
+});
+
+internalTrending.post('/retention/cleanup', async (c) => {
+  const expected = (c.env.INTERNAL_TOKEN ?? '').trim();
+  if (!expected) {
+    return c.json({ error: 'internal_token_not_configured' }, 503);
+  }
+  const provided = c.req.header('X-Internal-Token') ?? '';
+  if (provided !== expected) {
+    return c.json({ error: 'unauthorized' }, 401);
+  }
+
+  let body: { beforeDate?: unknown; dryRun?: unknown } | null = null;
+  try {
+    body = await c.req.json<{ beforeDate?: unknown; dryRun?: unknown }>();
+  } catch {
+    return c.json({ error: 'invalid_json' }, 400);
+  }
+  const beforeDate = text(body?.beforeDate);
+  if (!isValidDate(beforeDate)) {
+    return c.json({ error: 'invalid_before_date', message: 'beforeDate 需为 YYYY-MM-DD' }, 400);
+  }
+
+  const dryRun = body?.dryRun === true;
+  if (dryRun) {
+    const total = await count(
+      c.env.DB,
+      'SELECT COUNT(*) AS n FROM trending_snapshots WHERE snapshot_date < ?',
+      [beforeDate]
+    );
+    return c.json({ beforeDate, dryRun: true, deleted: total });
+  }
+
+  const result = await run(
+    c.env.DB,
+    'DELETE FROM trending_snapshots WHERE snapshot_date < ?',
+    [beforeDate]
+  );
+  return c.json({ beforeDate, dryRun: false, deleted: result.meta.changes ?? 0 });
 });
 
 export default internalTrending;

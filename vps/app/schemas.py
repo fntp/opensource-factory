@@ -104,11 +104,22 @@ class CrawlAlertOut(ORMModel):
     acknowledged_at: Optional[datetime] = None
 
 
-class TrendingRepoDetail(TrendingRepoOut):
-    """热榜详情输出：摘要 + 元信息。"""
+class TrendingRetentionStatus(BaseModel):
+    """热榜数据保留策略状态（M2-08，字段与运维接口保持一致）。"""
 
-    summary: Optional[str] = None
-    summary_source: str = "empty"  # readme | description | tech | empty
+    enabled: bool
+    retentionDays: int
+    cutoff: Optional[date] = None
+    archiveEnabled: bool
+    archiveDir: str
+    archiveKeepDays: int
+    totalSnapshots: int
+    expiredSnapshots: int
+    oldestDate: Optional[date] = None
+    latestDate: Optional[date] = None
+    databaseBytes: int
+    archiveFiles: int
+    archiveBytes: int
 
 
 class RecommendQuery(BaseModel):

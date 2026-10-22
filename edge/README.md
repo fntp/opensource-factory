@@ -43,7 +43,7 @@ edge/
         ├── auth.ts       # /api/auth/*（login / callback / me / logout）
         ├── repos.ts      # /api/repos
         ├── trending.ts   # /api/trending（按日快照 / 日期 / 历史）
-        ├── internal-trending.ts # /api/internal/trending/snapshots（VPS 快照回写）
+        ├── internal-trending.ts # /api/internal/trending/*（VPS 快照回写 / 保留清理）
         ├── recommend.ts  # /api/recommendations
         ├── categories.ts # /api/categories
         ├── dashboard.ts  # /api/dashboard/stats
@@ -143,6 +143,8 @@ npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FR
 | `DELETE /api/trending/:owner/:name/favorite` | `{favorited:false, removed, repoId}`（需登录） |
 | `POST /api/trending/summaries` | 内部接口：VPS 批量回写热榜摘要，body `{items:[{repoId,summary}]}`，返回 `{total,updated,skipped}` |
 | `POST /api/internal/trending/snapshots` | 内部：VPS 批量 upsert 快照（`X-Internal-Token`，单批 ≤ 500） |
+| `GET /api/internal/trending/retention` | 内部：D1 快照总数与最早 / 最新日期（`X-Internal-Token`） |
+| `POST /api/internal/trending/retention/cleanup` | 内部：按 `{beforeDate, dryRun?}` 删除过期快照（`X-Internal-Token`，M2-08） |
 | `GET /api/recommendations` | `Recommendation[]`（用户私有 + 全局，按 `score` 降序；需登录） |
 | `GET /api/categories` | `CategoriesPayload` |
 | `GET /api/dashboard/stats` | `DashboardStats` |
@@ -169,6 +171,8 @@ DashboardStats  { totalRepos, trendingToday, pendingRecommendations, categoryCou
 摘要回写方向相反：VPS 配置 `EDGE_BASE_URL` 后，批量任务调用 `POST {edge}/api/repos/summaries` 或 `POST {edge}/api/trending/summaries`，同样携带 `X-Internal-Token`；边缘侧逐条更新 `my_repositories.readme_summary` / `trending_repositories.readme_summary`，单批最多 500 条。热榜摘要列由 `0007_trending_summary.sql` 迁移添加。
 
 反向（VPS → edge）：热榜任务每日写快照后调用 `POST /api/internal/trending/snapshots`，body 为 `{snapshotDate, items:[{repoId, name, htmlUrl, ...趋势字段}]}`。未配置 `INTERNAL_TOKEN` 时该接口返回 503（默认关闭），令牌不匹配返回 401；单批最多 500 条，按 `(snapshot_date, repo_id)` upsert。
+
+保留清理（M2-08）：VPS 每日归档本地过期快照后调用 `POST /api/internal/trending/retention/cleanup`，body 为 `{beforeDate: "YYYY-MM-DD", dryRun?: boolean}`，删除 `trending_snapshots.snapshot_date < beforeDate` 的行；`dryRun=true` 只返回将删除的行数。D1 只是展示镜像，权威归档在 VPS `TRENDING_ARCHIVE_DIR`。
 
 ### 会话与安全
 

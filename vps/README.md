@@ -31,18 +31,19 @@ vps/
 │   │   ├── trending_crawler.py   # GitHub Trending 解析/抓取 + Gitee 探索页（尽力而为）
 │   │   ├── trending_snapshot.py  # 按日快照去重 / 排名 / 趋势字段 + D1 批量回写
 │   │   ├── crawl_guard.py        # 抓取重试、页面结构变更判定与告警落库（M2-02）
+│   │   ├── trending_retention.py # 热榜保留窗口 / gzip JSONL 归档 / 本地与 D1 清理
 │   │   ├── readme.py             # README 去噪（徽章 / 图片 / HTML）+ 技术栈别名归并
 │   │   ├── embedding.py          # BGE-M3（懒加载）与确定性 hash 降级向量
 │   │   ├── summarizer.py         # Ollama → DeepSeek → 截断降级 的摘要生成
 │   │   └── recommender.py        # 余弦排序 + 中文推荐理由模板
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
-│   │   ├── trending.py           # GET /api/trending、/snapshots、/dates、/history、POST /crawl
+│   │   ├── trending.py           # GET /api/trending、/snapshots、/dates、/history、/retention、POST /crawl、/retention/cleanup
 │   │   ├── recommend.py          # POST /api/recommend/query、POST /api/recommend/generate
 │   │   └── tasks.py              # /api/tasks/*（与边缘 Worker 的集成契约，X-Internal-Token 鉴权）
 │   └── tasks/                # Celery 任务（薄封装，调用 services + 落库）
 │       ├── celery_app.py         # Celery 应用与 beat 定时计划
-│       └── jobs.py               # sync / crawl / generate / daily_push 四个任务
+│       └── jobs.py               # sync / crawl / generate / daily_push / cleanup_trending_data 任务
 └── tests/                    # pytest（不访问网络）
 ```
 
@@ -111,12 +112,17 @@ pytest -q
 | `TRENDING_COUNT_DROP_MIN_BASELINE` | `5` | 基线少于该条数不做骤降判定 |
 | `TRENDING_ALERT_COOLDOWN_MINUTES` | `360` | 同页同类告警去重窗口（分钟） |
 | `TRENDING_ALERT_WEBHOOK_URL` | 空 | 可选告警 webhook；留空只落库 + 日志 |
+| `TRENDING_RETENTION_DAYS` | `90` | 快照保留天数（含当天）；`0` = 暂停自动清理 |
+| `TRENDING_ARCHIVE_ENABLED` | `true` | 清理前归档为 gzip JSONL；关闭后直接删除（不推荐） |
+| `TRENDING_ARCHIVE_DIR` | `./data/archives` | 归档目录（相对路径按 `vps/` 解析） |
+| `TRENDING_ARCHIVE_KEEP_DAYS` | `365` | 归档文件保留天数；`0` = 永久保留 |
+| `TRENDING_RETENTION_HOUR` / `TRENDING_RETENTION_MINUTE` | `4` / `17` | 每日清理时刻（Asia/Shanghai） |
 
 完整清单见 `.env.example`。所有真实密钥只存在于本地 `.env`（git 忽略）或平台密钥托管，**不得提交**。
 
 ## 与 Cloudflare 边缘的接口约定
 
-边缘 Worker 通过内部 API 调度本节点，全部任务接口位于 `/api/tasks/*`：
+边缘 Worker 通过内部 API 调度本节点，任务接口位于 `/api/tasks/*`；热榜保留策略接口位于 `/api/trending/retention*`：
 
 | 方法 | 路径 | 说明 | 返回 |
 | --- | --- | --- | --- |
@@ -128,6 +134,8 @@ pytest -q
 | POST | `/api/tasks/daily-push` | 入队每日推送准备（将 `new` 推荐标记为 `pushed`） | `202 {"taskId": "..."}` |
 | GET | `/api/tasks/{task_id}` | 查询任务状态（`pending/started/progress/success/failure`，PROGRESS 时带 `progress`） | `200 {"taskId","status","result","progress"}` |
 | GET | `/api/trending/{owner}/{repo}` | 热榜详情（摘要 + 元信息；摘要回退 readme_summary → description → tech_stack） | `200 TrendingRepoDetail` / `404` |
+| GET | `/api/trending/retention` | 热榜保留策略状态（窗口 / 过期数 / SQLite 与归档占用） | `200 {...}` |
+| POST | `/api/trending/retention/cleanup` | 入队热榜归档与清理（`dryRun` / `retentionDays` / `archive`） | `202 {"taskId": "..."}` |
 
 约定：
 
@@ -174,6 +182,15 @@ pytest -q
 - 每次抓取同时写 `trending_snapshots`（主键 `snapshot_date + repo_id`）：同一日重复执行幂等，趋势字段对比上一有效快照（最多回看 7 天）计算 `star_delta` / `rank_delta` / `appearances` / `is_new` / `trend`；
 - 配置 `EDGE_BASE_URL` + `INTERNAL_TOKEN` 时，快照按批（默认 200 条）回写 `POST /api/internal/trending/snapshots`；回写失败只记日志，不影响本地入库；
 - 手动触发示例：`curl -X POST 'http://127.0.0.1:8000/api/tasks/crawl-trending?platform=github&languages=python,rust' -H "X-Internal-Token: <token>"`。
+
+## 热榜数据保留（M2-08）
+
+- Celery beat `cleanup-trending-daily` 每天 `04:17`（Asia/Shanghai，可用 `TRENDING_RETENTION_HOUR` / `TRENDING_RETENTION_MINUTE` 覆盖）触发 `cleanup_trending_data`；
+- 保留窗口默认 90 天（`TRENDING_RETENTION_DAYS`，`0` 暂停）：删除 `snapshot_date < today - N` 的快照；
+- **先归档后删除**：过期快照写成 `TRENDING_ARCHIVE_DIR` 下的 `trending-snapshots-<起>_<止>.jsonl.gz`（gzip JSONL，首行为格式头）；归档失败时不删除任何行；
+- 本地删除成功后调用 edge `POST /api/internal/trending/retention/cleanup` 删除 D1 同日期范围；未配置 `EDGE_BASE_URL` / `INTERNAL_TOKEN` 时跳过，失败标记 `status=partial`；
+- 归档文件按 `TRENDING_ARCHIVE_KEEP_DAYS`（默认 365 天）滚动清理；状态与手动触发见 `GET/POST /api/trending/retention*`；
+- 完整操作手册：`docs/guides/trending-retention.md`。
 
 ## 常用检查
 

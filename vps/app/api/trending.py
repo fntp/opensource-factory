@@ -15,10 +15,12 @@ from app.schemas import (
     TaskEnqueued,
     TrendingRepoDetail,
     TrendingRepoOut,
+    TrendingRetentionStatus,
     TrendingSnapshotDateOut,
     TrendingSnapshotOut,
 )
-from app.tasks.jobs import crawl_trending, summarize_readmes
+from app.services.trending_retention import retention_status
+from app.tasks.jobs import cleanup_trending_data, crawl_trending, summarize_readmes
 
 router = APIRouter(prefix="/api/trending", tags=["trending"])
 
@@ -276,6 +278,41 @@ def trending_history(
         .order_by(TrendingSnapshot.snapshot_date.asc())
     )
     return list(db.execute(stmt).scalars().all())
+
+
+@router.get(
+    "/retention",
+    response_model=TrendingRetentionStatus,
+    summary="热榜数据保留策略状态（窗口 / 归档 / 磁盘占用）",
+)
+def get_trending_retention(db: Session = Depends(get_db)) -> dict:
+    """返回当前保留窗口、过期快照数、SQLite 文件与归档目录占用。"""
+    return retention_status(db)
+
+
+@router.post(
+    "/retention/cleanup",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=TaskEnqueued,
+    summary="入队：热榜快照归档与清理",
+)
+async def enqueue_trending_cleanup(
+    dry_run: bool = Query(default=False, alias="dryRun", description="只统计不删除"),
+    retention_days: int | None = Query(
+        default=None,
+        alias="retentionDays",
+        ge=0,
+        le=3650,
+        description="覆盖默认保留天数；0 = 暂停清理",
+    ),
+    archive: bool = Query(default=True, description="清理前是否归档"),
+) -> TaskEnqueued:
+    task = cleanup_trending_data.delay(
+        retention_days=retention_days,
+        archive=archive,
+        dry_run=dry_run,
+    )
+    return TaskEnqueued(taskId=task.id)
 
 
 @router.post(

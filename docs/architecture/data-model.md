@@ -79,6 +79,14 @@ recommendations              （user_id 可空 = 全局推荐）
 
 趋势口径：基线取该仓库在快照日之前最近一条快照（最多回看 7 天）；`rank_delta >= 3` 记为 `up`，`<= -3` 记为 `down`，其余 `steady`。
 
+**保留策略（M2-08）**：默认保留 90 天（`TRENDING_RETENTION_DAYS`），每日 04:17（可配）由 Celery 任务 `cleanup_trending_data` 处理：
+
+1. 把 `snapshot_date < today - retention_days` 的快照写成 `data/archives/trending-snapshots-<起>_<止>.jsonl.gz`（gzip JSONL，首行为格式头）；
+2. 归档成功后在同一事务删除本地过期行，并调用 edge 内部接口删除 D1 同日期范围；
+3. 归档失败时**不删除**任何行；归档文件按 `TRENDING_ARCHIVE_KEEP_DAYS`（默认 365 天）滚动清理。
+
+> `trending_repositories` 只保留最新状态，不参与按日清理；详细操作见 `docs/guides/trending-retention.md`。
+
 ### 2.4 `categories` 分类
 
 | 字段 | 类型 | 说明 |
