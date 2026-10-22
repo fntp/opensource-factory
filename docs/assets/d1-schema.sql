@@ -100,6 +100,27 @@ CREATE TABLE recommendations (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- ── 站内通知（M4-02）──────────────────────────────────────────
+CREATE TABLE notifications (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'recommendation',   -- recommendation / system
+    title TEXT NOT NULL,
+    body TEXT,
+    url TEXT,
+    repo_id TEXT,
+    recommendation_id TEXT,                        -- 关联 recommendations.id
+    dedupe_key TEXT,                               -- 内部推送幂等键
+    score REAL,
+    reason TEXT,
+    language TEXT,
+    stars INTEGER DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'unread',         -- unread / read / dismissed
+    payload TEXT,                                  -- 扩展 JSON（如 basedOn）
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    read_at DATETIME
+);
+
 -- ── 索引 ────────────────────────────────────────────────────────
 CREATE INDEX idx_my_repositories_user_id ON my_repositories (user_id);
 CREATE INDEX idx_my_repositories_category_id ON my_repositories (category_id);
@@ -109,3 +130,6 @@ CREATE INDEX idx_sessions_expires_at ON sessions (expires_at);
 CREATE INDEX idx_recommendations_user_id ON recommendations (user_id);
 CREATE INDEX idx_recommendations_score ON recommendations (score DESC);
 CREATE INDEX idx_repo_tags_tag_id ON repo_tags (tag_id);
+CREATE INDEX idx_notifications_user_status_created ON notifications (user_id, status, created_at DESC);
+CREATE UNIQUE INDEX idx_notifications_user_recommendation ON notifications (user_id, recommendation_id);
+CREATE UNIQUE INDEX idx_notifications_user_dedupe ON notifications (user_id, dedupe_key);

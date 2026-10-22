@@ -12,6 +12,13 @@ binding = "DB"
 database_name = "opensource-factory"
 database_id = "REPLACE_WITH_D1_DATABASE_ID"
 
+# ── Vectorize 索引绑定（M3-03）──────────────────────────────────
+# 部署前创建索引（维度需与 VPS 的 VECTORIZE_INDEX_DIM 一致；BGE-M3 为 1024）：
+#   npx wrangler vectorize create opensource-factory-vectors --dimensions=1024 --metric=cosine
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "opensource-factory-vectors"
+
 # ── 明文变量（非机密）────────────────────────────────────────────
 [vars]
 # 前端管理后台的地址，CORS 将精确回显该 origin（带 credentials）

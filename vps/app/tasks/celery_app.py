@@ -2,9 +2,12 @@
 
 - broker / backend：`REDIS_URL`（默认 `redis://localhost:6379/0`）；
 - `CELERY_TASK_ALWAYS_EAGER=1` 时任务同步执行（本地调试 / 测试）；
-- beat 计划：每 6 小时抓取热榜、每日 09:00 推送准备。
+- beat 计划：每 6 小时抓取热榜、每日 08:30 生成推荐、08:45 评估推荐、09:00 推送准备，
+  并按 `PUSH_RETRY_INTERVAL_MINUTES` 周期重试静默期间被推迟的推送。
 """
 from __future__ import annotations
+
+from datetime import timedelta
 
 from celery import Celery
 from celery.schedules import crontab
@@ -39,9 +42,32 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(minute=15, hour="*/6"),
         "kwargs": {"platform": "github"},
     },
+    # 每日推荐生成（M3-05）：08:30 生成，08:45 评估，09:00 推送准备使用最新结果
+    "generate-recommendations-daily": {
+        "task": "app.tasks.jobs.generate_recommendations",
+        "schedule": crontab(minute=30, hour=8),
+    },
+    # 每日推荐评估（M4-01）：质量分 + 匹配度阈值，产出 qualified / filtered
+    "evaluate-recommendations-daily": {
+        "task": "app.tasks.jobs.evaluate_recommendations",
+        "schedule": crontab(minute=45, hour=8),
+    },
     "daily-push-at-9am": {
         "task": "app.tasks.jobs.daily_push",
         "schedule": crontab(minute=0, hour=9),
+    },
+    # 静默结束后重试（M4-07）：非静默且存在 qualified 时才会真正执行
+    "retry-deferred-push": {
+        "task": "app.tasks.jobs.retry_deferred_push",
+        "schedule": timedelta(
+            minutes=max(1, int(settings.PUSH_RETRY_INTERVAL_MINUTES or 30))
+        ),
+    },
+    # Vectorize 索引增量同步：每 30 分钟一次（M3-03）；未配置 edge 时任务自动跳过
+    "sync-vector-index-every-30m": {
+        "task": "app.tasks.jobs.sync_vector_index",
+        "schedule": crontab(minute="7,37"),
+        "kwargs": {"kind": "sync", "scope": "all"},
     },
 }
 

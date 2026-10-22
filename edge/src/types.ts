@@ -18,6 +18,8 @@ export interface Env {
   VPS_NODE_URL: string;
   // 可选：边缘 → VPS 节点的内部调用令牌
   INTERNAL_TOKEN?: string;
+  // Vectorize 索引绑定（wrangler.toml 的 [[vectorize]]；未配置时内部接口返回 503）
+  VECTORIZE?: VectorizeIndex;
 }
 
 // ── 数据库行 ────────────────────────────────────────────────────
@@ -77,6 +79,7 @@ export interface TrendingRow {
 export interface RecommendationRow {
   id: string;
   user_id: string | null;
+  repo_id?: string | null;
   owner: string | null;
   name: string | null;
   description: string | null;
@@ -88,6 +91,26 @@ export interface RecommendationRow {
   url: string | null;
   status: string | null;
   created_at: string | null;
+}
+
+export interface NotificationRow {
+  id: string;
+  user_id: string;
+  type: string | null;
+  title: string;
+  body: string | null;
+  url: string | null;
+  repo_id: string | null;
+  recommendation_id: string | null;
+  dedupe_key: string | null;
+  score: number | null;
+  reason: string | null;
+  language: string | null;
+  stars: number | null;
+  status: string | null;
+  payload: string | null;
+  created_at: string | null;
+  read_at: string | null;
 }
 
 export interface CategoryRow {
@@ -156,6 +179,34 @@ export interface Recommendation {
   reason: string | null;
   basedOn: string[];
   url: string | null;
+}
+
+/** GET /api/notifications 列表项 */
+export interface NotificationItem {
+  id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  url: string | null;
+  repoId: string | null;
+  recommendationId: string | null;
+  score: number | null;
+  reason: string | null;
+  language: string | null;
+  stars: number;
+  status: 'unread' | 'read' | 'dismissed';
+  createdAt: string;
+  readAt: string | null;
+}
+
+/** GET /api/notifications */
+export interface NotificationsPayload {
+  items: NotificationItem[];
+  total: number;
+  unread: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
 }
 
 /** GET /api/categories */
