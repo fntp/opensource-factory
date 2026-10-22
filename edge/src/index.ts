@@ -5,7 +5,8 @@
  *       /api/notifications、/api/push-preferences、/api/categories、/api/dashboard、
  *       /api/sync、/api/internal/trending、/api/search、/api/similar、/api/duplicates、
  *       /api/tech-stack、/api/licenses、/api/internal/licenses、/api/analysis、/api/export、
- *       /api/tag-suggestions、/api/category-suggestions、/api/reports
+ *       /api/tag-suggestions、/api/category-suggestions、/api/reports、
+ *       /api/telegram（M8-03 Bot 查询入口）
  */
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -44,6 +45,7 @@ import monitoringRoutes, { internalAnalytics } from './routes/monitoring';
 import modelRoutes from './routes/model-routes';
 import reportsRoutes, { internalReports, generateReportsForAllUsers } from './routes/reports';
 import repoUpdatesRoutes, { internalRepoUpdates } from './routes/repo-updates';
+import telegramRoutes from './routes/telegram';
 import {
   cleanupSecurityData,
   clientIpFromHeaders,
@@ -205,6 +207,8 @@ app.route('/api/internal/reports', internalReports);
 app.route('/api/repo-updates', repoUpdatesRoutes);
 app.route('/api/internal/repo-updates', internalRepoUpdates);
 app.route('/api/extension', extensionRoutes);
+
+app.route('/api/telegram', telegramRoutes);
 
 // 404
 app.notFound((c) =>

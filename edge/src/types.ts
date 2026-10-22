@@ -21,6 +21,11 @@ export interface Env {
   INTERNAL_TOKEN?: string;
   // 可选：上一枚内部令牌（轮换过渡期仍接受；验证完成后删除）
   INTERNAL_TOKEN_PREVIOUS?: string;
+  // Telegram Bot（M8-03 查询入口；与 M4-04 推送可复用同一个 Bot）
+  TELEGRAM_BOT_TOKEN?: string;
+  TELEGRAM_WEBHOOK_SECRET?: string;
+  TELEGRAM_BOT_USERNAME?: string;
+  TELEGRAM_API_BASE?: string;
   // 接口限流（M5-05）：默认开启，显式 false / 0 关闭
   RATE_LIMIT_ENABLED?: string;
   RATE_LIMIT_READ_PER_MINUTE?: string;
@@ -262,6 +267,23 @@ export interface RepoUpdateRow {
   read_at: string | null;
   payload: string | null;
   created_at: string | null;
+}
+
+/** Telegram 会话 ↔ 用户绑定（M8-03） */
+export interface TelegramLinkRow {
+  chat_id: string;
+  user_id: string;
+  username: string | null;
+  linked_at: string;
+  last_seen_at: string | null;
+}
+
+/** Telegram 绑定码（M8-03，只存 sha-256 摘要） */
+export interface TelegramLinkCodeRow {
+  code_hash: string;
+  user_id: string;
+  expires_at: string;
+  created_at: string;
 }
 
 /** 推送偏好（M4-06） */

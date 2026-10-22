@@ -629,6 +629,32 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 `my_repositories` 仍以 `owner/repo` 为主键，同一实例内一个仓库只能归属一个用户，
 跨用户重复收藏由 `POST /api/extension/bookmark` 返回 `409 repo_owned_by_other_user`。
 
+### 3.25 `telegram_links` / `telegram_link_codes` Telegram Bot 查询入口（D1，迁移 `0021`）
+
+> M8-03：edge 接收 Telegram webhook，按 `chat_id` 映射到 `users.id` 后查询该用户的收藏、推荐与热榜。
+
+`telegram_links`：
+
+| 字段 | 说明 |
+| --- | --- |
+| chat_id TEXT PK | Telegram chat id（私聊 / 群组） |
+| user_id TEXT | 对应 `users.id`；唯一索引保证一人一聊 |
+| username TEXT | Telegram `@username`（可空） |
+| linked_at TEXT | 绑定时间（ISO 8601） |
+| last_seen_at TEXT | 最近一次命令时间（ISO 8601） |
+
+`telegram_link_codes`：
+
+| 字段 | 说明 |
+| --- | --- |
+| code_hash TEXT PK | 6 位绑定码的 sha-256 摘要（不存明文） |
+| user_id TEXT | 生成绑定码的用户 |
+| expires_at TEXT | 过期时间（ISO 8601，10 分钟） |
+| created_at TEXT | 创建时间 |
+
+唯一索引 `telegram_links(user_id)` 保证一个用户只绑定一个会话；`telegram_link_codes(user_id, expires_at DESC)`
+便于生成新码时回收旧码。绑定码一次性使用，绑定成功 / 过期后删除；仅支持私聊，群组 / 频道的隐私问题见 open-questions Q35。
+
 ## 4. 索引策略
 
 | 表 | 索引 | 用途 |
@@ -649,6 +675,8 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | push_events | `(user_id, repo_id, updated_at)`、`(user_id, updated_at)`、`event_key` UNIQUE | 去重窗口 / 每日额度 / 事件幂等 |
 | push_deliveries | `(channel)`、`(status)`、`(created_at)`、`(dedupe_key)`、`(source_id)`、`(user_id)` | 记录列表过滤 / 统计 / 对账 |
 | push_receipts | `(delivery_id)`、`(status)`、`(external_id)` | 回执时间线 / 幂等 |
+| telegram_links | `(user_id)` UNIQUE | 一人一聊 / 按用户查绑定 |
+| telegram_link_codes | `(user_id, expires_at DESC)` | 生成新码时回收旧码 |
 | rate_limit_counters | `(expires_at)` | 过期限流计数清理 |
 | login_attempts | `(ip_hash, created_at)` | 失败窗口统计 / 清理 |
 | security_events | `(event_type, created_at)` | 安全事件检索 / 清理 |

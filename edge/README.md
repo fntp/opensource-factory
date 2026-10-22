@@ -48,7 +48,8 @@ edge/
 │   ├── 0017_category_suggestions.sql  # 自动分类建议（M7-02）
 │   ├── 0018_curated_reports.sql  # 每周 / 月度精选报告（M7-03）
 │   ├── 0019_repo_updates.sql  # 收藏项目更新提醒（M7-04）
-│   └── 0020_rerank.sql  # 精排分 / 名次 / 明细字段（M7-07）
+│   ├── 0020_rerank.sql  # 精排分 / 名次 / 明细字段（M7-07）
+│   └── 0021_telegram_bot.sql  # Telegram 会话绑定 + 一次性绑定码（M8-03）
 └── src/
     ├── index.ts          # Hono 入口：CORS、日志、/healthz、路由挂载、Cron scheduled handler
     ├── types.ts          # Env 绑定 + 数据库行 + API 响应实体
@@ -71,6 +72,8 @@ edge/
     │   └── helpers.ts    # 更新提醒：筛选归一化、稳定 id、通知标题、DTO（纯函数）
     ├── rerank/
     │   └── helpers.ts    # 精排参数归一化 + 本地启发式精排（MMR，纯函数）
+    ├── telegram/
+    │   └── bot.ts        # Telegram 命令解析 / HTML 转义 / 消息拼装与分片（纯函数）
     └── routes/
         ├── auth.ts       # /api/auth/*（login / callback / me / logout）
         ├── repos.ts      # /api/repos
@@ -95,6 +98,7 @@ edge/
         ├── category-suggestions.ts # /api/category-suggestions/*（生成 / 列表 / 采纳 / 忽略）
         ├── reports.ts    # /api/reports/*（周报 / 月报列表、详情、Markdown、生成 + 内部批量生成）
         ├── repo-updates.ts # /api/repo-updates/*（更新提醒列表 / 已读 / 忽略 / 扫描 + 内部回写扇出）
+        ├── telegram.ts  # /api/telegram/*（Bot webhook + 绑定状态 / 绑定码 / 解绑）
         └── internal-vectors.ts # /api/internal/vectors/*（VPS → Vectorize，X-Internal-Token）
 ```
 
@@ -200,6 +204,10 @@ npm run test:m2 -- --strict \
 | `LOGIN_MAX_FAILURES` | vars | 登录失败阈值（默认 10 次 / 15 分钟） |
 | `LOGIN_FAILURE_WINDOW_SECONDS` | vars | 登录失败统计窗口（默认 900 秒） |
 | `LOGIN_LOCKOUT_SECONDS` | vars | 登录锁定时长（默认 900 秒） |
+| `TELEGRAM_BOT_TOKEN` | **secret**（可选） | M8-03 查询 Bot Token，可与 M4-04 推送复用；未配置时 webhook 503 |
+| `TELEGRAM_WEBHOOK_SECRET` | **secret**（可选） | `setWebhook` 的 `secret_token`，用于校验 `X-Telegram-Bot-Api-Secret-Token` |
+| `TELEGRAM_BOT_USERNAME` | vars（可选） | Bot 用户名，用于生成 `t.me/<bot>?start=<code>` 深链 |
+| `TELEGRAM_API_BASE` | vars（可选） | Bot API 根地址，默认 `https://api.telegram.org`，可指向自建反代 |
 
 ## 接口约定
 
@@ -258,6 +266,10 @@ npm run test:m2 -- --strict \
 | `POST /api/repo-updates/scan` | 触发 VPS 扫描当前用户收藏（202 `{status,taskId}`；VPS 未配置返回 accepted） |
 | `GET /api/push-preferences` | `{preferences,isDefault,availableChannels}`（未保存返回默认值；需登录） |
 | `PUT /api/push-preferences` | 保存推送偏好（时间 / 时区 / 阈值 / 通道开关；需登录） |
+| `GET /api/telegram/status` | Telegram Bot 配置 / 绑定状态（chat id 脱敏、命令清单；需登录） |
+| `POST /api/telegram/link-code` | 生成 6 位绑定码（10 分钟有效，只存 sha-256；需登录） |
+| `DELETE /api/telegram/link` | 解绑当前用户的 Telegram 会话（需登录） |
+| `POST /api/telegram/webhook` | Telegram Bot 更新入口（`X-Telegram-Bot-Api-Secret-Token`；仅私聊，支持 `/favorites` `/recommend` `/trending` `/link` `/unlink` `/help`） |
 | `GET /api/internal/push-preferences` | 全部推送偏好（`X-Internal-Token`；`?userId=` 查单个） |
 | `POST /api/internal/repo-updates/ingest` | VPS 回写更新事件，按 `my_repositories.user_id` 扇出到收藏用户并写入通知中心（`X-Internal-Token`，≤100 条/批） |
 | `GET /api/categories` | `CategoriesPayload` |

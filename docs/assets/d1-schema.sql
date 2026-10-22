@@ -388,3 +388,25 @@ CREATE TABLE IF NOT EXISTS extension_tokens (
 
 CREATE INDEX IF NOT EXISTS idx_extension_tokens_user
     ON extension_tokens (user_id, created_at DESC);
+
+-- ── Telegram Bot 查询入口（M8-03，迁移 0021）────────────────────
+CREATE TABLE IF NOT EXISTS telegram_links (
+    chat_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    username TEXT,
+    linked_at TEXT NOT NULL,
+    last_seen_at TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_telegram_links_user
+    ON telegram_links (user_id);
+
+CREATE TABLE IF NOT EXISTS telegram_link_codes (
+    code_hash TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_telegram_link_codes_user
+    ON telegram_link_codes (user_id, expires_at DESC);
