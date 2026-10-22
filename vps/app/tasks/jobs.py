@@ -322,6 +322,37 @@ def send_email_digest(
     return result
 
 
+@celery_app.task(name="app.tasks.jobs.send_telegram_digest")
+def send_telegram_digest(
+    user_id: Optional[str] = None,
+    limit: Optional[int] = None,
+    force: bool = False,
+) -> dict[str, Any]:
+    """Telegram 每日摘要（M4-04）：读取最近进入 pushed 的推荐并下发。
+
+    未启用 / 未配置 / 无数据均返回结构化状态；发送失败写 `telegram_deliveries`
+    并返回 error，不向 Celery 抛错，便于边缘侧安全重试。
+    """
+    from app.services.telegram import send_digest
+
+    db = SessionLocal()
+    try:
+        result = send_digest(db, user_id=user_id, limit=limit, force=force)
+    except Exception as exc:  # noqa: BLE001 - 任务失败降级返回结构化结果
+        logger.exception("Telegram 摘要任务失败")
+        return {"status": "error", "sent": False, "error": str(exc)[:300]}
+    finally:
+        db.close()
+
+    logger.info(
+        "Telegram 摘要任务完成: status=%s items=%d messages=%d",
+        result.get("status"),
+        result.get("itemCount", 0),
+        result.get("messageCount", 0),
+    )
+    return result
+
+
 @celery_app.task(bind=True, name="app.tasks.jobs.vectorize_repositories")
 def vectorize_repositories(
     self,

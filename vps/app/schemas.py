@@ -148,6 +148,52 @@ class BarkTestOut(BaseModel):
     error: Optional[str] = None
 
 
+class TelegramDeliveryOut(BaseModel):
+    """Telegram 送达记录输出（M4-04）。"""
+
+    id: str
+    chatId: str
+    kind: str
+    status: str
+    itemCount: int = 0
+    messageCount: int = 0
+    messageId: Optional[str] = None
+    error: Optional[str] = None
+    createdAt: Optional[datetime] = None
+    finishedAt: Optional[datetime] = None
+
+
+class TelegramStatusOut(BaseModel):
+    """Telegram 通道状态（不返回 token，chat id 脱敏）。"""
+
+    enabled: bool
+    configured: bool
+    chatIdMasked: str = ""
+    apiBase: str = ""
+    dailyLimit: int = 0
+    digestWindowHours: int = 0
+    lastDelivery: Optional[TelegramDeliveryOut] = None
+
+
+class TelegramTestRequest(BaseModel):
+    """测试消息请求。"""
+
+    text: Optional[str] = Field(default=None, max_length=1000, description="自定义测试文案")
+
+
+class TelegramSendResponse(BaseModel):
+    """Telegram 发送结果。"""
+
+    ok: bool
+    status: str
+    sent: bool = False
+    deliveryId: Optional[str] = None
+    itemCount: int = 0
+    messageCount: int = 0
+    messageIds: list[str] = Field(default_factory=list)
+    error: Optional[str] = None
+
+
 class TaskEnqueued(BaseModel):
     """任务入队响应（与边缘 Worker 的契约，字段名保持 camelCase）。"""
 

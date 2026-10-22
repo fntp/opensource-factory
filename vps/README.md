@@ -37,6 +37,8 @@ vps/
 │   │   ├── email_channel.py      # Email 摘要：SMTP 投递 / 幂等 / 送达记录（M4-05）
 
 │   │   ├── bark.py               # Bark 推送通道：消息构建 / 投递 / 状态（M4-03）
+
+│   │   ├── telegram.py           # Telegram 摘要：HTML / 分片 / 重试 / 送达记录（M4-04）
 │   │   └── vector_sync.py        # Vectorize 批量 upsert / 重试 / 对账 / 孤儿清理
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
@@ -45,12 +47,14 @@ vps/
 │   │   ├── notifications.py      # /api/notifications/email/*（状态 / 测试邮件）
 
 │   │   ├── push.py               # /api/push/bark/*（状态 / 测试 / 投递入队）
+
+│   │   ├── notifications.py      # /api/notifications/telegram/*（状态 / 测试消息，M4-04）
 │   │   ├── vector_sync.py        # /api/vector-index/*（同步入队、状态、运行记录）
 │   │   ├── vectors.py            # GET /api/vectors/stats、runs、单条向量
 │   │   └── tasks.py              # /api/tasks/*（与边缘 Worker 的集成契约，X-Internal-Token 鉴权）
 │   └── tasks/                # Celery 任务（薄封装，调用 services + 落库）
 │       ├── celery_app.py         # Celery 应用与 beat 定时计划
-│       └── jobs.py               # sync / crawl / generate / daily_push / vectorize / vector_index 任务
+│       └── jobs.py               # sync / crawl / generate / daily_push / telegram / vectorize / vector_index 任务
 └── tests/                    # pytest（不访问网络）
 ```
 
@@ -158,6 +162,16 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | `BARK_TIMEOUT_SECONDS` | `10` | 单次请求超时 |
 | `BARK_MAX_PER_RUN` | `5` | 单次任务最多投递条数 |
 | `BARK_DRY_RUN` | `false` | 试运行：只生成消息不发送、不写投递标记 |
+
+| `TELEGRAM_ENABLED` | `false` | Telegram 通道总开关；关闭时任务直接跳过 |
+| `TELEGRAM_BOT_TOKEN` | 空 | BotFather 颁发的 Bot Token（机密，仅存本机 `.env`） |
+| `TELEGRAM_CHAT_ID` | 空 | 接收推送的私聊 / 群组 id（群组为负数） |
+| `TELEGRAM_API_BASE` | `https://api.telegram.org` | Bot API 地址（可指向自建反代） |
+| `TELEGRAM_TIMEOUT_SECONDS` | `10` | 单次 HTTP 超时 |
+| `TELEGRAM_MAX_RETRIES` | `3` | 网络 / 429 / 5xx 最大重试次数 |
+| `TELEGRAM_RETRY_BASE_SECONDS` | `0.5` | 指数退避基数（429 优先用 `retry_after`） |
+| `TELEGRAM_DAILY_LIMIT` | `10` | 单条摘要最多包含的推荐数 |
+| `TELEGRAM_DIGEST_WINDOW_HOURS` | `24` | 摘要只取最近 N 小时进入 `pushed` 的推荐 |
 | `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/vector-index/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
 | `EMBEDDING_FORCE_FALLBACK` | `0` | 置 `1` 强制使用确定性 hash 向量（CI / 2G 预算紧张时） |
 | `VECTORIZE_BATCH_SIZE` | `32` | 向量化每批编码 / 提交条数（1~256） |
@@ -181,6 +195,10 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | POST | `/api/tasks/evaluate-recommendations` | 入队每日评估（可选 `user_id`、`match_threshold`、`quality_threshold`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/daily-push` | 入队每日推送准备（仅将 `qualified` 推荐标记为 `pushed`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/send-email-digest` | 入队 Email 每日摘要（可选 `user_id`、`limit`、`force`） | `202 {"taskId": "..."}` |
+
+| POST | `/api/tasks/send-telegram-digest` | 入队 Telegram 每日摘要（可选 `user_id` / `limit` / `force`） | `202 {"taskId": "..."}` |
+| GET | `/api/notifications/telegram/status` | Telegram 通道开关 / 配置状态 / 最近送达（chat id 脱敏） | `200 {...}` |
+| POST | `/api/notifications/telegram/test` | 同步发送一条 Telegram 测试消息（`{"text": "..."}` 可选） | `200 {...}` / `409` / `502` |
 | POST | `/api/tasks/vectorize` | 入队向量化（`scope=my\|trending\|all`，可选 `limit` / `batch_size` / `force` / `run_id`） | `202 {"taskId","runId"}` |
 | GET | `/api/tasks/{task_id}` | 查询任务状态（`pending/started/success/failure`） | `200 {"taskId","status","result"}` |
 | POST | `/api/vector-index/sync` | 入队 Vectorize 同步 / 对账（`kind=sync\|reconcile`、`scope=my\|trending\|all`、`force`、`limit`、`batchSize`） | `202 {"taskId": "..."}` |
@@ -348,6 +366,47 @@ curl -sS -X POST 'http://127.0.0.1:8000/api/push/bark/dispatch?limit=5' \
 - `status.failed > 0` 且 `lastError` 为 `HTTP 401/403`：device key 失效或被服务端拒绝；
 - `lastError` 为 `请求失败：ConnectError`：VPS 到 Bark 服务网络不通（自建服务检查地址 / 防火墙）；
 - 重复收到同一条推送：确认 `bark_sent_at` 是否成功落库（SQLite 文件可写），极端崩溃窗口可能重复一次。
+
+## Telegram 推送通道（M4-04）
+
+每日 09:05（Asia/Shanghai）在 `daily_push` 之后执行 `send_telegram_digest`，把最近
+`TELEGRAM_DIGEST_WINDOW_HOURS` 小时内进入 `pushed` 的推荐生成中文摘要并发送到配置的会话：
+
+1. **取数**：按 `quality_score` / `score` 降序取 `TELEGRAM_DAILY_LIMIT` 条，关联
+   `trending_repositories` 补全标题、简介、链接与今日 Star；
+2. **格式化**：HTML 转义 + 单条推荐自包含区块；按 3800 字符打包，绝不超过 Telegram 4096 上限；
+3. **发送**：`sendMessage`（`parse_mode=HTML`，关闭链接预览）；网络异常 / 429 / 5xx 指数退避，
+   429 优先使用 `retry_after`；4xx（token / chat 错误）不重试；
+4. **幂等**：同一天同一用户同一会话成功发送过则跳过，`force=true` 可重发；
+5. **送达记录**：每次发送写 `telegram_deliveries`（`sent` / `failed` / `pending`），
+   状态接口只返回脱敏 chat id，Bot Token 永不返回。
+
+### 启用步骤
+
+1. 在 Telegram 找 `@BotFather` 创建 Bot，拿到 Bot Token；
+2. 把 Bot 拉进目标私聊 / 群组，发送一条消息后调用
+   `https://api.telegram.org/bot<token>/getUpdates` 获取 `chat.id`（群组为负数）；
+3. 在 `vps/.env` 配置 `TELEGRAM_BOT_TOKEN`、`TELEGRAM_CHAT_ID`，并设 `TELEGRAM_ENABLED=true`；
+4. 重启 API / worker / beat，先发测试消息确认链路。
+
+```bash
+# 查看状态（不返回 token，chat id 只显示末四位）
+curl -sS 'http://127.0.0.1:8000/api/notifications/telegram/status' \
+  -H 'X-Internal-Token: <token>'
+
+# 发送测试消息
+curl -sS -X POST 'http://127.0.0.1:8000/api/notifications/telegram/test' \
+  -H 'Content-Type: application/json' \
+  -H 'X-Internal-Token: <token>' \
+  -d '{"text":"Telegram 通道测试"}'
+
+# 手动触发每日摘要（force 忽略当日幂等）
+curl -sS -X POST 'http://127.0.0.1:8000/api/tasks/send-telegram-digest?force=true' \
+  -H 'X-Internal-Token: <token>'
+```
+
+> 单用户口径：`TELEGRAM_CHAT_ID` 为一个会话；多用户 / 多会话偏好由 M4-06 承接，
+> 去重与静默策略由 M4-07 承接，送达回执由 M4-08 承接。
 
 ## 常用检查
 

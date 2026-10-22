@@ -27,6 +27,7 @@ from app.tasks.jobs import (
     evaluate_recommendations,
     generate_recommendations,
     send_email_digest,
+    send_telegram_digest,
     sync_repositories,
     vectorize_repositories,
 )
@@ -137,6 +138,22 @@ async def enqueue_send_email_digest(
     force: bool = Query(default=False),
 ) -> TaskEnqueued:
     task = send_email_digest.delay(user_id=user_id, limit=limit, force=force)
+    return TaskEnqueued(taskId=task.id)
+
+
+@router.post(
+    "/send-telegram-digest",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=TaskEnqueued,
+    dependencies=[Depends(require_internal_token)],
+    summary="入队：Telegram 每日摘要（M4-04）",
+)
+async def enqueue_telegram_digest(
+    user_id: str | None = Query(default=None),
+    limit: int | None = Query(default=None, ge=1, le=50),
+    force: bool = Query(default=False, description="忽略当日幂等，强制重发"),
+) -> TaskEnqueued:
+    task = send_telegram_digest.delay(user_id=user_id, limit=limit, force=force)
     return TaskEnqueued(taskId=task.id)
 
 

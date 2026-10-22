@@ -133,6 +133,23 @@ recommendations              （user_id 可空 = 全局推荐）
 | error TEXT | 失败原因（已替换密码 / 用户名，截断 300 字符） |
 | created_at / finished_at | 创建 / 完成时间 |
 
+### 3.6 `telegram_deliveries` Telegram 送达记录（M4-04，VPS 本地）
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | 送达记录 id |
+| chat_id TEXT | 目标会话（接口输出时脱敏） |
+| kind TEXT | `digest` / `test` |
+| status TEXT | `pending` / `sent` / `failed` |
+| item_count INTEGER | 摘要包含的推荐数 |
+| message_count INTEGER | 实际发送的消息条数 |
+| message_id TEXT | 第一条消息的 Telegram `message_id` |
+| dedupe_key TEXT | 幂等键（`telegram:digest:<date>:<user>:<chat>`） |
+| error TEXT | 失败原因（截断、已脱敏） |
+| created_at / finished_at | 开始 / 结束时间 |
+
+> 本表为 M4-04 的通道级记录；M4-08「推送记录与回执」落地后可扩展为全通道统一表。
+
 ## 4. 索引策略
 
 | 表 | 索引 | 用途 |
@@ -143,6 +160,8 @@ recommendations              （user_id 可空 = 全局推荐）
 | repo_tags | `(repo_id)`、`(tag_id)` | 反查 |
 | recommendations | `(user_id, score DESC)`、`(evaluation_run_id)` | 推荐列表 / 评估批次查询 |
 | email_deliveries | `(dedupe_key, status)` | 每日摘要幂等校验 / 送达排查 |
+
+| telegram_deliveries | `(dedupe_key, status)`、`(dedupe_key)` | 当日幂等与送达记录查询 |
 
 ## 5. 向量数据（M3）
 

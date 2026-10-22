@@ -54,6 +54,8 @@
 
 | IT-0016 | M4-03 | Bark 通道（09:05 投递 / 幂等 / 失败重试 / dry-run） | M4-01（M4-02 并行） | ✅ 已完成（2026-10-22） |
 
+| IT-0016 | M4-04 | Telegram 通道（每日摘要 / 重试 / 送达记录） | M4-01 / M4-02 | ✅ 已完成（2026-10-22） |
+
 > 说明：IT-0004 / IT-0005 在人工资源（Cloudflare 账号、OAuth App）就绪前，可先以 `wrangler --local` + 本地回调完成开发与验证；其余按需求池顺序滚动排期。
 
 ## 变更历史
@@ -72,3 +74,5 @@
 | 2026-10-22 | 交付 | IT-0016 / M4-05 完成：Email 通道（SMTP）每日摘要 + `email_deliveries` 幂等 / 送达记录 + 状态 / 测试接口 + Celery beat 09:10；计划见 `plan-req-202610-0934-email-channel.md` |
 
 | 2026-10-22 | 交付 | IT-0016 / M4-03 完成：Bark 推送通道（`pushed` 推荐 09:05 投递、`bark_sent_at` / `bark_error` 幂等与重试、测试 / 状态 / 手动触发接口、dry-run）+ 17 用例；计划见 `plan-req-202610-0932-bark-channel.md` |
+
+| 2026-10-22 | 交付 | IT-0016 / M4-04 完成：Telegram 通道（每日摘要 / HTML 分片 / 429·5xx 重试 / `telegram_deliveries` 幂等）+ Celery beat 09:05；计划见 `plan-req-202610-0933-telegram-channel.md` |

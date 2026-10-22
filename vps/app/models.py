@@ -267,3 +267,31 @@ class VectorSyncRun(Base):
         DateTime, nullable=False, default=_utcnow, onupdate=_utcnow
     )
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class TelegramDelivery(Base):
+    """Telegram 推送送达记录（M4-04）。
+
+    每次摘要 / 测试消息发送写一条，记录目标会话、消息条数、Telegram
+    message_id 与失败原因；`dedupe_key` 用于「同一天同一会话不重复发送」的
+    最小幂等，完整去重与静默策略由 M4-07 承接。
+    """
+
+    __tablename__ = "telegram_deliveries"
+    __table_args__ = (
+        Index("ix_telegram_deliveries_dedupe", "dedupe_key", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    chat_id: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    kind: Mapped[str] = mapped_column(String(16), nullable=False, default="digest")  # digest | test
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="pending"
+    )  # pending | sent | failed
+    item_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    message_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    message_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    dedupe_key: Mapped[str] = mapped_column(String(255), nullable=False, default="", index=True)
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
