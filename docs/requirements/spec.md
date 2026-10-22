@@ -28,6 +28,8 @@
 1. **多源定时爬虫**：每日 Cron 抓取 GitHub Trending、Gitee Index 等热榜；
 2. **文本清洗与摘要**：自动提取 README.md，过滤噪点，提取核心功能、技术栈与适用场景。
 
+> Q2 确认（2026-10-22，REQ-202610-0917 / M2-09）：本期仅启用 GitHub Trending；Gitee 探索页抓取不接入，仅保留 `platform='gitee'` 字段与预留入口，后续迭代再评估（见 `open-questions.md` Q2）。
+
 ### 2.3 模块三：深度学习与定向推荐引擎（VPS + Vectorize）
 
 1. **项目向量化**：本地模型（如 `bge-m3`）对 README 摘要生成向量，同步存入 Cloudflare Vectorize；

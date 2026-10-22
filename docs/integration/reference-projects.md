@@ -34,7 +34,7 @@
 - **替代方案（当前）**：自研最小化 Trending 爬虫 `vps/app/services/trending_crawler.py`：
   - 解析 github.com/trending 页面（`article.Box-row`），提取仓库名 / 描述 / 语言 / 今日与总 Star；
   - 纯函数解析器便于测试（fixture 驱动，不依赖网络）；
-  - 预留 Gitee 探索页抓取入口（M2 实现）；
+  - 预留 Gitee 探索页抓取入口（M2-09；2026-10-22 Q2 确认本期不接入，入口保留待后续迭代）；
 - **待办**：请维护者提供可用地址 / 权限（见 `docs/requirements/open-questions.md` Q1），获得后对齐替换。
 
 ## 4. 集成原则（复用而非堆砌）
