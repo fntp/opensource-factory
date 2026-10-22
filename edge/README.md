@@ -30,7 +30,8 @@ edge/
 ├── tsconfig.json         # strict TypeScript 配置（@cloudflare/workers-types）
 ├── wrangler.toml         # Worker 名称、D1 绑定、vars（机密不在此处）
 ├── migrations/
-│   └── 0001_init.sql     # 初始 D1 schema（表 + 索引）
+│   ├── 0001_init.sql     # 初始 D1 schema（表 + 索引）
+│   └── 0008_trending_detail.sql  # 热榜详情：readme_summary + 平台/Star 索引
 └── src/
     ├── index.ts          # Hono 入口：CORS、日志、/healthz、路由挂载、404/500
     ├── types.ts          # Env 绑定 + 数据库行 + API 响应实体
@@ -130,6 +131,9 @@ npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FR
 | --- | --- |
 | `GET /api/repos?q=&categoryId=` | `RepoItem[]`（会话用户自己的仓库；`q` 模糊匹配名称/描述，`categoryId` 过滤分类） |
 | `GET /api/trending?limit=20` | `TrendingRepo[]`（公开；按 `stars_today` 降序，limit 上限 100） |
+| `GET /api/trending/:owner/:name` | `TrendingRepoDetail`（公开；登录时回显 `isFavorited`；不存在 404） |
+| `POST /api/trending/:owner/:name/favorite` | `{favorited:true, created, repoId}`（需登录；幂等，他人同 id 资产返回 409） |
+| `DELETE /api/trending/:owner/:name/favorite` | `{favorited:false, removed, repoId}`（需登录） |
 | `GET /api/recommendations` | `Recommendation[]`（用户私有 + 全局，按 `score` 降序；需登录） |
 | `GET /api/categories` | `CategoriesPayload` |
 | `GET /api/dashboard/stats` | `DashboardStats` |
@@ -141,6 +145,7 @@ JSON 形状（前端契约，勿改字段名）：
 ```ts
 RepoItem        { id, fullName, description, language, stars, forks, category, tags: string[], updatedAt, url }
 TrendingRepo    { id, owner, name, description, language, stars, starsToday, url }
+TrendingRepoDetail { ...TrendingRepo, platform, techStack: string[], summary, summarySource, crawledAt, isFavorited }
 Recommendation  { id, owner, name, description, language, stars, score, reason, basedOn: string[], url }
 CategoriesPayload { categories: [{id, name, count, description}], tags: [{name, count}] }
 DashboardStats  { totalRepos, trendingToday, pendingRecommendations, categoryCount }

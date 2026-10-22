@@ -40,11 +40,38 @@ engine = create_engine(settings.DATABASE_URL, connect_args=_connect_args, future
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
 
 
+def _ensure_sqlite_columns() -> None:
+    """为既有 SQLite 库幂等补齐新增列（create_all 不会修改已存在的表）。"""
+    if not settings.DATABASE_URL.startswith("sqlite"):
+        return
+    additions = {
+        "trending_repositories": {
+            "owner": "TEXT",
+            "language": "TEXT",
+            "stars": "INTEGER DEFAULT 0",
+            "readme_summary": "TEXT",
+        },
+    }
+    with engine.begin() as conn:
+        for table, columns in additions.items():
+            existing = {
+                row[1]
+                for row in conn.exec_driver_sql(f"PRAGMA table_info({table})").fetchall()
+            }
+            if not existing:
+                continue
+            for name, ddl in columns.items():
+                if name not in existing:
+                    conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
+                    logger.info("SQLite 补列: %s.%s", table, name)
+
+
 def init_db() -> None:
     """建表（幂等）。在应用启动与任务执行前调用。"""
     from app import models  # noqa: F401  确保所有模型已注册到 Base.metadata
 
     Base.metadata.create_all(bind=engine)
+    _ensure_sqlite_columns()
     logger.info("数据库已就绪: %s", settings.DATABASE_URL)
 
 

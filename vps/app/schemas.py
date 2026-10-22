@@ -38,7 +38,18 @@ class TrendingRepoOut(ORMModel):
     stars_today: Optional[int] = 0
     description: Optional[str] = None
     tech_stack: Optional[str] = None
+    owner: Optional[str] = None
+    language: Optional[str] = None
+    stars: int = 0
+    readme_summary: Optional[str] = None
     crawled_at: Optional[date] = None
+
+
+class TrendingRepoDetail(TrendingRepoOut):
+    """热榜详情输出：摘要 + 元信息。"""
+
+    summary: Optional[str] = None
+    summary_source: str = "empty"  # readme | description | tech | empty
 
 
 class RecommendQuery(BaseModel):

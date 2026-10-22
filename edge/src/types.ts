@@ -72,6 +72,25 @@ export interface TrendingRow {
   owner: string | null;
   language: string | null;
   stars: number | null;
+  readme_summary?: string | null;
+}
+
+/** GET /api/trending/:owner/:name 详情 */
+export interface TrendingRepoDetail extends TrendingRepo {
+  platform: string;
+  techStack: string[];
+  summary: string | null;
+  summarySource: 'readme' | 'description' | 'tech' | 'empty';
+  crawledAt: string | null;
+  isFavorited: boolean;
+}
+
+/** POST /api/trending/:owner/:name/favorite 响应 */
+export interface FavoriteResult {
+  favorited: boolean;
+  created?: boolean;
+  removed?: boolean;
+  repoId: string;
 }
 
 export interface RecommendationRow {
