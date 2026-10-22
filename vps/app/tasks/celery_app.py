@@ -2,7 +2,8 @@
 
 - broker / backend：`REDIS_URL`（默认 `redis://localhost:6379/0`）；
 - `CELERY_TASK_ALWAYS_EAGER=1` 时任务同步执行（本地调试 / 测试）；
-- beat 计划：每 6 小时抓取热榜、每日 09:00 推送准备。
+- beat 计划：每 6 小时抓取热榜、每日 08:30 生成推荐、08:45 评估推荐、
+  每 10 分钟按用户偏好检查推送窗口（M4-06）。
 """
 from __future__ import annotations
 
@@ -39,9 +40,28 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(minute=15, hour="*/6"),
         "kwargs": {"platform": "github"},
     },
-    "daily-push-at-9am": {
+    # 每日推荐生成（M3-05）：08:30 生成，08:45 评估，09:00 推送准备使用最新结果
+    "generate-recommendations-daily": {
+        "task": "app.tasks.jobs.generate_recommendations",
+        "schedule": crontab(minute=30, hour=8),
+    },
+    # 每日推荐评估（M4-01）：质量分 + 匹配度阈值，产出 qualified / filtered
+    "evaluate-recommendations-daily": {
+        "task": "app.tasks.jobs.evaluate_recommendations",
+        "schedule": crontab(minute=45, hour=8),
+    },
+    # 推送偏好（M4-06）：每 10 分钟检查一次，按用户时区与推送窗口筛选；
+    # 窗口默认 10 分钟，与调度间隔一致，避免漏推或重复推送。
+    "daily-push-preferences": {
         "task": "app.tasks.jobs.daily_push",
-        "schedule": crontab(minute=0, hour=9),
+        "schedule": crontab(minute="*/10"),
+        "kwargs": {"respect_schedule": True},
+    },
+    # Vectorize 索引增量同步：每 30 分钟一次（M3-03）；未配置 edge 时任务自动跳过
+    "sync-vector-index-every-30m": {
+        "task": "app.tasks.jobs.sync_vector_index",
+        "schedule": crontab(minute="7,37"),
+        "kwargs": {"kind": "sync", "scope": "all"},
     },
 }
 

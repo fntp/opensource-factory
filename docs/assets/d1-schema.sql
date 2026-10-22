@@ -100,6 +100,42 @@ CREATE TABLE recommendations (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- ── 站内通知（M4-02）──────────────────────────────────────────
+CREATE TABLE notifications (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'recommendation',   -- recommendation / system
+    title TEXT NOT NULL,
+    body TEXT,
+    url TEXT,
+    repo_id TEXT,
+    recommendation_id TEXT,                        -- 关联 recommendations.id
+    dedupe_key TEXT,                               -- 内部推送幂等键
+    score REAL,
+    reason TEXT,
+    language TEXT,
+    stars INTEGER DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'unread',         -- unread / read / dismissed
+    payload TEXT,                                  -- 扩展 JSON（如 basedOn）
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    read_at DATETIME
+);
+
+-- ── 推送偏好（M4-06）──────────────────────────────────────────
+CREATE TABLE push_preferences (
+    user_id TEXT PRIMARY KEY,
+    enabled INTEGER NOT NULL DEFAULT 1,              -- 0 / 1
+    time_of_day TEXT NOT NULL DEFAULT '09:00',       -- HH:MM（用户本地时区）
+    timezone TEXT NOT NULL DEFAULT 'Asia/Shanghai',  -- IANA 时区
+    min_score REAL NOT NULL DEFAULT 0.35,            -- 匹配度阈值 0~1
+    min_quality_score REAL NOT NULL DEFAULT 0.55,    -- 质量分阈值 0~1
+    channel_inapp INTEGER NOT NULL DEFAULT 1,        -- 站内通知
+    channel_bark INTEGER NOT NULL DEFAULT 0,
+    channel_telegram INTEGER NOT NULL DEFAULT 0,
+    channel_email INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL
+);
+
 -- ── 索引 ────────────────────────────────────────────────────────
 CREATE INDEX idx_my_repositories_user_id ON my_repositories (user_id);
 CREATE INDEX idx_my_repositories_category_id ON my_repositories (category_id);
@@ -109,3 +145,6 @@ CREATE INDEX idx_sessions_expires_at ON sessions (expires_at);
 CREATE INDEX idx_recommendations_user_id ON recommendations (user_id);
 CREATE INDEX idx_recommendations_score ON recommendations (score DESC);
 CREATE INDEX idx_repo_tags_tag_id ON repo_tags (tag_id);
+CREATE INDEX idx_notifications_user_status_created ON notifications (user_id, status, created_at DESC);
+CREATE UNIQUE INDEX idx_notifications_user_recommendation ON notifications (user_id, recommendation_id);
+CREATE UNIQUE INDEX idx_notifications_user_dedupe ON notifications (user_id, dedupe_key);

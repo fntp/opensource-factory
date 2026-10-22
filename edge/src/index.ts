@@ -2,7 +2,8 @@
  * OpenFactory 边缘 API — Hono 应用入口
  * 中间件：CORS（精确回显 ALLOWED_ORIGIN，允许 credentials）+ 请求日志
  * 路由：/api/auth、/api/repos、/api/trending、/api/recommendations、
- *       /api/categories、/api/dashboard、/api/sync
+ *       /api/notifications、/api/push-preferences、/api/categories、
+ *       /api/dashboard、/api/sync
  */
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -13,9 +14,16 @@ import authRoutes from './routes/auth';
 import reposRoutes from './routes/repos';
 import trendingRoutes from './routes/trending';
 import recommendRoutes from './routes/recommend';
+import notificationRoutes, {
+  internalNotifications,
+} from './routes/notifications';
+import pushPreferenceRoutes, {
+  internalPushPreferences,
+} from './routes/push-preferences';
 import categoriesRoutes from './routes/categories';
 import dashboardRoutes from './routes/dashboard';
 import syncRoutes from './routes/sync';
+import internalVectorsRoutes from './routes/internal-vectors';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -48,9 +56,14 @@ app.route('/api/auth', authRoutes);
 app.route('/api/repos', reposRoutes);
 app.route('/api/trending', trendingRoutes);
 app.route('/api/recommendations', recommendRoutes);
+app.route('/api/notifications', notificationRoutes);
+app.route('/api/internal/notifications', internalNotifications);
+app.route('/api/push-preferences', pushPreferenceRoutes);
+app.route('/api/internal/push-preferences', internalPushPreferences);
 app.route('/api/categories', categoriesRoutes);
 app.route('/api/dashboard', dashboardRoutes);
 app.route('/api/sync', syncRoutes);
+app.route('/api/internal/vectors', internalVectorsRoutes);
 
 // 404
 app.notFound((c) =>

@@ -7,6 +7,9 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
+    "test": "node --test scripts/*.test.mjs",
+    "test:notifications": "node --test scripts/notification-route.test.mjs",
+    "test:push-preferences": "node --test scripts/push-preferences-route.test.mjs",
     "db:migrate:local": "wrangler d1 migrations apply opensource-factory --local"
   },
   "dependencies": {
