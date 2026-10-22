@@ -18,6 +18,8 @@ export interface Env {
   VPS_NODE_URL: string;
   // 可选：边缘 → VPS 节点的内部调用令牌
   INTERNAL_TOKEN?: string;
+  // Vectorize 索引绑定（wrangler.toml 的 [[vectorize]]；未配置时内部接口返回 503）
+  VECTORIZE?: VectorizeIndex;
 }
 
 // ── 数据库行 ────────────────────────────────────────────────────

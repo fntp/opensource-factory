@@ -18,6 +18,7 @@
 | `admin/` | 前端控制台 | React 19 + Vite + TanStack Router + shadcn/ui + Tailwind 4 |
 | `edge/` | 边缘 API（Cloudflare Workers） | Hono + TypeScript + D1 |
 | `vps/` | 本地算力节点 | Python 3.12 + FastAPI + Celery + Ollama/BGE-M3 |
+| `deploy/` | 本机部署基线（运行目录 / Redis / systemd / 环境模板） | Bash + systemd |
 | `docs/` | 全部项目文档与数据资产 | Markdown + SQL |
 | `.github/` | CI | GitHub Actions |
 
@@ -67,4 +68,5 @@ cd vps && .venv/bin/pytest -q
 - `admin/src/routeTree.gen.ts` 为自动生成文件，**不要手改**；新增路由后运行 `npx vite build` 重新生成；
 - admin 测试为浏览器模式（Vitest + Playwright），服务器环境已配置 `headless: true`；新环境需 `npx playwright install chromium`；
 - `edge/wrangler.toml` 中的 `database_id` 为占位符，部署前需替换为真实 D1 数据库 id；
-- 所有 `.env.example` 中的值均为占位符，真实值由维护者配置。
+- 所有 `.env.example` 中的值均为占位符，真实值由维护者配置；
+- 本机部署基线见 `deploy/README.md` 与 `docs/guides/deployment-baseline.md`；运行目录 `/opt/openfactory` 不进仓库。
