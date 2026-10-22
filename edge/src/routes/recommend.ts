@@ -106,7 +106,7 @@ recommend.get('/', async (c) => {
     c.env.DB,
     `SELECT * FROM recommendations
       WHERE ${where.join(' AND ')}
-      ORDER BY score DESC, created_at DESC
+      ORDER BY COALESCE(NULLIF(rerank_score, 0), score) DESC, score DESC, created_at DESC
       LIMIT ?`,
     params
   );

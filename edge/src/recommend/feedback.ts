@@ -8,6 +8,7 @@ import type {
   RecommendationFeedbackAction,
   RecommendationFeedbackRow,
   RecommendationRow,
+  RerankDetail,
 } from '../types';
 
 export const RECOMMENDATION_STATUSES = ['new', 'saved', 'dismissed', 'pushed'] as const;
@@ -27,6 +28,18 @@ export function parseBasedOn(raw: string | null): string[] {
       .split(',')
       .map((item) => item.trim())
       .filter(Boolean);
+  }
+}
+
+/** 解析精排明细 JSON；非法或空值返回 null。 */
+export function parseRerankDetail(raw: string | null | undefined): RerankDetail | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    return parsed as RerankDetail;
+  } catch {
+    return null;
   }
 }
 
@@ -69,6 +82,10 @@ export function toRecommendation(row: RecommendationRow): Recommendation {
     language: row.language ?? null,
     stars: row.stars ?? 0,
     score: row.score ?? 0,
+    baseScore: row.base_score ?? row.score ?? 0,
+    rerankScore: row.rerank_score ?? row.score ?? 0,
+    rerankRank: row.rerank_rank ?? null,
+    rerankDetail: parseRerankDetail(row.rerank_detail),
     reason: row.reason ?? null,
     basedOn: parseBasedOn(row.based_on),
     url: row.url ?? null,

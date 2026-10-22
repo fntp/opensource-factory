@@ -87,12 +87,16 @@
 | IT-0050 | M6-07 | 依赖分析（清单解析 / 依赖入库 / 技术栈关联，edge 代理 + admin 依赖分析页） | IT-0047 | ✅ 已完成（2026-10-22） |
 | IT-0051 | M6-08 | 知识库导出（Markdown / JSON / Obsidian；只读聚合 + `openfactory.knowledge.v1`） | M9-04（格式基线先行） | ✅ 已完成（2026-10-22） |
 | IT-0052 | M6-12 | M6 验收与回顾（集成 M6-01~08 + 跨分支验收脚本 + 缺口登记） | IT-0044~0051 | ✅ 已完成（2026-10-22） |
-| IT-0045 | M7-01 | 自动打标建议（摘要规则提取 + 人工确认 + tags / repo_tags 落库） | IT-0027（M2-04） | ✅ 已完成（2026-10-22） |
-| IT-0048 | M6-05 | 项目健康度追踪（最后提交 / issue 活跃 / 归档标记） | IT-0044；M1-07 | ✅ 已完成（2026-10-22） |
-| IT-0049 | M7-03 | 每周 / 月度精选报告（D1 聚合 + Cron 自动生成 + admin 报告归档页） | M4-01 | ✅ 已完成（2026-10-22） |
-| IT-0050 | M7-04 | 收藏项目更新提醒（VPS Release/Tag 扫描 + 重大变更判定 + D1 `repo_updates` + admin 更新提醒页） | M1-07 | ✅ 已完成（2026-10-22） |
-| IT-0052 | M7-05 | Star 趋势与洞察视图（快照只读聚合 / Top Movers / 语言贡献 / 确定性洞察） | M2-05 | ✅ 已完成（2026-10-22） |
-| IT-0050 | M7-06 | 模型路由与升级（任务级模型选择 + 预算内升级建议 + admin `/model-routing`） | IT-0015；M3-01 | ✅ 已完成（2026-10-22） |
+| IT-0054 | M7-01 | 自动打标建议（摘要规则提取 + 人工确认 + tags / repo_tags 落库） | IT-0027（M2-04） | ✅ 已完成（2026-10-22） |
+| IT-0055 | M7-02 | 自动分类建议（18 条业务线规则 + 可解释建议 + 采纳写回分类） | IT-0010；M7-01 | ✅ 已完成（2026-10-22） |
+| IT-0056 | M7-03 | 每周 / 月度精选报告（D1 聚合 + Cron 自动生成 + admin 报告归档页） | M4-01 | ✅ 已完成（2026-10-22） |
+| IT-0057 | M7-04 | 收藏项目更新提醒（VPS Release/Tag 扫描 + 重大变更判定 + D1 `repo_updates` + admin 更新提醒页） | M1-07 | ✅ 已完成（2026-10-22） |
+| IT-0058 | M7-05 | Star 趋势与洞察视图（快照只读聚合 / Top Movers / 语言贡献 / 确定性洞察） | M2-05 | ✅ 已完成（2026-10-22） |
+| IT-0059 | M7-06 | 模型路由与升级（任务级模型选择 + 预算内升级建议 + admin `/model-routing`） | IT-0015；M3-01 | ✅ 已完成（2026-10-22） |
+| IT-0060 | M7-07 | Rerank 精排（六路信号 + MMR 多样性 + 预览 / 应用 + admin 精排工作台） | IT-0019 | ✅ 已完成（2026-10-22） |
+| IT-0061 | M7-08 | 个人数据微调评估（LoRA 可行性；预算与效果双评估） | M7-06 | ⏳ 待排期（平台 pending） |
+| IT-0062 | M7-09 | Agent 工作流（自动整理 / 草稿生成） | M7-01~03 | ⏳ 待排期（平台 pending） |
+| IT-0063 | M7-10 | M7 验收与回顾（集成 M7-01~07 + 跨分支验收脚本 + 缺口登记） | IT-0054~0062 | 🔄 进行中 |
 
 > 说明：IT-0004 / IT-0005 在人工资源（Cloudflare 账号、OAuth App）就绪前，可先以 `wrangler --local` + 本地回调完成开发与验证；其余按需求池顺序滚动排期。
 
@@ -130,7 +134,7 @@
 | 2026-10-22 | 交付 | IT-0041 / M5-07 运维手册（REQ-202610-0945）：新增 `guides/operations-runbook.md`（部署 / 升级 / 回滚 / 故障处理 / 备份恢复 / 密钥轮换 SOP）与只读诊断脚本 `deploy/scripts/ops-diagnose.sh`，配套完整性测试；见 `planning/plan-req-202610-0945-operations-runbook.md` |
 | 2026-10-22 | 交付 | IT-0042 / M5-08 安全审计（REQ-202610-0946）：新增只读审计 CLI `vps/app/security_audit.py` + `deploy/scripts/security-audit.sh`（密钥 / 依赖 / 配置 / 响应头 / 隐私 11 项检查，支持 `--online` 与 `--strict` 门禁）；整改 Vitest dev 依赖漏洞、edge / VPS 安全响应头、CORS 安全默认；隐私边界清单与遗留风险见 `docs/guides/security-audit.md`；计划见 `plan-req-202610-0946-security-audit.md` |
 | 2026-10-22 | 验收 | IT-0043 / M5-09 完成（REQ-202610-0947）：集成 M5-01~08 八个分支，M5 验收 29/29 PASS，三端检查全绿（vps 421 / edge 61 / admin 117），发布 `v1.0.0`；报告见 `acceptance-m5.md` / `acceptance-m5-report.md` |
-| 2026-10-22 | 交付 | IT-0045 / M7-01 自动打标建议（REQ-202610-0960）：VPS 规则词表 + `POST /api/tag-suggestions/generate`，edge 建议表 / 列表 / 生成 / 采纳 / 忽略路由与 D1 迁移 `0013`，admin `/tag-suggestions` 分组确认页；计划见 `plan-req-202610-0960-auto-tagging.md` |
+| 2026-10-22 | 交付 | IT-0054 / M7-01 自动打标建议（REQ-202610-0960）：VPS 规则词表 + `POST /api/tag-suggestions/generate`，edge 建议表 / 列表 / 生成 / 采纳 / 忽略路由与 D1 迁移 `0013`，admin `/tag-suggestions` 分组确认页；计划见 `plan-req-202610-0960-auto-tagging.md` |
 | 2026-10-22 | 交付 | IT-0028 / M6-01 全文检索（REQ-202610-0948）：VPS `repo_readmes` 全文镜像 + FTS5 trigram 触发器同步、全文 / 状态 / 重建 API、每日补索引任务；edge 全文代理与用户过滤、admin 全文 / 语义切换与命中片段；计划见 `plan-req-202610-0948-fulltext-search.md` |
 | 2026-10-22 | 交付 | IT-0045 / M6-02 完成（REQ-202610-0949）：相似项目向量近邻接口 + edge local→keyword 降级 + admin 详情页「看了又看」；计划见 `plan-req-202610-0949-similar-recommendations.md` |
 | 2026-10-22 | 交付 | IT-0046 / M6-03 完成（REQ-202610-0950）：VPS 重复检测（地址 / 名称 / 简介 / 向量复核 + 合并建议）、edge 扫描与按用户忽略（migration 0013）、admin 重复检测页；计划见 `plan-req-202610-0950-duplicate-detection.md` |
@@ -140,8 +144,9 @@
 | 2026-10-22 | 交付 | IT-0050 / M6-07 依赖分析（REQ-202610-0954）：8 类依赖清单解析 + `repo_dependencies` / 扫描状态落库 + 技术栈关联聚合 + edge 用户级代理与本地降级 + admin「依赖分析」页；计划见 `planning/plan-req-202610-0954-dependency-analysis.md` |
 | 2026-10-22 | 交付 | IT-0051 / M6-08 知识库导出（REQ-202610-0955）：知识库导出（Markdown / JSON / Obsidian），edge 只读聚合 + `openfactory.knowledge.v1` 格式规范 + admin 导出页；计划见 `planning/plan-req-202610-0955-knowledge-export.md`，格式见 `guides/knowledge-export.md` |
 | 2026-10-22 | 验收 | IT-0052 / M6-12 完成（REQ-202610-0959）：集成 M6-01~08 八个分支，M6 验收 18/18 PASS、3 项平台 pending 缺口登记；三端检查全绿（vps 482 / edge 108 / admin 156）；报告见 `planning/acceptance-m6.md` / `acceptance-m6-report.md` |
-| 2026-10-22 | 交付 | IT-0047 / M7-02 完成（REQ-202610-0961）：18 条业务线分类规则（VPS 纯函数 + edge 本地兜底）、可解释建议生成、edge 建议表与采纳写回（migration 0014）、admin 分类建议页；计划见 `plan-req-202610-0961-auto-classification.md` |
-| 2026-10-22 | 交付 | IT-0049 / M7-03 精选报告（REQ-202610-0962）：新增 D1 `curated_reports`（migration 0014）、edge 纯函数报告生成 + 登录态 / 内部接口 + Cron 周报月报、admin `/reports` 归档与 Markdown 下载；计划见 `planning/plan-req-202610-0962-weekly-monthly-report.md` |
-| 2026-10-22 | 交付 | IT-0050 / M7-04 收藏项目更新提醒（REQ-202610-0963）：VPS 每日扫描 GitHub Release / Tag（首次记基线、主版本跃迁与 breaking 关键词判定重大变更），回写 D1 `repo_updates`（migration 0015）并写入通知中心；admin `/updates` 支持统计、筛选、已读 / 忽略与立即扫描；计划见 `planning/plan-req-202610-0963-repo-update-reminders.md` |
-| 2026-10-22 | 交付 | IT-0052 / M7-05 Star 趋势与洞察（REQ-202610-0964）：新增 edge `GET /api/star-trends`（trending_snapshots 只读聚合，`scope=my` 覆盖率）与 admin `/star-trends` 页面（KPI、SVG 面积图、Top Movers、语言贡献、新上榜、确定性洞察）；计划见 `planning/plan-req-202610-0964-star-trend-insights.md` |
-| 2026-10-22 | 交付 | IT-0050 / M7-06 模型路由（REQ-202610-0965）：VPS `model_route_configs` + 四策略路由 / 升级建议 / 健康检查接口，摘要与向量化接入路由决策；edge 登录态代理；admin `/model-routing` 页面；计划见 `planning/plan-req-202610-0965-model-routing.md` |
+| 2026-10-22 | 交付 | IT-0055 / M7-02 完成（REQ-202610-0961）：18 条业务线分类规则（VPS 纯函数 + edge 本地兜底）、可解释建议生成、edge 建议表与采纳写回（migration 0017）、admin 分类建议页；计划见 `plan-req-202610-0961-auto-classification.md` |
+| 2026-10-22 | 交付 | IT-0056 / M7-03 精选报告（REQ-202610-0962）：新增 D1 `curated_reports`（migration 0018）、edge 纯函数报告生成 + 登录态 / 内部接口 + Cron 周报月报、admin `/reports` 归档与 Markdown 下载；计划见 `planning/plan-req-202610-0962-weekly-monthly-report.md` |
+| 2026-10-22 | 交付 | IT-0057 / M7-04 收藏项目更新提醒（REQ-202610-0963）：VPS 每日扫描 GitHub Release / Tag（首次记基线、主版本跃迁与 breaking 关键词判定重大变更），回写 D1 `repo_updates`（migration 0019）并写入通知中心；admin `/updates` 支持统计、筛选、已读 / 忽略与立即扫描；计划见 `planning/plan-req-202610-0963-repo-update-reminders.md` |
+| 2026-10-22 | 交付 | IT-0058 / M7-05 Star 趋势与洞察（REQ-202610-0964）：新增 edge `GET /api/star-trends`（trending_snapshots 只读聚合，`scope=my` 覆盖率）与 admin `/star-trends` 页面（KPI、SVG 面积图、Top Movers、语言贡献、新上榜、确定性洞察）；计划见 `planning/plan-req-202610-0964-star-trend-insights.md` |
+| 2026-10-22 | 交付 | IT-0059 / M7-06 模型路由（REQ-202610-0965）：VPS `model_route_configs` + 四策略路由 / 升级建议 / 健康检查接口，摘要与向量化接入路由决策；edge 登录态代理；admin `/model-routing` 页面；计划见 `planning/plan-req-202610-0965-model-routing.md` |
+| 2026-10-22 | 交付 | IT-0060 / M7-07 完成（REQ-202610-0966）：Rerank 精排（相关性 / 画像亲和 / 时效 / 动量 / 人气 / 健康度六路信号 + MMR 多样性），每日生成自动接入并落库精排明细；VPS 预览 / 应用 API、edge 代理与本地降级、admin「精排工作台」；计划见 `planning/plan-req-202610-0966-rerank.md` |

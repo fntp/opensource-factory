@@ -135,7 +135,7 @@ edge（登录态）
 | `vps/tests/test_tag_suggestions.py` | 规则 / 排序 / 排除已有标签 / 接口契约 |
 | `edge/src/tag-suggestions/helpers.ts` | 归一化、稳定 id、合并、本地兜底规则 |
 | `edge/src/routes/tag-suggestions.ts` | 列表 / 生成 / 采纳 / 忽略路由 |
-| `edge/migrations/0013_tag_suggestions.sql` | D1 建议表 |
+| `edge/migrations/0016_tag_suggestions.sql` | D1 建议表 |
 | `edge/scripts/tag-suggestions.test.mjs` | 纯函数测试 |
 | `admin/src/features/tag-suggestions/api.ts` | DTO、请求封装、演示数据 |
 | `admin/src/features/tag-suggestions/utils.ts` | 分组、汇总、格式化、排序 |

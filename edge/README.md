@@ -32,26 +32,23 @@ edge/
 ├── wrangler.toml         # Worker 名称、D1 绑定、vars（机密不在此处）
 ├── migrations/
 │   ├── 0001_init.sql     # 初始 D1 schema（表 + 索引）
+│   ├── 0002_category_tree_index.sql  # 分类树索引（M1）
 │   ├── 0002_trending_snapshots.sql  # 热榜按日快照（M2-05）
 │   ├── 0007_trending_summary.sql  # 热榜摘要列（M2-04）
-│   ├── 0008_trending_detail.sql  # 热榜详情：平台/Star 查询索引（摘要列见 0007）
+│   ├── 0008_trending_detail.sql  # 热榜详情：平台/Star 查询索引
 │   ├── 0009_recommendation_feedback.sql  # 推荐反馈明细（M3-07）
 │   ├── 0010_notifications.sql  # 站内通知表 + 去重/列表索引（M4-02）
-│   ├── 0010_repo_health.sql    # 仓库健康度字段（M6-05）
 │   ├── 0011_push_preferences.sql  # 推送偏好表（M4-06）
 │   ├── 0011_security_hardening.sql  # 限流 / 登录尝试 / 安全事件（M5-05）
 │   ├── 0012_worker_metrics.sql  # Workers 请求指标按日聚合（M5-03）
 │   ├── 0013_duplicate_dismissals.sql  # 重复检测按用户忽略（M6-03）
 │   ├── 0014_repo_health.sql  # 仓库健康度字段（M6-05）
-│   └── 0015_license_compliance.sql  # License 识别字段（M6-06）
-│   └── 0013_tag_suggestions.sql  # 自动打标建议表 + 幂等/列表索引（M7-01）
-│   └── 0012_worker_metrics.sql  # Workers 请求指标按日聚合（M5-03）
-│   ├── 0009_recommendation_feedback.sql # 推荐反馈明细（M3-07）
-│   ├── 0013_duplicate_dismissals.sql    # 重复检测按用户忽略（M6-03）
-│   └── 0014_category_suggestions.sql    # 自动分类建议（M7-02）
-│   └── 0014_curated_reports.sql  # 每周 / 月度精选报告（M7-03）
-│   ├── 0014_curated_reports.sql  # 每周 / 月度精选报告（M7-03）
-│   └── 0015_repo_updates.sql    # 收藏项目更新提醒（M7-04）
+│   ├── 0015_license_compliance.sql  # License 识别字段（M6-06）
+│   ├── 0016_tag_suggestions.sql  # 自动打标建议表 + 幂等/列表索引（M7-01）
+│   ├── 0017_category_suggestions.sql  # 自动分类建议（M7-02）
+│   ├── 0018_curated_reports.sql  # 每周 / 月度精选报告（M7-03）
+│   ├── 0019_repo_updates.sql  # 收藏项目更新提醒（M7-04）
+│   └── 0020_rerank.sql  # 精排分 / 名次 / 明细字段（M7-07）
 └── src/
     ├── index.ts          # Hono 入口：CORS、日志、/healthz、路由挂载、Cron scheduled handler
     ├── types.ts          # Env 绑定 + 数据库行 + API 响应实体
@@ -72,6 +69,8 @@ edge/
     │   └── generate.ts   # 精选报告：周期解析、统计、分节、摘要、Markdown（纯函数）
     ├── repo-updates/
     │   └── helpers.ts    # 更新提醒：筛选归一化、稳定 id、通知标题、DTO（纯函数）
+    ├── rerank/
+    │   └── helpers.ts    # 精排参数归一化 + 本地启发式精排（MMR，纯函数）
     └── routes/
         ├── auth.ts       # /api/auth/*（login / callback / me / logout）
         ├── repos.ts      # /api/repos
@@ -91,6 +90,7 @@ edge/
         ├── monitoring.ts # /api/monitoring/*（总览 / 检查 / 告警确认 + /api/internal/analytics）
         ├── similar.ts    # /api/similar（相似项目：VPS 向量近邻 → D1 关键词兜底）
         ├── duplicates.ts # /api/duplicates/*（重复检测：VPS 规则 + 向量 → 本地兜底；按用户忽略）
+        ├── rerank.ts     # /api/rerank/*（精排预览 / 应用：VPS 六路信号 → 本地 MMR 兜底）
         ├── analysis.ts   # /api/analysis/*（依赖分析：用户仓库 → VPS 聚合 → 本地语言概览）
         ├── category-suggestions.ts # /api/category-suggestions/*（生成 / 列表 / 采纳 / 忽略）
         ├── reports.ts    # /api/reports/*（周报 / 月报列表、详情、Markdown、生成 + 内部批量生成）
@@ -186,7 +186,6 @@ npm run test:m2 -- --strict \
 | --- | --- | --- |
 | `DB` | D1 绑定 | 主数据库，绑定名 `DB` |
 | `VECTORIZE` | Vectorize 绑定 | 向量索引，绑定名 `VECTORIZE`；未绑定时内部向量接口返回 503 |
-| `VECTORIZE` | Vectorize 绑定 | 向量索引，绑定名 `VECTORIZE`；未配置时内部向量接口返回 503 |
 | `ALLOWED_ORIGIN` | vars | 允许的前端 origin，CORS 精确回显（带 `Access-Control-Allow-Credentials: true`） |
 | `GITHUB_CLIENT_ID` | vars | GitHub OAuth App Client ID；留空时 `/api/auth/github/login` 返回 501 |
 | `VPS_NODE_URL` | vars | VPS 节点地址；留空时 `/api/sync` 返回 202 accepted 而不转发 |
@@ -243,7 +242,9 @@ npm run test:m2 -- --strict \
 | `POST /api/internal/trending/snapshots` | 内部：VPS 批量 upsert 快照（`X-Internal-Token`，单批 ≤ 500） |
 | `GET /api/internal/trending/retention` | 内部：D1 快照总数与最早 / 最新日期（`X-Internal-Token`） |
 | `POST /api/internal/trending/retention/cleanup` | 内部：按 `{beforeDate, dryRun?}` 删除过期快照（`X-Internal-Token`，M2-08） |
-| `GET /api/recommendations` | `Recommendation[]`（用户私有 + 全局，按 `score` 降序；需登录） |
+| `GET /api/recommendations` | `Recommendation[]`（用户私有 + 全局，按精排分 / `score` 降序；需登录） |
+| `POST /api/rerank/preview` | 精排预览：`{topK?,poolSize?,mmrLambda?,weights?}` → 名次 / 信号 / 指标（需登录；VPS 不可达 `mode=local`） |
+| `POST /api/rerank/apply` | 应用精排并写回 `recommendations` 精排字段（需登录） |
 | `GET /api/notifications?status=&limit=&offset=` | `NotificationsPayload`（`all`/`unread`/`read`，limit ≤100；需登录；惰性物化 `pushed` 推荐） |
 | `GET /api/notifications/unread-count` | `{unread:number}`（侧边栏徽标） |
 | `POST /api/notifications/:id/read` | 单条标记已读（幂等；404 = 不存在或已忽略） |

@@ -35,6 +35,13 @@ from app.services.recommender import (
     build_profile_vector,
     rank_candidates,
 )
+from app.services.rerank import (
+    RerankCandidate,
+    RerankItem,
+    RerankWeights,
+    build_interest_terms,
+    rerank_candidates,
+)
 from app.services.vector_pipeline import build_repo_text, text_digest
 
 logger = logging.getLogger(__name__)
@@ -215,6 +222,57 @@ def _load_candidates(
     return filtered[:limit], excluded
 
 
+def rerank_weights_from_settings(config: Settings) -> RerankWeights:
+    """从运行配置读取精排权重（缺失字段回退默认值）。"""
+    return RerankWeights(
+        relevance=float(getattr(config, "RERANK_WEIGHT_RELEVANCE", 0.45)),
+        affinity=float(getattr(config, "RERANK_WEIGHT_AFFINITY", 0.15)),
+        freshness=float(getattr(config, "RERANK_WEIGHT_FRESHNESS", 0.12)),
+        momentum=float(getattr(config, "RERANK_WEIGHT_MOMENTUM", 0.10)),
+        popularity=float(getattr(config, "RERANK_WEIGHT_POPULARITY", 0.08)),
+        health=float(getattr(config, "RERANK_WEIGHT_HEALTH", 0.10)),
+    )
+
+
+def build_rerank_candidates(
+    rows: Sequence[Any],
+    ranked_by_id: dict[str, Any],
+    vectors: dict[str, list[float]],
+) -> list[RerankCandidate]:
+    """把热榜 ORM 行 + 粗排结果转成精排候选。"""
+    candidates: list[RerankCandidate] = []
+    for row in rows:
+        ranked = ranked_by_id.get(row.id)
+        if ranked is None:
+            continue
+        tech_stack = tuple(
+            part.strip()
+            for part in str(getattr(row, "tech_stack", "") or "").split("/")
+            if part.strip()
+        )
+        candidates.append(
+            RerankCandidate(
+                repo_id=row.id,
+                base_score=float(ranked.score),
+                similarity=float(ranked.similarity),
+                stars_today=int(getattr(row, "stars_today", 0) or 0),
+                stars=int(getattr(row, "stars", 0) or 0),
+                language=str(getattr(row, "language", "") or ""),
+                tech_stack=tech_stack,
+                description=str(getattr(row, "description", "") or ""),
+                readme_summary=str(getattr(row, "readme_summary", "") or ""),
+                license_spdx=getattr(row, "license_spdx", None),
+                pushed_at=getattr(row, "pushed_at", None),
+                open_issues_count=int(getattr(row, "open_issues_count", 0) or 0),
+                archived=bool(getattr(row, "archived", False)),
+                disabled=bool(getattr(row, "disabled", False)),
+                health_score=getattr(row, "health_score", None),
+                vector=tuple(vectors.get(row.id, [])),
+            )
+        )
+    return candidates
+
+
 def _skipped(user_id: str, reason: str, *, top_k: int, min_score: float) -> dict[str, Any]:
     """构造跳过的用户级结果。"""
     return {
@@ -330,7 +388,17 @@ def generate_for_user(
             min_score=effective_min_score,
         )
 
-    ranked = rank_candidates(
+    # Rerank 精排（M7-07）：粗排先取更大的候选池，精排后截取 top_k。
+    rerank_enabled = bool(getattr(config, "RERANK_ENABLED", True))
+    pool_size = effective_top_k
+    if rerank_enabled:
+        pool_size = max(
+            effective_top_k,
+            int(getattr(config, "RERANK_POOL_SIZE", 100) or 0),
+        )
+        pool_size = min(pool_size, effective_candidate_limit)
+
+    pool_ranked = rank_candidates(
         profile_vec,
         [
             Candidate(
@@ -342,10 +410,48 @@ def generate_for_user(
         ],
         collected_ids=collected_ids,
         min_score=effective_min_score,
-        top_k=effective_top_k,
+        top_k=pool_size,
         similarity_weight=config.RECOMMEND_SIMILARITY_WEIGHT,
         trending_weight=config.RECOMMEND_TRENDING_WEIGHT,
     )
+    ranked_by_id = {item.repo_id: item for item in pool_ranked}
+
+    rerank_metrics: dict[str, Any] = {}
+    if rerank_enabled:
+        rerank_result = rerank_candidates(
+            build_rerank_candidates(usable_candidates, ranked_by_id, candidate_vectors),
+            weights=rerank_weights_from_settings(config),
+            top_k=effective_top_k,
+            mmr_lambda=float(getattr(config, "RERANK_MMR_LAMBDA", 0.75)),
+            interest_terms=build_interest_terms(
+                interest_profile.languages, interest_profile.tech_terms
+            ),
+            now=_utcnow(),
+        )
+        final_items = list(rerank_result.items)
+        rerank_metrics = dict(rerank_result.metrics)
+    else:
+        final_items = [
+            RerankItem(
+                repo_id=item.repo_id,
+                base_score=item.score,
+                rerank_score=item.score,
+                rank_before=index + 1,
+                rank_after=index + 1,
+            )
+            for index, item in enumerate(pool_ranked)
+        ]
+        rerank_metrics = {
+            "total": len(pool_ranked),
+            "selected": len(final_items),
+            "movedUp": 0,
+            "movedDown": 0,
+            "unchanged": len(final_items),
+            "avgRankShift": 0.0,
+            "diversityBefore": 0.0,
+            "diversityAfter": 0.0,
+            "languageCoverage": 0.0,
+        }
 
     by_id = {row.id: row for row in candidates}
     existing_rows = list(
@@ -356,17 +462,19 @@ def generate_for_user(
         .all()
     )
     existing_by_repo = {row.repo_id: row for row in existing_rows}
-    selected_ids = {item.repo_id for item in ranked}
+    selected_ids = {item.repo_id for item in final_items}
 
     created = 0
     updated = 0
     expired = 0
     now = _utcnow()
-    for item in ranked:
+    for item in final_items:
         repo = by_id.get(item.repo_id)
-        if repo is None:
+        ranked_item = ranked_by_id.get(item.repo_id)
+        if repo is None or ranked_item is None:
             continue
-        detail = build_reason_detail(repo, item.score, interest_profile)
+        detail = build_reason_detail(repo, item.base_score, interest_profile)
+        detail_json = json.dumps(item.to_dict(), ensure_ascii=False, separators=(",", ":"))
         existing = existing_by_repo.get(item.repo_id)
         if existing is None:
             db.add(
@@ -374,8 +482,13 @@ def generate_for_user(
                     id=uuid4().hex,
                     user_id=user_id,
                     repo_id=item.repo_id,
-                    score=round(float(item.score), 6),
-                    match_score=round(float(item.similarity), 6),
+                    score=round(float(item.rerank_score), 6),
+                    base_score=round(float(item.base_score), 6),
+                    rerank_score=round(float(item.rerank_score), 6),
+                    rerank_rank=item.rank_after,
+                    rerank_detail=detail_json,
+                    reranked_at=now if rerank_enabled else None,
+                    match_score=round(float(ranked_item.similarity), 6),
                     quality_score=0.0,
                     reason=detail.reason,
                     based_on=detail.based_on_json,
@@ -386,8 +499,13 @@ def generate_for_user(
             created += 1
             continue
 
-        existing.score = round(float(item.score), 6)
-        existing.match_score = round(float(item.similarity), 6)
+        existing.score = round(float(item.rerank_score), 6)
+        existing.base_score = round(float(item.base_score), 6)
+        existing.rerank_score = round(float(item.rerank_score), 6)
+        existing.rerank_rank = item.rank_after
+        existing.rerank_detail = detail_json
+        existing.reranked_at = now if rerank_enabled else None
+        existing.match_score = round(float(ranked_item.similarity), 6)
         existing.reason = detail.reason
         existing.based_on = detail.based_on_json
         # 只有评估态 / 过期记录可以被重新激活；saved / dismissed / pushed 保留用户反馈。
@@ -415,14 +533,19 @@ def generate_for_user(
         "created": created,
         "updated": updated,
         "expired": expired,
-        "selected": len(ranked),
+        "selected": len(final_items),
         "candidates": len(candidates),
         "vectorizedCandidates": len(usable_candidates),
         "excludedCollected": excluded_collected,
-        "belowThreshold": max(0, len(usable_candidates) - len(ranked)),
+        "belowThreshold": max(0, len(usable_candidates) - len(pool_ranked)),
         "profileSize": len(profile_vectors),
         "minScore": round(effective_min_score, 4),
         "topK": effective_top_k,
+        "rerank": {
+            "enabled": rerank_enabled,
+            "poolSize": len(pool_ranked),
+            "metrics": rerank_metrics,
+        },
         "feedbackExcluded": len(feedback.excluded_repo_ids),
         "feedbackSource": feedback.source,
         "pushed": pushed,

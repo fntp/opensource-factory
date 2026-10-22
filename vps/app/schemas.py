@@ -232,6 +232,11 @@ class RecommendationOut(BaseModel):
     language: str = ""
     tech_stack: str = ""
     score: float
+    # Rerank 精排（M7-07）
+    base_score: float = 0.0
+    rerank_score: float = 0.0
+    rerank_rank: Optional[int] = None
+    rerank_detail: Optional[dict[str, Any]] = None
     reason: str = ""
     based_on: list[str] = Field(default_factory=list)
     status: str = "new"
@@ -354,6 +359,89 @@ class QualifiedListResponse(BaseModel):
 
     count: int
     items: list[QualifiedRecommendationOut]
+
+
+class RerankCandidateIn(BaseModel):
+    """edge 传入的精排候选（无状态模式，不依赖 VPS 本地用户数据）。"""
+
+    repoId: str = Field(min_length=1, max_length=255)
+    name: str = ""
+    htmlUrl: str = ""
+    baseScore: float = 0.0
+    similarity: float = 0.0
+    starsToday: int = 0
+    stars: int = 0
+    language: str = ""
+    techStack: list[str] = Field(default_factory=list)
+    description: str = ""
+    readmeSummary: str = ""
+    licenseSpdx: Optional[str] = None
+    pushedAt: Optional[datetime] = None
+    healthScore: Optional[int] = None
+    vector: list[float] = Field(default_factory=list)
+
+
+class RerankRequest(BaseModel):
+    """精排预览 / 应用请求（M7-07）。"""
+
+    userId: Optional[str] = Field(default=None, description="指定用户；缺省为 default")
+    topK: int = Field(default=20, ge=1, le=100, description="精排后保留条数")
+    poolSize: int = Field(default=100, ge=1, le=500, description="参与精排的推荐池大小")
+    mmrLambda: float = Field(default=0.75, ge=0.0, le=1.0, description="MMR 多样性系数")
+    minScore: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="粗排分下限")
+    weights: Optional[dict[str, float]] = Field(
+        default=None, description="六路信号权重覆盖（relevance/affinity/...）"
+    )
+    items: Optional[list[RerankCandidateIn]] = Field(
+        default=None,
+        max_length=500,
+        description="可选：edge 直接传入候选，走无状态精排（不读写 VPS 数据库）",
+    )
+
+
+class RerankItemOut(BaseModel):
+    """单条精排结果。"""
+
+    repoId: str
+    name: str = ""
+    htmlUrl: str = ""
+    language: str = ""
+    baseScore: float = 0.0
+    rerankScore: float = 0.0
+    rankBefore: int = 0
+    rankAfter: int = 0
+    signals: dict[str, float] = Field(default_factory=dict)
+    contributions: dict[str, float] = Field(default_factory=dict)
+    reasons: list[str] = Field(default_factory=list)
+    diversityPenalty: float = 0.0
+
+
+class RerankMetricsOut(BaseModel):
+    """精排整体指标。"""
+
+    total: int = 0
+    selected: int = 0
+    movedUp: int = 0
+    movedDown: int = 0
+    unchanged: int = 0
+    avgRankShift: float = 0.0
+    diversityBefore: float = 0.0
+    diversityAfter: float = 0.0
+    languageCoverage: float = 0.0
+
+
+class RerankResponse(BaseModel):
+    """精排预览 / 应用响应。"""
+
+    status: str
+    mode: str = "vps"
+    userId: Optional[str] = None
+    generatedAt: datetime
+    weights: dict[str, float] = Field(default_factory=dict)
+    mmrLambda: float = 0.75
+    metrics: RerankMetricsOut
+    items: list[RerankItemOut] = Field(default_factory=list)
+    applied: bool = False
 
 
 class BarkStatusOut(BaseModel):

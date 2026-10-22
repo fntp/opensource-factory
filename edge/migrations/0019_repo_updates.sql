@@ -1,4 +1,4 @@
--- 0015_repo_updates.sql — 收藏项目更新提醒（M7-04）
+-- 0019_repo_updates.sql — 收藏项目更新提醒（M7-04）
 -- VPS 每日扫描 GitHub Release / Tag，经内部接口回写后按仓库归属扇出到收藏用户。
 -- `repo_updates` 为事实表；站内通知中心同步写入 type='repo_update' 的提醒。
 

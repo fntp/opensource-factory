@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import json
-from fastapi import APIRouter, Depends, Query, status
+from typing import Any, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -25,6 +27,8 @@ from app.schemas import (
     RecommendQuery,
     RecommendResponse,
     RecommendationOut,
+    RerankRequest,
+    RerankResponse,
     TaskEnqueued,
 )
 from app.services.embedding import get_embedding_service
@@ -36,6 +40,8 @@ from app.services.recommend_reason import (
 from app.services.recommendation_eval import get_run, list_qualified, list_runs
 from app.services.recommendation_quality import evaluate_recommendation_quality
 from app.services.recommender import recommend
+from app.services.rerank_service import rerank_for_user, rerank_payload_items
+from app.security import require_internal_token
 from app.tasks.jobs import evaluate_recommendations, generate_recommendations
 
 router = APIRouter(prefix="/api/recommend", tags=["recommend"])
@@ -132,6 +138,10 @@ def list_recommendations(
                 language=getattr(source, "language", "") or "",
                 tech_stack=getattr(source, "tech_stack", "") or "",
                 score=float(row.score or 0),
+                base_score=float(getattr(row, "base_score", 0) or 0),
+                rerank_score=float(getattr(row, "rerank_score", 0) or 0),
+                rerank_rank=getattr(row, "rerank_rank", None),
+                rerank_detail=_parse_detail(getattr(row, "rerank_detail", None)),
                 reason=row.reason or "",
                 based_on=parse_based_on(row.based_on),
                 status=row.status or "new",
@@ -284,3 +294,72 @@ def list_qualified_recommendations(
 ) -> QualifiedListResponse:
     rows = list_qualified(db, user_id=user_id, limit=limit)
     return QualifiedListResponse(count=len(rows), items=[_qualified_out(row) for row in rows])
+
+
+def _rerank_response(data: dict[str, Any]) -> RerankResponse:
+    return RerankResponse.model_validate(data)
+
+
+@router.post(
+    "/rerank/preview",
+    response_model=RerankResponse,
+    dependencies=[Depends(require_internal_token)],
+    summary="精排预览：对当前推荐做多信号重排（不落库）",
+)
+def preview_rerank(
+    payload: RerankRequest,
+    db: Session = Depends(get_db),
+) -> RerankResponse:
+    if payload.items is not None:
+        return _rerank_response(
+            rerank_payload_items(
+                [item.model_dump() for item in payload.items],
+                top_k=payload.topK,
+                mmr_lambda=payload.mmrLambda,
+                weights=payload.weights,
+            )
+        )
+    data = rerank_for_user(
+        db,
+        payload.userId or "default",
+        top_k=payload.topK,
+        pool_size=payload.poolSize,
+        mmr_lambda=payload.mmrLambda,
+        min_score=payload.minScore,
+        weights=payload.weights,
+        apply=False,
+    )
+    return _rerank_response(data)
+
+
+@router.post(
+    "/rerank/apply",
+    response_model=RerankResponse,
+    dependencies=[Depends(require_internal_token)],
+    summary="精排应用：按预览参数重排并写回推荐表",
+)
+def apply_rerank(
+    payload: RerankRequest,
+    db: Session = Depends(get_db),
+) -> RerankResponse:
+    if payload.items is not None:
+        # 无状态候选无法回写 VPS 数据库：返回预览结果，由 edge 负责 D1 落库。
+        return _rerank_response(
+            rerank_payload_items(
+                [item.model_dump() for item in payload.items],
+                top_k=payload.topK,
+                mmr_lambda=payload.mmrLambda,
+                weights=payload.weights,
+            )
+        )
+    data = rerank_for_user(
+        db,
+        payload.userId or "default",
+        top_k=payload.topK,
+        pool_size=payload.poolSize,
+        mmr_lambda=payload.mmrLambda,
+        min_score=payload.minScore,
+        weights=payload.weights,
+        apply=True,
+    )
+    return _rerank_response(data)

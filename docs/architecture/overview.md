@@ -133,7 +133,8 @@ VPS 生成（Celery / POST /api/tasks/generate-recommendations）
 
 ```
 Celery beat 08:30 → 收藏库平均向量（复用 repo_vectors）→ 热榜候选
-→ 排除已收藏 → 相似度 × 0.8 + 热榜热度 × 0.2 → 阈值过滤 → top_k
+→ 排除已收藏 → 相似度 × 0.8 + 热榜热度 × 0.2 → 阈值过滤 → 粗排候选池
+→ Rerank 精排（六路信号 + MMR 多样性）→ top_k
 → upsert recommendations（status=new、match_score=原始相似度；旧 new 未入选标记 expired）
 08:45 每日评估 → 质量分 = 仓库质量 × 0.7 + 理由质量 × 0.3
 → 双重门槛：match_score ≥ EVAL_MATCH_THRESHOLD 且 quality_score ≥ EVAL_QUALITY_THRESHOLD
@@ -141,6 +142,23 @@ Celery beat 08:30 → 收藏库平均向量（复用 repo_vectors）→ 热榜�
 → 推送准备按用户偏好（时间 / 阈值 / 通道）经 M4-07 静默 / 去重 / 日限额闸门
 → 通过的 qualified 标记为 pushed，并写 push_events 账本
 ```
+
+### 3.4.2 Rerank 精排（M7-07 / REQ-202610-0966）
+
+```
+粗排候选池（RERANK_POOL_SIZE，默认 100）
+→ 六路信号：相关性 / 画像亲和 / 时效 / 动量 / 人气 / 健康度
+→ 权重归一化加权（RERANK_WEIGHT_*，默认 0.45 / 0.15 / 0.12 / 0.10 / 0.08 / 0.10）
+→ MMR 多样性重排（RERANK_MMR_LAMBDA，默认 0.75；相似度优先用仓库向量，缺失回退语言 / 技术栈）
+→ top_k → recommendations：score=精排分，base_score / rerank_score / rerank_rank / rerank_detail / reranked_at
+```
+
+- 纯函数实现 `vps/app/services/rerank.py`，不访问网络 / 数据库，测试可完全离线；
+- 每日生成自动接入；`RERANK_ENABLED=false` 时严格回退 M3-05 粗排行为；
+- `POST /api/recommend/rerank/preview|apply` 支持按用户预览 / 落库；请求体传 `items` 时走无状态精排，
+  供 edge 把 D1 候选发给 VPS（`POST /api/rerank/preview|apply`）；
+- edge 不可达 VPS 时 `edge/src/rerank/helpers.ts` 用 D1 字段做本地启发式精排（`mode=local`）；
+- admin `/rerank` 精排工作台展示名次变化、信号贡献、理由与整体指标。
 
 ### 3.5 模型选型与推理预算（M3-01）
 
@@ -267,6 +285,7 @@ summarize() → Ollama（超预算则跳过请求）→ DeepSeek → 截断原�
 
 查询理解结果（`query` / `rewritten` / `techStack` / `concepts` / `terms` / `keywordTerms`）随搜索响应返回：
 admin 搜索页展示「查询理解」标签，edge 关键词兜底使用扩展词提升召回。
+
 ### 3.12 站内通知流（M4-02）
 
 ```
@@ -531,7 +550,26 @@ admin /export → GET /api/export/knowledge/summary（登录态）→ 统计卡
 
 只读聚合，不新增表、不写 D1；格式规范（JSON Schema、Markdown 结构、Obsidian 目录与
 frontmatter）见 `docs/guides/knowledge-export.md`，并作为 M9-04 全量归档的格式基线。
-### 3.22 自动打标建议流（M7-01）
+
+### 3.28 备份与恢复（M5-04）
+
+```
+Celery beat 03:50（每日）→ SQLite backup API 快照 → integrity_check → gzip + manifest
+→ backups/sqlite/sqlite-*.sqlite3.gz + .json → 按份数 / 总量清理
+
+cron 04:10（每日）→ deploy/scripts/backup-d1.sh → wrangler d1 export（远端 D1）
+→ 临时 SQLite 导入校验（integrity / 表清单 / 行数）→ gzip + manifest
+→ backups/d1/d1-*.sql.gz + .json
+
+Celery beat 周日 04:20 → backup_drill → 快照恢复到临时库 → 完整性 / 表行数核对
+→ 报告落日志；生产恢复仅允许 CLI（restore-sqlite.sh，默认拒绝覆盖）
+```
+
+D1 凭据只存在于部署控制面，VPS 不持有 Cloudflare 凭据；备份目录 700 / 文件 600，
+保留最近 7 份、总量 3 GB（`resource-plan.md` §4）。详见
+[backup-restore.md](../guides/backup-restore.md)。
+
+### 3.29 自动打标建议流（M7-01）
 
 ```
 admin /tag-suggestions「生成建议」
@@ -555,7 +593,8 @@ admin /tag-suggestions「生成建议」
 - **账号隔离**：edge 所有查询带 `user_id`，采纳时再次校验仓库归属；
 - **幂等**：唯一索引 + upsert，重复生成只更新 pending 建议的分数与理由；
 - **降级**：VPS 不可用时本地规则仍能产出建议，页面不空白。
-### 3.14 自动分类建议（M7-02）
+
+### 3.30 自动分类建议（M7-02）
 
 ```
 admin 分类建议页 POST /api/category-suggestions/generate {limit?, perRepo?, minScore?}
@@ -571,7 +610,8 @@ admin 分类建议页 POST /api/category-suggestions/generate {limit?, perRepo?,
 降级：VPS 不可达或某仓库未返回建议时，edge 用同一套业务线词表本地兜底（`source=local` /
 `mixed`）；语言仅作弱信号，单独命中不会超过默认阈值。生成只写建议表，采纳前不修改仓库分类；
 已采纳 / 已忽略的建议不会被重复生成覆盖。
-### 3.16 精选报告生成流（M7-03）
+
+### 3.31 精选报告生成流（M7-03）
 
 ```
 Cloudflare Cron（周日 23:30 UTC / 每月 1 日 23:40 UTC）
@@ -591,7 +631,7 @@ admin /reports → GET /api/reports（首次访问惰性补齐当前周期）
 - 报告完全由 D1 数据确定性生成，不调用 LLM / VPS；同一用户同一周期重复生成走幂等 upsert；
 - `curated_reports` 保存 stats / sections JSON 与预渲染 Markdown，列表接口不返回大字段。
 
-### 3.16.1 收藏项目更新提醒（M7-04）
+### 3.32 收藏项目更新提醒（M7-04）
 
 ```
 Celery beat 每日 06:37（REPO_UPDATES_HOUR/MINUTE）或 admin「立即扫描」
@@ -608,7 +648,7 @@ Celery beat 每日 06:37（REPO_UPDATES_HOUR/MINUTE）或 admin「立即扫描�
 - `repo_updates` 唯一索引 `(user_id, repo_id, version)` 与通知 `dedupe_key` 双重幂等；
 - 未配置 `GITHUB_TOKEN` 时任务返回 `skipped`，不产生空扫描。
 
-### 3.19 Star 趋势与洞察流（M7-05）
+### 3.33 Star 趋势与洞察流（M7-05）
 
 ```
 admin /star-trends → GET /api/star-trends?days=30&scope=trending|my&language=（登录态）
@@ -842,21 +882,3 @@ admin /star-trends → GET /api/star-trends?days=30&scope=trending|my&language=�
 | edge | Cloudflare Workers | `wrangler deploy`；绑定 D1 / Vectorize |
 | vps | 本地服务器 | uvicorn + celery worker + celery beat + redis + ollama |
 | 数据 | D1 + VPS 本地 SQLite | D1 为主数据；VPS 侧为算力缓存/镜像 |
-
-### 3.28 备份与恢复（M5-04）
-
-```
-Celery beat 03:50（每日）→ SQLite backup API 快照 → integrity_check → gzip + manifest
-→ backups/sqlite/sqlite-*.sqlite3.gz + .json → 按份数 / 总量清理
-
-cron 04:10（每日）→ deploy/scripts/backup-d1.sh → wrangler d1 export（远端 D1）
-→ 临时 SQLite 导入校验（integrity / 表清单 / 行数）→ gzip + manifest
-→ backups/d1/d1-*.sql.gz + .json
-
-Celery beat 周日 04:20 → backup_drill → 快照恢复到临时库 → 完整性 / 表行数核对
-→ 报告落日志；生产恢复仅允许 CLI（restore-sqlite.sh，默认拒绝覆盖）
-```
-
-D1 凭据只存在于部署控制面，VPS 不持有 Cloudflare 凭据；备份目录 700 / 文件 600，
-保留最近 7 份、总量 3 GB（`resource-plan.md` §4）。详见
-[backup-restore.md](../guides/backup-restore.md)。

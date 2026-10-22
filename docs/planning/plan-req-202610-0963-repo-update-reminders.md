@@ -18,7 +18,7 @@
 
 ## 2. 数据模型
 
-D1 新增 `repo_updates`（迁移 `0015_repo_updates.sql`）：
+D1 新增 `repo_updates`（迁移 `0019_repo_updates.sql`）：
 
 | 字段 | 说明 |
 | --- | --- |

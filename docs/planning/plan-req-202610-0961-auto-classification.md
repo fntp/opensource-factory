@@ -167,7 +167,7 @@ edge（登录态）
 | `edge/src/category-suggestions/rules.ts` | 本地业务线词表与规则打分（VPS 降级） |
 | `edge/src/category-suggestions/helpers.ts` | 归一化、稳定 id、合并、状态归一化 |
 | `edge/src/routes/category-suggestions.ts` | 列表 / 生成 / 采纳 / 忽略路由 |
-| `edge/migrations/0014_category_suggestions.sql` | D1 建议表 |
+| `edge/migrations/0017_category_suggestions.sql` | D1 建议表 |
 | `edge/scripts/category-suggestions.test.mjs` | 纯函数与路由契约测试 |
 | `admin/src/features/category-suggestions/api.ts` | DTO、请求封装、演示数据 |
 | `admin/src/features/category-suggestions/utils.ts` | 分组、汇总、格式化、排序 |

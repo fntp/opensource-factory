@@ -45,6 +45,8 @@ vps/
 │   │   ├── recommendation_feedback.py # 推荐反馈：edge 拉取 / 回写 / 本地降级
 │   │   ├── recommendation_quality.py # 质量评估：抽样评估集 / 指标 / 阈值调优（M3-08）
 │   │   ├── recommendation_eval.py # 每日评估：质量分 / 匹配度门槛 / 运行记录（M4-01）
+│   │   ├── rerank.py            # 精排：六路信号 + MMR 多样性（M7-07，纯函数）
+│   │   ├── rerank_service.py    # 精排预览 / 应用：推荐池 + 元数据 + 向量装配
 │   │   ├── bark.py               # Bark 推送通道：消息构建 / 投递 / 状态（M4-03）
 │   │   ├── telegram.py           # Telegram 摘要：HTML / 分片 / 重试 / 送达记录（M4-04）
 │   │   ├── email_channel.py      # Email 摘要：SMTP 投递 / 幂等 / 送达记录（M4-05）
@@ -65,7 +67,7 @@ vps/
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
 │   │   ├── trending.py           # GET /api/trending、/snapshots、/dates、/history、/retention、POST /crawl、/retention/cleanup
-│   │   ├── recommend.py          # /api/recommend/*（查询 / 列表 / 生成 / 质量评估 / 每日评估 / 合格推荐）
+│   │   ├── recommend.py          # /api/recommend/*（查询 / 列表 / 生成 / 质量评估 / 每日评估 / 合格推荐 / 精排）
 │   │   ├── push.py               # /api/push/bark/*（状态 / 测试 / 投递入队）、/api/push/records/*、/api/push/receipts
 │   │   ├── notifications.py      # /api/notifications/telegram/*、/api/notifications/email/*（状态 / 测试）
 │   │   ├── push_policy.py        # /api/push/policy/*（状态 / 预演 / 事件）
@@ -179,6 +181,10 @@ permissions / COOP 头，认证路径额外返回 `Cache-Control: no-store`。
 | `RECOMMEND_CANDIDATE_LIMIT` | `500` | 单次参与打分的热榜候选上限 |
 | `RECOMMEND_SIMILARITY_WEIGHT` | `0.8` | 相似度权重 |
 | `RECOMMEND_TRENDING_WEIGHT` | `0.2` | 热榜热度权重 |
+| `RERANK_ENABLED` | `true` | 精排总开关；关闭时保持 M3-05 粗排行为（M7-07） |
+| `RERANK_POOL_SIZE` | `100` | 进入精排的粗排候选池大小 |
+| `RERANK_MMR_LAMBDA` | `0.75` | MMR 多样性系数（1 = 只看精排分） |
+| `RERANK_WEIGHT_RELEVANCE` ~ `RERANK_WEIGHT_HEALTH` | 见 `.env.example` | 六路信号权重（内部按权重和归一化） |
 | `EDGE_BASE_URL` | 空 | 边缘 API 地址；配置后摘要任务与热榜快照批量回写 D1，同时作为 Vectorize 同步目标 |
 | `VECTORIZE_SYNC_ENABLED` | `true` | Vectorize 同步总开关；`false` 时同步任务直接返回 `disabled` |
 | `VECTORIZE_INDEX_NAME` | `opensource-factory-vectors` | 索引名（仅用于状态展示，实际绑定在 edge `wrangler.toml`） |

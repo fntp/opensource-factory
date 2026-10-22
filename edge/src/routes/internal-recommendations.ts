@@ -22,6 +22,10 @@ type UpsertItem = {
   id: string;
   repoId: string;
   score: number;
+  baseScore: number | null;
+  rerankScore: number | null;
+  rerankRank: number | null;
+  rerankDetail: string | null;
   reason: string | null;
   basedOn: string[];
   owner: string | null;
@@ -51,12 +55,25 @@ function isItem(value: unknown): value is UpsertItem {
   return true;
 }
 
+function optionalNumber(value: unknown, min: number, max: number): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  return Math.max(min, Math.min(max, value));
+}
+
 function normalizeItem(value: unknown): UpsertItem | null {
   if (!isItem(value)) return null;
+  const detail =
+    value.rerankDetail && typeof value.rerankDetail === 'object' && !Array.isArray(value.rerankDetail)
+      ? JSON.stringify(value.rerankDetail).slice(0, MAX_REASON * 4)
+      : null;
   return {
     id: value.id.trim(),
     repoId: value.repoId.trim(),
     score: Math.max(0, Math.min(1, value.score)),
+    baseScore: optionalNumber(value.baseScore, 0, 1),
+    rerankScore: optionalNumber(value.rerankScore, 0, 1),
+    rerankRank: optionalNumber(value.rerankRank, 0, 10000),
+    rerankDetail: detail,
     reason: text(value.reason, MAX_REASON),
     basedOn: Array.isArray(value.basedOn) ? value.basedOn.map((v) => String(v)).slice(0, 20) : [],
     owner: text(value.owner, MAX_TEXT),
@@ -113,9 +130,10 @@ router.post('/upsert', async (c) => {
     await run(
       c.env.DB,
       `INSERT INTO recommendations
-         (id, user_id, repo_id, owner, name, description, language, stars, score, reason,
+         (id, user_id, repo_id, owner, name, description, language, stars, score,
+          base_score, rerank_score, rerank_rank, rerank_detail, reason,
           based_on, url, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
        ON CONFLICT(id) DO UPDATE SET
          user_id = excluded.user_id,
          repo_id = excluded.repo_id,
@@ -125,6 +143,10 @@ router.post('/upsert', async (c) => {
          language = excluded.language,
          stars = excluded.stars,
          score = excluded.score,
+         base_score = excluded.base_score,
+         rerank_score = excluded.rerank_score,
+         rerank_rank = excluded.rerank_rank,
+         rerank_detail = excluded.rerank_detail,
          reason = excluded.reason,
          based_on = excluded.based_on,
          url = excluded.url,
@@ -143,6 +165,10 @@ router.post('/upsert', async (c) => {
         item.language,
         item.stars,
         item.score,
+        item.baseScore,
+        item.rerankScore,
+        item.rerankRank,
+        item.rerankDetail,
         item.reason,
         JSON.stringify(item.basedOn),
         item.url,

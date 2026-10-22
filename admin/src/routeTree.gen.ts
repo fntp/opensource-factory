@@ -28,6 +28,7 @@ import { Route as AuthenticatedMonitoringIndexRouteImport } from './routes/_auth
 import { Route as AuthenticatedNotificationsIndexRouteImport } from './routes/_authenticated/notifications/index'
 import { Route as AuthenticatedRecommendIndexRouteImport } from './routes/_authenticated/recommend/index'
 import { Route as AuthenticatedReposIndexRouteImport } from './routes/_authenticated/repos/index'
+import { Route as AuthenticatedRerankIndexRouteImport } from './routes/_authenticated/rerank/index'
 import { Route as AuthenticatedSearchIndexRouteImport } from './routes/_authenticated/search/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_authenticated/settings/account'
@@ -144,6 +145,12 @@ const AuthenticatedReposIndexRoute = AuthenticatedReposIndexRouteImport.update({
   path: '/repos/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedRerankIndexRoute =
+  AuthenticatedRerankIndexRouteImport.update({
+    id: '/rerank/',
+    path: '/rerank/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSearchIndexRoute =
   AuthenticatedSearchIndexRouteImport.update({
     id: '/search/',
@@ -234,6 +241,7 @@ export interface FileRoutesByFullPath {
   '/notifications/': typeof AuthenticatedNotificationsIndexRoute
   '/recommend/': typeof AuthenticatedRecommendIndexRoute
   '/repos/': typeof AuthenticatedReposIndexRoute
+  '/rerank/': typeof AuthenticatedRerankIndexRoute
   '/search/': typeof AuthenticatedSearchIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/star-trends/': typeof AuthenticatedStarTrendsIndexRoute
@@ -264,6 +272,7 @@ export interface FileRoutesByTo {
   '/notifications': typeof AuthenticatedNotificationsIndexRoute
   '/recommend': typeof AuthenticatedRecommendIndexRoute
   '/repos': typeof AuthenticatedReposIndexRoute
+  '/rerank': typeof AuthenticatedRerankIndexRoute
   '/search': typeof AuthenticatedSearchIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/star-trends': typeof AuthenticatedStarTrendsIndexRoute
@@ -297,6 +306,7 @@ export interface FileRoutesById {
   '/_authenticated/notifications/': typeof AuthenticatedNotificationsIndexRoute
   '/_authenticated/recommend/': typeof AuthenticatedRecommendIndexRoute
   '/_authenticated/repos/': typeof AuthenticatedReposIndexRoute
+  '/_authenticated/rerank/': typeof AuthenticatedRerankIndexRoute
   '/_authenticated/search/': typeof AuthenticatedSearchIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/star-trends/': typeof AuthenticatedStarTrendsIndexRoute
@@ -330,6 +340,7 @@ export interface FileRouteTypes {
     | '/notifications/'
     | '/recommend/'
     | '/repos/'
+    | '/rerank/'
     | '/search/'
     | '/settings/'
     | '/star-trends/'
@@ -360,6 +371,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/recommend'
     | '/repos'
+    | '/rerank'
     | '/search'
     | '/settings'
     | '/star-trends'
@@ -392,6 +404,7 @@ export interface FileRouteTypes {
     | '/_authenticated/notifications/'
     | '/_authenticated/recommend/'
     | '/_authenticated/repos/'
+    | '/_authenticated/rerank/'
     | '/_authenticated/search/'
     | '/_authenticated/settings/'
     | '/_authenticated/star-trends/'
@@ -546,6 +559,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedReposIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/rerank/': {
+      id: '/_authenticated/rerank/'
+      path: '/rerank'
+      fullPath: '/rerank/'
+      preLoaderRoute: typeof AuthenticatedRerankIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/search/': {
       id: '/_authenticated/search/'
       path: '/search'
@@ -662,6 +682,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedNotificationsIndexRoute: typeof AuthenticatedNotificationsIndexRoute
   AuthenticatedRecommendIndexRoute: typeof AuthenticatedRecommendIndexRoute
   AuthenticatedReposIndexRoute: typeof AuthenticatedReposIndexRoute
+  AuthenticatedRerankIndexRoute: typeof AuthenticatedRerankIndexRoute
   AuthenticatedSearchIndexRoute: typeof AuthenticatedSearchIndexRoute
   AuthenticatedStarTrendsIndexRoute: typeof AuthenticatedStarTrendsIndexRoute
   AuthenticatedTechStackIndexRoute: typeof AuthenticatedTechStackIndexRoute
@@ -683,6 +704,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedNotificationsIndexRoute: AuthenticatedNotificationsIndexRoute,
   AuthenticatedRecommendIndexRoute: AuthenticatedRecommendIndexRoute,
   AuthenticatedReposIndexRoute: AuthenticatedReposIndexRoute,
+  AuthenticatedRerankIndexRoute: AuthenticatedRerankIndexRoute,
   AuthenticatedSearchIndexRoute: AuthenticatedSearchIndexRoute,
   AuthenticatedStarTrendsIndexRoute: AuthenticatedStarTrendsIndexRoute,
   AuthenticatedTechStackIndexRoute: AuthenticatedTechStackIndexRoute,

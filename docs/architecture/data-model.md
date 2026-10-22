@@ -196,7 +196,12 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | user_id | 目标用户（NULL = 全局） |
 | repo_id TEXT | 稳定仓库 id（`owner/name`，M3-07 起） |
 | owner / name / description / language / stars / url | 推荐项目快照 |
-| score REAL | 综合得分 0~1（相似度 × 0.8 + 热榜热度 × 0.2） |
+| score REAL | 当前展示分 0~1（精排开启时为精排分；关闭时同 M3-05 综合得分） |
+| base_score REAL | 粗排分（M7-07 精排前；历史数据为 0 时回退 `score`） |
+| rerank_score REAL | 精排分（M7-07 六路信号加权） |
+| rerank_rank INTEGER | 精排名次（1 起） |
+| rerank_detail TEXT | 精排明细 JSON（信号 / 贡献 / 理由 / 前后名次 / 多样性惩罚） |
+| reranked_at DATETIME | 最近精排时间 |
 | match_score REAL | 原始余弦相似度（M4-01 匹配度硬门槛；历史数据缺失时回退到 `score`） |
 | quality_score REAL | 每日评估质量分 0~1（仓库质量 × 0.7 + 理由质量 × 0.3） |
 | quality_detail TEXT | 评估明细 JSON（各分量、阈值、是否通过） |
@@ -242,26 +247,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 唯一索引 `(user_id, cluster_key)` 保证同一簇重复忽略幂等；按 `(user_id, created_at DESC)` 查已忽略列表。
 簇成员变化后签名改变，旧忽略记录不会误伤新簇，重复项会重新出现供复核。
 
-### 3.8 `category_suggestions` 自动分类建议（M7-02）
-
-| 字段 | 说明 |
-| --- | --- |
-| id TEXT PK | 建议 id：`sha256(user_id\|repo_id\|category_name)` 前 32 位，重复生成幂等 |
-| user_id | 用户 id（D1 会话用户） |
-| repo_id TEXT | 仓库 id（`owner/repo`） |
-| category_name TEXT | 建议分类名（业务线中文名，如「金融 / 支付」） |
-| business_line TEXT | 业务线 key（`fintech` / `ai` / `saas` …，用于自动建分类时补描述） |
-| score REAL | 置信度（0~1，规则加权后归一） |
-| reason TEXT | 可解释理由（名称 / 标签 / 简介 / 摘要命中词） |
-| evidence TEXT | 证据片段（命中的原文摘录） |
-| status TEXT | `pending` / `accepted` / `dismissed` |
-| created_at / updated_at | 生成 / 最近刷新时间 |
-
-唯一索引 `(user_id, repo_id, category_name)` 保证重复生成只刷新分数与理由；
-已采纳 / 已忽略的记录保持用户决策，不被覆盖。按 `(user_id, status, score DESC)` 查列表，
-按 `(user_id, repo_id)` 查单仓库建议。生成只写建议表，采纳后才更新 `my_repositories.category_id`。
-
-### 3.9 `crawl_alerts` / `crawl_page_stats` 抓取告警（VPS 本地表）
+### 3.8 `crawl_alerts` / `crawl_page_stats` 抓取告警（VPS 本地表）
 
 > 仅存在于 VPS 本地镜像库，不进入 D1；用于热榜抓取的容错基线与值班告警。
 
@@ -539,7 +525,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | dependency_count | 本次解析的依赖行数 |
 | error | 拉取 / 解析错误摘要（失败时保留旧依赖） |
 | scanned_at | 最近扫描时间 |
-### 3.19 `tag_suggestions` 自动打标建议（D1，迁移 `0013`）
+### 3.21 `tag_suggestions` 自动打标建议（D1，迁移 `0016`）
 
 > 建议与执行分离：生成只写本表，用户采纳后才写 `tags` / `repo_tags`。
 
@@ -558,7 +544,26 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 
 唯一索引 `(user_id, repo_id, normalized_name)` 保证重复生成幂等；列表索引
 `(user_id, status, updated_at DESC)`；仓库筛选索引 `(user_id, repo_id, status)`。
-### 3.19 `curated_reports` 精选报告（D1，迁移 `0014`）
+### 3.22 `category_suggestions` 自动分类建议（M7-02）
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | 建议 id：`sha256(user_id\|repo_id\|category_name)` 前 32 位，重复生成幂等 |
+| user_id | 用户 id（D1 会话用户） |
+| repo_id TEXT | 仓库 id（`owner/repo`） |
+| category_name TEXT | 建议分类名（业务线中文名，如「金融 / 支付」） |
+| business_line TEXT | 业务线 key（`fintech` / `ai` / `saas` …，用于自动建分类时补描述） |
+| score REAL | 置信度（0~1，规则加权后归一） |
+| reason TEXT | 可解释理由（名称 / 标签 / 简介 / 摘要命中词） |
+| evidence TEXT | 证据片段（命中的原文摘录） |
+| status TEXT | `pending` / `accepted` / `dismissed` |
+| created_at / updated_at | 生成 / 最近刷新时间 |
+
+唯一索引 `(user_id, repo_id, category_name)` 保证重复生成只刷新分数与理由；
+已采纳 / 已忽略的记录保持用户决策，不被覆盖。按 `(user_id, status, score DESC)` 查列表，
+按 `(user_id, repo_id)` 查单仓库建议。生成只写建议表，采纳后才更新 `my_repositories.category_id`。
+
+### 3.23 `curated_reports` 精选报告（D1，迁移 `0018`）
 
 > M7-03：按用户 + 周期保存周报 / 月报快照；`stats` / `sections` 为 JSON，`markdown` 为预渲染文本。
 
@@ -579,7 +584,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 唯一索引 `(user_id, kind, period_start)` 保证同一用户同一周期只有一份报告；重复生成走
 `ON CONFLICT ... DO UPDATE`，`id` 不变。列表索引 `(user_id, generated_at DESC)` 供报告归档倒序查询。
 
-### 3.20 `repo_updates` 收藏项目更新提醒（D1，迁移 `0015`）
+### 3.24 `repo_updates` 收藏项目更新提醒（D1，迁移 `0019`）
 
 > M7-04：VPS 每日扫描收藏仓库的 GitHub Release / Tag，经内部接口回写后按仓库归属扇出到每个收藏用户。
 

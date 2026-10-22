@@ -258,6 +258,12 @@ class Recommendation(Base):
     score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     # 原始余弦相似度（M4-01 每日评估使用；历史数据缺失时回退到 score）
     match_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    # Rerank 精排（M7-07）：粗排分 / 精排分 / 精排名次 / 可解释明细
+    base_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    rerank_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    rerank_rank: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    rerank_detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    reranked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     # 每日评估产出的综合质量分与可解释明细
     quality_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     quality_detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

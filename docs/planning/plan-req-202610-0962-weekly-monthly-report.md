@@ -42,7 +42,7 @@ admin /reports
 
 ## 3. 数据模型
 
-`curated_reports`（D1 迁移 `0014_curated_reports.sql`）：
+`curated_reports`（D1 迁移 `0018_curated_reports.sql`）：
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -86,7 +86,7 @@ admin /reports
 | `edge/src/routes/reports.ts` | 登录态 / 内部报告路由与 D1 读写 |
 | `edge/src/index.ts` | 挂载路由 + Cron scheduled handler |
 | `edge/wrangler.toml` | 周报 / 月报 Cron 触发 |
-| `edge/migrations/0014_curated_reports.sql` | 报告表 |
+| `edge/migrations/0018_curated_reports.sql` | 报告表 |
 | `edge/scripts/reports-helpers.test.mjs` | 纯函数用例 |
 | `edge/scripts/reports-route.test.mjs` | 路由 / 鉴权 / 幂等用例 |
 | `admin/src/features/reports/` | API、工具函数、报告页、演示数据、Vitest |
@@ -115,7 +115,7 @@ admin /reports
 
 ## 8. 实施结果（2026-10-22）
 
-- 新增 D1 迁移 `0014_curated_reports.sql`，`docs/assets/d1-schema.sql` 同步；
+- 新增 D1 迁移 `0018_curated_reports.sql`，`docs/assets/d1-schema.sql` 同步；
 - `edge/src/reports/generate.ts` 实现周期解析、统计、四分节、摘要与 Markdown 纯函数；
 - `edge/src/routes/reports.ts` 实现列表 / 详情 / Markdown / 手动生成 / 内部批量生成，全部按 `user_id` 隔离；
 - `edge/src/index.ts` 挂载路由并新增 `scheduled` handler，`wrangler.toml` 配置周报 / 月报 Cron；
