@@ -37,7 +37,17 @@ def list_trending(
 )
 async def enqueue_trending_crawl(
     platform: str = Query(default="github", pattern="^(github|gitee|all)$"),
-    language: str | None = Query(default=None),
+    language: str | None = Query(default=None, description="只抓单个语言页（如 python）"),
+    languages: str | None = Query(
+        default=None,
+        description="逗号分隔的语言页列表；留空使用 TRENDING_LANGUAGES 配置",
+    ),
+    since: str = Query(default="daily", pattern="^(daily|weekly|monthly)$"),
 ) -> TaskEnqueued:
-    task = crawl_trending.delay(platform=platform, language=language)
+    task = crawl_trending.delay(
+        platform=platform,
+        language=language,
+        languages=languages,
+        since=since,
+    )
     return TaskEnqueued(taskId=task.id)

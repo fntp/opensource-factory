@@ -86,6 +86,9 @@ pytest -q
 | `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
 | `CELERY_TASK_ALWAYS_EAGER` | `0` | 置 `1` 时任务同步执行（本地调试 / 测试用） |
 | `GITHUB_TOKEN` | 空 | GitHub PAT（仅需 read 权限）；为空时同步任务跳过 |
+| `TRENDING_LANGUAGES` | `python,javascript,typescript,go,rust,java,cpp,c,php,ruby,swift,kotlin` | 每日抓取的 Trending 语言页（逗号分隔；留空只抓全局页） |
+| `TRENDING_CRAWL_HOUR` | `3` | 每日抓取小时（Asia/Shanghai，0–23） |
+| `TRENDING_CRAWL_MINUTE` | `27` | 每日抓取分钟（0–59） |
 
 完整清单见 `.env.example`。所有真实密钥只存在于本地 `.env`（git 忽略）或平台密钥托管，**不得提交**。
 
@@ -96,7 +99,7 @@ pytest -q
 | 方法 | 路径 | 说明 | 返回 |
 | --- | --- | --- | --- |
 | POST | `/api/tasks/sync` | 入队 GitHub 仓库同步（自己的 + Starred） | `202 {"taskId": "..."}` |
-| POST | `/api/tasks/crawl-trending` | 入队热榜抓取（`platform=github\|gitee\|all`，可选 `language`） | `202 {"taskId": "..."}` |
+| POST | `/api/tasks/crawl-trending` | 入队热榜抓取（`platform=github\|gitee\|all`；可选 `language` 单页、`languages` 多页 CSV、`since=daily\|weekly\|monthly`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/generate-recommendations` | 入队推荐生成（可选 `user_id`、`top_k`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/daily-push` | 入队每日推送准备（将 `new` 推荐标记为 `pushed`） | `202 {"taskId": "..."}` |
 | GET | `/api/tasks/{task_id}` | 查询任务状态（`pending/started/success/failure`） | `200 {"taskId","status","result"}` |
@@ -108,6 +111,14 @@ pytest -q
 - **直接查询接口**（供边缘回源或调试）：`GET /api/repos`、`GET /api/trending`、`POST /api/recommend/query`；
 - **数据契约**：本地表结构与 D1 Schema 保持一致（`my_repositories` / `trending_repositories` / `categories` 字段名与语义镜像），边缘侧按 `id`（`owner/repo`）对齐；
 - **降级语义**：外部依赖不可用时任务返回 `{"status": "skipped"|"error", ...}` 而不是失败抛错，边缘侧可安全重试。
+
+## 热榜每日抓取
+
+- Celery beat `crawl-trending-daily` 每天 `03:27`（Asia/Shanghai，可用 `TRENDING_CRAWL_HOUR` / `TRENDING_CRAWL_MINUTE` 覆盖）触发 `crawl_trending`；
+- 抓取全局页 + `TRENDING_LANGUAGES` 列出的语言页，页间串行并默认间隔 1 秒，避免触发 GitHub 限流；
+- 同一仓库跨页去重，`stars` / `stars_today` 取最大值，`owner` / `language` / `stars` 一并落库；
+- 单页失败不中断整轮，任务结果包含 `pages[]` 与 `failedPages[]`（`status=partial` / `error`），作为 M2-02 告警的基础信号；
+- 手动触发示例：`curl -X POST 'http://127.0.0.1:8000/api/tasks/crawl-trending?platform=github&languages=python,rust' -H "X-Internal-Token: <token>"`。
 
 ## 常用检查
 

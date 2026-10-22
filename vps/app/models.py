@@ -49,6 +49,9 @@ class TrendingRepository(Base):
     stars_today: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=0)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     tech_stack: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # 自动提取的技术栈描述
+    owner: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)  # owner（与 D1 扩展列对齐）
+    language: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)  # 主语言
+    stars: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 总 Star
     crawled_at: Mapped[date] = mapped_column(Date, nullable=False, default=date.today)
 
 

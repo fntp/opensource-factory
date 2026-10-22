@@ -51,7 +51,7 @@ recommendations              （user_id 可空 = 全局推荐）
 | tech_stack | TEXT | 自动提取的技术栈 |
 | crawled_at | DATE | 抓取日期 |
 
-> 扩展列：`owner`、`language`、`stars`（总 Star）。
+> 扩展列：`owner`、`language`、`stars`（总 Star）；VPS 本地镜像在 `init_db()` 中对既有 SQLite 库幂等补列。
 
 ### 2.3 `categories` 分类
 
