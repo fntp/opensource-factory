@@ -39,6 +39,8 @@ vps/
 │   │   ├── recommender.py        # 余弦排序 + 综合打分
 │   │   ├── recommend_reason.py   # 中文推荐理由 + based_on 依据字段（纯规则）
 │   │   ├── recommendation_service.py # 每日推荐：画像 / 去重已收藏 / 阈值 / 落库
+│   │   ├── recommendation_feedback.py # 推荐反馈：edge 拉取 / 回写 / 本地降级
+│   │   ├── recommendation_eval.py # 质量评估：抽样评估集 / 指标 / 阈值调优
 │   │   ├── vector_index.py       # Vectorize 批量 upsert / 重试 / 对账 / 孤儿清理
 │   │   └── semantic_search.py    # 查询向量化 + repo_vectors 余弦检索 + 结果水合
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
@@ -145,6 +147,13 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | `VECTORIZE_SYNC_TIMEOUT_SECONDS` | `30` | 调用 edge 的超时（秒） |
 | `VECTORIZE_SYNC_DELETE_ORPHANS` | `false` | 对账时是否删除索引中本地已不存在的向量 |
 | `VECTORIZE_SYNC_MAX_ORPHANS` | `100` | 单次对账最多清理的孤儿数 |
+| `RECOMMEND_EVAL_SAMPLE_SIZE` | `5` | 推荐评估默认折叠数 |
+| `RECOMMEND_EVAL_HOLDOUT_RATIO` | `0.2` | 每个折叠留出的正样本比例 |
+| `RECOMMEND_EVAL_TOP_K` | `10` | 评估用 top_k |
+| `RECOMMEND_EVAL_NEGATIVES_PER_POSITIVE` | `5` | 每个正样本配的负样本数 |
+| `RECOMMEND_EVAL_SEED` | `42` | 抽样随机种子（同种子结果可复现） |
+| `RECOMMEND_EVAL_MIN_SCORE_GRID` | `0.1,0.2,0.3,0.4,0.5` | min_score 扫描网格 |
+| `RECOMMEND_EVAL_WEIGHT_GRID` | `0.6,0.8,1.0` | 相似度权重扫描网格（热榜权重 = 1 - w） |
 | `SEARCH_DEFAULT_TOP_K` | `10` | 语义搜索默认返回条数 |
 | `SEARCH_MAX_TOP_K` | `50` | 语义搜索单次最大返回条数 |
 | `SEARCH_MIN_SCORE` | `0.0` | 最低余弦相似度（0 表示不过滤） |
@@ -230,6 +239,7 @@ Celery beat 每日 04:37 自动增量同步、05:17 自动对账；也可通过�
 | POST | `/api/search/query` | 本地向量余弦检索（`{query,topK,scope,minScore}`） | `200 {items:[{source,repoId,score}],...}` |
 | POST | `/api/search/semantic` | 本地检索并水合完整项目信息 | `200 {items:[...]}` |
 | GET | `/api/search/status` | 向量覆盖率、模型分布与最近运行 | `200 {...}` |
+| POST | `/api/recommend/eval` | 推荐质量评估与调参（`sampleSize` / `topK` / `holdoutRatio` / `negativesPerPositive` / `seed` / `userId`） | `200 {status,metrics,thresholds,weights,recommended,...}` |
 
 Vectorize 索引维护接口（同样使用 `X-Internal-Token`）：
 

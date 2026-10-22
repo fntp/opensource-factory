@@ -101,6 +101,32 @@ class Settings(BaseSettings):
     # 相似度 / 热榜热度权重（均为 0 时退化为纯相似度）
     RECOMMEND_SIMILARITY_WEIGHT: float = 0.8
     RECOMMEND_TRENDING_WEIGHT: float = 0.2
+
+    # 推荐质量评估（M3-08）
+    # 默认评估折叠数（每个折叠做一次留出集切分）
+    RECOMMEND_EVAL_SAMPLE_SIZE: int = 5
+    # 每个折叠留出的正样本比例
+    RECOMMEND_EVAL_HOLDOUT_RATIO: float = 0.2
+    # 评估用 top_k
+    RECOMMEND_EVAL_TOP_K: int = 10
+    # 每个正样本配的负样本数
+    RECOMMEND_EVAL_NEGATIVES_PER_POSITIVE: int = 5
+    # 抽样随机种子（同种子结果可复现）
+    RECOMMEND_EVAL_SEED: int = 42
+    # 阈值扫描网格（逗号分隔，0~1）
+    RECOMMEND_EVAL_MIN_SCORE_GRID: str = "0.20,0.25,0.30,0.35,0.40,0.45,0.50"
+    # 相似度权重扫描网格（热度权重 = 1 - 该值）
+    RECOMMEND_EVAL_WEIGHT_GRID: str = "0.6,0.7,0.8,0.9,1.0"
+    # 单次评估的折叠数上限
+    RECOMMEND_EVAL_MAX_SAMPLES: int = 20
+
+    # 语义搜索（M3-04）
+    SEARCH_DEFAULT_TOP_K: int = 10
+    SEARCH_MAX_TOP_K: int = 50
+    SEARCH_MIN_SCORE: float = 0.0
+    # 本地全量余弦扫描的向量上限（超过后依赖 Vectorize）
+    SEARCH_MAX_VECTORS: int = 50000
+
     # 推荐反馈回流（M3-07）：生成前拉取 edge 反馈、生成后回写 D1
     RECOMMEND_FEEDBACK_SYNC: bool = True
 

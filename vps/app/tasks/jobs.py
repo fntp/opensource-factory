@@ -455,7 +455,7 @@ def generate_recommendations(
     top_k: Optional[int] = None,
     min_score: Optional[float] = None,
 ) -> dict[str, Any]:
-    """每日推荐生成：画像 → 热榜候选 → 去重已收藏 → 阈值过滤 → 综合打分 → 落库。
+    """每日推荐生成：反馈排除 → 画像 / 候选 / 打分 → 落库 → 回写 edge。
 
     参数为空时使用配置默认值（`RECOMMEND_DAILY_TOP_K` / `RECOMMEND_MIN_SCORE`）；
     外部依赖异常由服务层降级为结构化结果，不向 Celery 抛错。
@@ -464,10 +464,6 @@ def generate_recommendations(
     from app.services.recommendation_service import generate_daily_recommendations
 
     db = SessionLocal()
-    target_users: list[str] = []
-    created = 0
-    pushed: dict[str, int] = {}
-    feedback_excluded: dict[str, int] = {}
     try:
         result = generate_daily_recommendations(
             db,

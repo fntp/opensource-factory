@@ -166,6 +166,77 @@ class RecommendationOut(BaseModel):
     based_on: list[str] = Field(default_factory=list)
     status: str = "new"
     created_at: Optional[datetime] = None
+class RecommendEvalRequest(BaseModel):
+    """推荐质量评估请求（M3-08）。"""
+
+    sampleSize: Optional[int] = Field(default=None, ge=1, le=50, description="评估折叠数")
+    topK: Optional[int] = Field(default=None, ge=1, le=50, description="评估用 top_k")
+    holdoutRatio: Optional[float] = Field(
+        default=None, gt=0.0, lt=1.0, description="每个折叠留出的正样本比例"
+    )
+    negativesPerPositive: Optional[int] = Field(
+        default=None, ge=1, le=20, description="每个正样本配的负样本数"
+    )
+    seed: Optional[int] = Field(default=None, ge=0, description="抽样随机种子")
+    userId: Optional[str] = Field(default=None, description="只统计该用户的线上反馈")
+
+
+class RecommendEvalMetrics(BaseModel):
+    """排序指标（逐折叠均值）。"""
+
+    precision: float = 0.0
+    recall: float = 0.0
+    f1: float = 0.0
+    hitRate: float = 0.0
+    mrr: float = 0.0
+    ndcg: float = 0.0
+    coverage: float = 0.0
+    diversity: float = 0.0
+    avgResults: float = 0.0
+
+
+class RecommendEvalThreshold(BaseModel):
+    """单个 min_score 候选的指标。"""
+
+    minScore: float
+    precision: float = 0.0
+    recall: float = 0.0
+    f1: float = 0.0
+    coverage: float = 0.0
+    avgResults: float = 0.0
+
+
+class RecommendEvalWeight(RecommendEvalThreshold):
+    """单个权重组合的最优结果。"""
+
+    similarityWeight: float
+    trendingWeight: float
+
+
+class RecommendEvalRecommendation(BaseModel):
+    """调参建议。"""
+
+    minScore: float
+    similarityWeight: float
+    trendingWeight: float
+    reason: str = ""
+    improved: bool = False
+
+
+class RecommendEvalReport(BaseModel):
+    """推荐质量评估报告。"""
+
+    status: str
+    generatedAt: datetime
+    config: dict[str, Any]
+    dataset: dict[str, Any]
+    metrics: RecommendEvalMetrics
+    thresholds: list[RecommendEvalThreshold]
+    weights: list[RecommendEvalWeight]
+    recommended: RecommendEvalRecommendation
+    current: RecommendEvalThreshold
+    feedback: dict[str, Any]
+    warnings: list[str]
 
 
 class TaskEnqueued(BaseModel):
