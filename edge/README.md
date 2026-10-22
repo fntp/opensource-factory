@@ -37,6 +37,7 @@ edge/
 │   ├── 0008_trending_detail.sql  # 热榜详情：平台/Star 查询索引（摘要列见 0007）
 │   ├── 0009_recommendation_feedback.sql  # 推荐反馈明细（M3-07）
 │   ├── 0010_notifications.sql  # 站内通知表 + 去重/列表索引（M4-02）
+│   ├── 0010_repo_health.sql    # 仓库健康度字段（M6-05）
 │   ├── 0011_push_preferences.sql  # 推送偏好表（M4-06）
 │   ├── 0011_security_hardening.sql  # 限流 / 登录尝试 / 安全事件（M5-05）
 │   ├── 0012_worker_metrics.sql  # Workers 请求指标按日聚合（M5-03）
@@ -48,8 +49,9 @@ edge/
 │   ├── 0009_recommendation_feedback.sql # 推荐反馈明细（M3-07）
 │   ├── 0013_duplicate_dismissals.sql    # 重复检测按用户忽略（M6-03）
 │   └── 0014_category_suggestions.sql    # 自动分类建议（M7-02）
+│   └── 0014_curated_reports.sql  # 每周 / 月度精选报告（M7-03）
 └── src/
-    ├── index.ts          # Hono 入口：CORS、日志、/healthz、路由挂载、404/500
+    ├── index.ts          # Hono 入口：CORS、日志、/healthz、路由挂载、Cron scheduled handler
     ├── types.ts          # Env 绑定 + 数据库行 + API 响应实体
     ├── db.ts             # D1 查询辅助（first / all / run / count）
     ├── auth.ts           # 会话与 GitHub OAuth 辅助、cookie、redirect 校验
@@ -64,6 +66,8 @@ edge/
     ├── category-suggestions/
     │   ├── rules.ts      # 业务线词表 + 本地打分兜底（纯函数，与 VPS 词表一致）
     │   └── helpers.ts    # 状态 / 参数归一化、稳定建议 id（纯函数）
+    ├── reports/
+    │   └── generate.ts   # 精选报告：周期解析、统计、分节、摘要、Markdown（纯函数）
     └── routes/
         ├── auth.ts       # /api/auth/*（login / callback / me / logout）
         ├── repos.ts      # /api/repos
@@ -84,6 +88,7 @@ edge/
         ├── duplicates.ts # /api/duplicates/*（重复检测：VPS 规则 + 向量 → 本地兜底；按用户忽略）
         ├── analysis.ts   # /api/analysis/*（依赖分析：用户仓库 → VPS 聚合 → 本地语言概览）
         ├── category-suggestions.ts # /api/category-suggestions/*（生成 / 列表 / 采纳 / 忽略）
+        ├── reports.ts    # /api/reports/*（周报 / 月报列表、详情、Markdown、生成 + 内部批量生成）
         └── internal-vectors.ts # /api/internal/vectors/*（VPS → Vectorize，X-Internal-Token）
 ```
 
@@ -120,6 +125,18 @@ npm run test:m2 -- --strict \
 ```
 
 `test:m2` 会自动应用本地 D1 迁移、种入固定热榜数据集并启动 `wrangler dev`，覆盖 M2 列表 / 筛选 / 趋势 / 详情 / 收藏 / 摘要回写 / 快照 upsert / 保留清理 24 项断言。
+
+### 定时任务（M7-03）
+
+`wrangler.toml` 的 `[triggers]` 配置两条 UTC Cron：
+
+| Cron | 本地时间 | 任务 |
+| --- | --- | --- |
+| `30 23 * * 0` | 周一 07:30（Asia/Shanghai） | 生成上一个自然周的周报 |
+| `40 23 1 * *` | 每月 2 日 07:40（Asia/Shanghai） | 生成上一个自然月的月报 |
+
+`scheduled` handler 枚举 `users` 逐用户生成；重复触发按 `(user_id, kind, period_start)` 幂等 upsert。
+也可调用 `POST /api/internal/reports/generate`（`X-Internal-Token`）手动补跑。
 
 ## 部署步骤
 

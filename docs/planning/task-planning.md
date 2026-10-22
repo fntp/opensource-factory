@@ -88,6 +88,8 @@
 | IT-0051 | M6-08 | 知识库导出（Markdown / JSON / Obsidian；只读聚合 + `openfactory.knowledge.v1`） | M9-04（格式基线先行） | ✅ 已完成（2026-10-22） |
 | IT-0052 | M6-12 | M6 验收与回顾（集成 M6-01~08 + 跨分支验收脚本 + 缺口登记） | IT-0044~0051 | ✅ 已完成（2026-10-22） |
 | IT-0045 | M7-01 | 自动打标建议（摘要规则提取 + 人工确认 + tags / repo_tags 落库） | IT-0027（M2-04） | ✅ 已完成（2026-10-22） |
+| IT-0048 | M6-05 | 项目健康度追踪（最后提交 / issue 活跃 / 归档标记） | IT-0044；M1-07 | ✅ 已完成（2026-10-22） |
+| IT-0049 | M7-03 | 每周 / 月度精选报告（D1 聚合 + Cron 自动生成 + admin 报告归档页） | M4-01 | ✅ 已完成（2026-10-22） |
 
 > 说明：IT-0004 / IT-0005 在人工资源（Cloudflare 账号、OAuth App）就绪前，可先以 `wrangler --local` + 本地回调完成开发与验证；其余按需求池顺序滚动排期。
 
@@ -136,3 +138,4 @@
 | 2026-10-22 | 交付 | IT-0051 / M6-08 知识库导出（REQ-202610-0955）：知识库导出（Markdown / JSON / Obsidian），edge 只读聚合 + `openfactory.knowledge.v1` 格式规范 + admin 导出页；计划见 `planning/plan-req-202610-0955-knowledge-export.md`，格式见 `guides/knowledge-export.md` |
 | 2026-10-22 | 验收 | IT-0052 / M6-12 完成（REQ-202610-0959）：集成 M6-01~08 八个分支，M6 验收 18/18 PASS、3 项平台 pending 缺口登记；三端检查全绿（vps 482 / edge 108 / admin 156）；报告见 `planning/acceptance-m6.md` / `acceptance-m6-report.md` |
 | 2026-10-22 | 交付 | IT-0047 / M7-02 完成（REQ-202610-0961）：18 条业务线分类规则（VPS 纯函数 + edge 本地兜底）、可解释建议生成、edge 建议表与采纳写回（migration 0014）、admin 分类建议页；计划见 `plan-req-202610-0961-auto-classification.md` |
+| 2026-10-22 | 交付 | IT-0049 / M7-03 精选报告（REQ-202610-0962）：新增 D1 `curated_reports`（migration 0014）、edge 纯函数报告生成 + 登录态 / 内部接口 + Cron 周报月报、admin `/reports` 归档与 Markdown 下载；计划见 `planning/plan-req-202610-0962-weekly-monthly-report.md` |

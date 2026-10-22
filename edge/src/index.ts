@@ -5,7 +5,7 @@
  *       /api/notifications、/api/push-preferences、/api/categories、/api/dashboard、
  *       /api/sync、/api/internal/trending、/api/search、/api/similar、/api/duplicates、
  *       /api/tech-stack、/api/licenses、/api/internal/licenses、/api/analysis、/api/export、
- *       /api/tag-suggestions、/api/category-suggestions
+ *       /api/tag-suggestions、/api/category-suggestions、/api/reports
  */
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -39,6 +39,7 @@ import internalVectorsRoutes from './routes/internal-vectors';
 import internalRecommendationsRoutes from './routes/internal-recommendations';
 import internalSecurityRoutes from './routes/internal-security';
 import monitoringRoutes, { internalAnalytics } from './routes/monitoring';
+import reportsRoutes, { internalReports, generateReportsForAllUsers } from './routes/reports';
 import {
   cleanupSecurityData,
   clientIpFromHeaders,
@@ -188,6 +189,8 @@ app.route('/api/monitoring', monitoringRoutes);
 app.route('/api/internal/analytics', internalAnalytics);
 app.route('/api/licenses', licensesRoutes);
 app.route('/api/internal/licenses', internalLicensesRoutes);
+app.route('/api/reports', reportsRoutes);
+app.route('/api/internal/reports', internalReports);
 
 // 404
 app.notFound((c) =>
@@ -200,4 +203,22 @@ app.onError((err, c) => {
   return c.json({ error: 'internal_error' }, 500);
 });
 
-export default app;
+// ── 精选报告定时生成（M7-03）────────────────────────────────────
+// Cron 表达式为 UTC：周日 23:30 UTC = 周一 07:30 Asia/Shanghai（汇总上一个自然周）；
+// 每月 1 日 23:40 UTC = 2 日 07:40 Asia/Shanghai（汇总上一个自然月）。
+export const WEEKLY_REPORT_CRON = '30 23 * * 0';
+export const MONTHLY_REPORT_CRON = '40 23 1 * *';
+
+export default {
+  fetch(request: Request, env: Env, ctx: ExecutionContext): Response | Promise<Response> {
+    return app.fetch(request, env, ctx);
+  },
+  async scheduled(
+    controller: ScheduledController,
+    env: Env,
+    ctx: ExecutionContext
+  ): Promise<void> {
+    const kind = controller.cron === MONTHLY_REPORT_CRON ? 'monthly' : 'weekly';
+    ctx.waitUntil(generateReportsForAllUsers(env.DB, kind, 'previous'));
+  },
+} satisfies ExportedHandler<Env>;

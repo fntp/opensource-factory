@@ -552,6 +552,25 @@ admin 分类建议页 POST /api/category-suggestions/generate {limit?, perRepo?,
 降级：VPS 不可达或某仓库未返回建议时，edge 用同一套业务线词表本地兜底（`source=local` /
 `mixed`）；语言仅作弱信号，单独命中不会超过默认阈值。生成只写建议表，采纳前不修改仓库分类；
 已采纳 / 已忽略的建议不会被重复生成覆盖。
+### 3.16 精选报告生成流（M7-03）
+
+```
+Cloudflare Cron（周日 23:30 UTC / 每月 1 日 23:40 UTC）
+→ edge scheduled handler：枚举 D1 users，按上一个完整周期生成
+   ├─ my_repositories（user_id 隔离）+ repo_tags / tags + categories
+   ├─ recommendations（user_id 或全局；排除 dismissed / expired / saved）
+   └─ trending_snapshots（周期内 star_delta / rank）
+→ 纯函数 buildReport：统计口径 → 四个分节 → 中文摘要 → Markdown
+→ upsert curated_reports（user_id + kind + period_start 唯一）
+
+admin /reports → GET /api/reports（首次访问惰性补齐当前周期）
+→ GET /api/reports/:id（详情）· GET /api/reports/:id/markdown（下载）
+→ POST /api/reports/generate（立即重新生成当前周期）
+```
+
+- 周报按自然周（周一至周日，UTC），月报按自然月；定时任务生成上一个完整周期，页面首次访问生成当前周期；
+- 报告完全由 D1 数据确定性生成，不调用 LLM / VPS；同一用户同一周期重复生成走幂等 upsert；
+- `curated_reports` 保存 stats / sections JSON 与预渲染 Markdown，列表接口不返回大字段。
 
 ## 4. 接口边界
 
@@ -618,6 +637,10 @@ admin 分类建议页 POST /api/category-suggestions/generate {limit?, perRepo?,
 | `/api/category-suggestions/generate` | POST | 批量生成建议（`repoIds?` / `limit?` / `perRepo?` / `minScore?`；VPS 规则 → 本地兜底） |
 | `/api/category-suggestions/accept` | POST | 采纳建议（`ids[]` 或 `repoId` + `categoryName`；自动建分类并写回仓库分类） |
 | `/api/category-suggestions/dismiss` | POST | 忽略建议（`ids[]`，保留用户决策） |
+| `/api/reports` | GET | 精选报告列表（`kind=all\|weekly\|monthly`、`limit`；`ensure=0` 可关闭惰性生成） |
+| `/api/reports/:id` | GET | 报告详情（统计 + 分节 + Markdown；仅本人可见） |
+| `/api/reports/:id/markdown` | GET | 下载报告 Markdown（`text/markdown` 附件） |
+| `/api/reports/generate` | POST | 立即生成当前周期报告（`kind=weekly\|monthly`） |
 
 ### 4.2 edge ↔ vps（内部 API，`X-Internal-Token`）
 
@@ -722,6 +745,7 @@ admin 分类建议页 POST /api/category-suggestions/generate {limit?, perRepo?,
 | `/api/internal/vectors/stats` | GET | 索引统计 |
 | `/api/internal/vectors/list` | GET | 分页列出 ID（孤儿对账；不支持时返回 501） |
 | `/api/internal/push-preferences` | GET | 读取全部推送偏好（VPS 推送任务使用；`?userId=` 可查单个） |
+| `/api/internal/reports/generate` | POST | 批量 / 指定用户生成精选报告（`kind` / `userId?` / `mode=current\|previous`；Cron 与运维共用） |
 
 ### 4.4 安全运维接口（M5-05）
 
