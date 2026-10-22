@@ -133,7 +133,7 @@ recommendations              （user_id 可空 = 全局推荐）
 | error TEXT | 失败原因（已替换密码 / 用户名，截断 300 字符） |
 | created_at / finished_at | 创建 / 完成时间 |
 
-### 3.6 `telegram_deliveries` Telegram 送达记录（M4-04，VPS 本地）
+### 3.7 `telegram_deliveries` Telegram 送达记录（M4-04，VPS 本地）
 
 | 字段 | 说明 |
 | --- | --- |
@@ -148,7 +148,43 @@ recommendations              （user_id 可空 = 全局推荐）
 | error TEXT | 失败原因（截断、已脱敏） |
 | created_at / finished_at | 开始 / 结束时间 |
 
-> 本表为 M4-04 的通道级记录；M4-08「推送记录与回执」落地后可扩展为全通道统一表。
+> 本表为 M4-04 的通道级记录；M4-08 起每次发送同时写入 `push_deliveries` 统一表，
+> 原表继续保留用于通道侧幂等与对账。
+
+### 3.8 `push_deliveries` 统一推送投递记录（M4-08，VPS 本地）
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | 统一投递记录 id（UUID hex） |
+| channel TEXT | `bark` / `telegram` / `email` |
+| kind TEXT | `digest` / `test` / `single` |
+| target TEXT | 目标原值（API 输出脱敏；Bark 存 group 名，不存 device key） |
+| target_type TEXT | `chat` / `email` / `group` |
+| status TEXT | `pending` / `sent` / `delivered` / `failed` / `skipped` |
+| item_count / message_count | 推送条目数 / 实际消息条数 |
+| message_id TEXT | 服务商消息 id（Email Message-ID / Telegram message_id） |
+| subject TEXT | 邮件主题 / Bark 标题 |
+| dedupe_key TEXT | 通道幂等键，用于和通道表对账 |
+| receipt_status TEXT | 最新回执状态：`accepted` / `delivered` / `bounced` / `failed` |
+| receipt_detail TEXT | 最新回执说明（脱敏、截断） |
+| error TEXT | 发送失败原因（脱敏、截断 500 字符） |
+| attempts INTEGER | 尝试次数（当前固定 1，预留重投） |
+| source_id TEXT | 通道原表 id；Bark 为推荐 id |
+| user_id TEXT | 关联用户 |
+| created_at / sent_at / finished_at / delivered_at | 生命周期时间 |
+
+### 3.9 `push_receipts` 推送回执流水（M4-08，VPS 本地）
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | 回执 id |
+| delivery_id TEXT | 关联 `push_deliveries.id` |
+| channel TEXT | 冗余通道，便于统计 |
+| status TEXT | `accepted` / `delivered` / `bounced` / `failed` |
+| source TEXT | `provider` / `manual` / `system` |
+| external_id TEXT | 服务商回执 id，用于幂等 |
+| detail TEXT | 回执说明（脱敏、截断） |
+| occurred_at / created_at | 回执发生 / 落库时间 |
 
 ## 4. 索引策略
 
@@ -160,8 +196,9 @@ recommendations              （user_id 可空 = 全局推荐）
 | repo_tags | `(repo_id)`、`(tag_id)` | 反查 |
 | recommendations | `(user_id, score DESC)`、`(evaluation_run_id)` | 推荐列表 / 评估批次查询 |
 | email_deliveries | `(dedupe_key, status)` | 每日摘要幂等校验 / 送达排查 |
-
 | telegram_deliveries | `(dedupe_key, status)`、`(dedupe_key)` | 当日幂等与送达记录查询 |
+| push_deliveries | `(channel)`、`(status)`、`(created_at)`、`(dedupe_key)`、`(source_id)`、`(user_id)` | 记录列表过滤 / 统计 / 对账 |
+| push_receipts | `(delivery_id)`、`(status)`、`(external_id)` | 回执时间线 / 幂等 |
 
 ## 5. 向量数据（M3）
 

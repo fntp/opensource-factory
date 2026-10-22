@@ -51,10 +51,9 @@
 | IT-0014 | M3-05 | 每日推荐生成任务（阈值 / 去重已收藏 / 打分） | M3-02 | ✅ 已完成（2026-10-22） |
 | IT-0015 | M4-01 | 每日评估任务（质量分 + 匹配度阈值） | M3-05 | ✅ 已完成（2026-10-22） |
 | IT-0016 | M4-05 | Email 通道（SMTP）：摘要投递 / 幂等 / 送达记录 / 状态与测试接口 | M4-01 | ✅ 已完成（2026-10-22） |
-
-| IT-0016 | M4-03 | Bark 通道（09:05 投递 / 幂等 / 失败重试 / dry-run） | M4-01（M4-02 并行） | ✅ 已完成（2026-10-22） |
-
-| IT-0016 | M4-04 | Telegram 通道（每日摘要 / 重试 / 送达记录） | M4-01 / M4-02 | ✅ 已完成（2026-10-22） |
+| IT-0017 | M4-03 | Bark 通道（09:05 投递 / 幂等 / 失败重试 / dry-run） | M4-01（M4-02 并行） | ✅ 已完成（2026-10-22） |
+| IT-0018 | M4-04 | Telegram 通道（每日摘要 / 重试 / 送达记录） | M4-01 / M4-02 | ✅ 已完成（2026-10-22） |
+| IT-0019 | M4-08 | 推送记录与回执（统一记录 / 回执流水 / 列表 / 统计 / 详情） | M4-03~05 | ✅ 已完成（2026-10-22） |
 
 > 说明：IT-0004 / IT-0005 在人工资源（Cloudflare 账号、OAuth App）就绪前，可先以 `wrangler --local` + 本地回调完成开发与验证；其余按需求池顺序滚动排期。
 
@@ -72,7 +71,6 @@
 | 2026-10-22 | 交付 | IT-0014 / M3-05 完成：每日推荐生成（阈值 / 去重已收藏 / 综合打分 / `expired` 状态）+ Celery beat 08:30；计划见 `plan-req-202610-0923-daily-recommendations.md` |
 | 2026-10-22 | 交付 | IT-0015 / M4-01 完成：每日评估（质量分 = 仓库 × 0.7 + 理由 × 0.3，匹配度 / 质量分双门槛）+ Celery beat 08:45；计划见 `plan-req-202610-0930-daily-evaluation.md` |
 | 2026-10-22 | 交付 | IT-0016 / M4-05 完成：Email 通道（SMTP）每日摘要 + `email_deliveries` 幂等 / 送达记录 + 状态 / 测试接口 + Celery beat 09:10；计划见 `plan-req-202610-0934-email-channel.md` |
-
-| 2026-10-22 | 交付 | IT-0016 / M4-03 完成：Bark 推送通道（`pushed` 推荐 09:05 投递、`bark_sent_at` / `bark_error` 幂等与重试、测试 / 状态 / 手动触发接口、dry-run）+ 17 用例；计划见 `plan-req-202610-0932-bark-channel.md` |
-
-| 2026-10-22 | 交付 | IT-0016 / M4-04 完成：Telegram 通道（每日摘要 / HTML 分片 / 429·5xx 重试 / `telegram_deliveries` 幂等）+ Celery beat 09:05；计划见 `plan-req-202610-0933-telegram-channel.md` |
+| 2026-10-22 | 交付 | IT-0017 / M4-03 完成：Bark 推送通道（`pushed` 推荐 09:05 投递、`bark_sent_at` / `bark_error` 幂等与重试、测试 / 状态 / 手动触发接口、dry-run）+ 17 用例；计划见 `plan-req-202610-0932-bark-channel.md` |
+| 2026-10-22 | 交付 | IT-0018 / M4-04 完成：Telegram 通道（每日摘要 / HTML 分片 / 429·5xx 重试 / `telegram_deliveries` 幂等）+ Celery beat 09:05；计划见 `plan-req-202610-0933-telegram-channel.md` |
+| 2026-10-22 | 交付 | IT-0019 / M4-08 完成：统一推送记录（`push_deliveries`）+ 回执流水（`push_receipts`）+ 列表 / 统计 / 详情 / 回执接口，接入 Bark / Telegram / Email；计划见 `plan-req-202610-0937-push-records.md` |

@@ -26,6 +26,10 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.models import Recommendation, TelegramDelivery, TrendingRepository
+from app.services.push_records import (
+    create_delivery as create_push_delivery,
+    finish_by_source,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -441,6 +445,17 @@ def _create_delivery(
     db.add(delivery)
     db.commit()
     db.refresh(delivery)
+    create_push_delivery(
+        db,
+        channel="telegram",
+        kind=kind,
+        target=chat_id,
+        target_type="chat",
+        status="pending",
+        item_count=item_count,
+        dedupe_key=dedupe_key,
+        source_id=delivery.id,
+    )
     return delivery
 
 
@@ -460,6 +475,15 @@ def _finish_delivery(
     delivery.error = (error or "")[:500] or None
     delivery.finished_at = _utcnow()
     db.commit()
+    finish_by_source(
+        db,
+        channel="telegram",
+        source_id=delivery.id,
+        status=status,
+        message_count=message_count,
+        message_id=delivery.message_id,
+        error=delivery.error,
+    )
 
 
 def send_digest(

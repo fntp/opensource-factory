@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.models import EmailDelivery, MyRepository, Recommendation, TrendingRepository
+from app.services.push_records import record_delivery as record_push_delivery
 
 logger = logging.getLogger(__name__)
 
@@ -569,6 +570,21 @@ def _record_delivery(
     db.add(delivery)
     db.commit()
     db.refresh(delivery)
+    record_push_delivery(
+        db,
+        channel="email",
+        kind=kind,
+        target=", ".join(recipients),
+        target_type="email",
+        ok=status == "sent",
+        item_count=item_count,
+        message_count=1 if status == "sent" else 0,
+        message_id=message_id,
+        subject=subject,
+        dedupe_key=dedupe_key,
+        error=error,
+        source_id=delivery.id,
+    )
     return delivery
 
 

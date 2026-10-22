@@ -23,6 +23,11 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.models import MyRepository, Recommendation, TrendingRepository
+from app.services.push_records import (
+    create_delivery,
+    finish_delivery,
+    record_delivery,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -284,6 +289,7 @@ def send_bark_test(
     url: Optional[str] = None,
     settings: Optional[Settings] = None,
     client: Optional[BarkClient] = None,
+    db: Optional[Session] = None,
 ) -> BarkResult:
     """发送一条测试通知；未启用 / 未配置时抛出 `BarkConfigError`。"""
     cfg = settings or get_settings()
@@ -301,10 +307,35 @@ def send_bark_test(
     )
     bark = client or BarkClient(cfg)
     try:
-        return bark.send(message)
+        result = bark.send(message)
+    except Exception as exc:  # noqa: BLE001 - 记录失败后继续向上抛
+        if db is not None:
+            record_delivery(
+                db,
+                channel="bark",
+                kind="test",
+                target=cfg.BARK_GROUP or "OpenFactory",
+                target_type="group",
+                ok=False,
+                subject=message.title,
+                error=f"发送异常：{type(exc).__name__}: {truncate_text(exc, 200)}",
+            )
+        raise
     finally:
         if client is None:
             bark.close()
+    if db is not None:
+        record_delivery(
+            db,
+            channel="bark",
+            kind="test",
+            target=cfg.BARK_GROUP or "OpenFactory",
+            target_type="group",
+            ok=result.ok,
+            subject=message.title,
+            error=result.error,
+        )
+    return result
 
 
 def _count(db: Session, *conditions: Any) -> int:
@@ -401,6 +432,7 @@ def dispatch_bark_notifications(
         "dryRun": bool(cfg.BARK_DRY_RUN),
         "errors": [],
         "previews": [],
+        "deliveryIds": [],
     }
     if not rows:
         return stats
@@ -417,6 +449,20 @@ def dispatch_bark_notifications(
                 row.bark_error = truncate_text(
                     f"构建消息失败：{type(exc).__name__}: {exc}", MAX_ERROR_LENGTH
                 )
+                record = record_delivery(
+                    db,
+                    channel="bark",
+                    kind="single",
+                    target=cfg.BARK_GROUP or "OpenFactory",
+                    target_type="group",
+                    ok=False,
+                    item_count=1,
+                    dedupe_key=f"bark:{row.id}",
+                    source_id=row.id,
+                    user_id=row.user_id,
+                    error=row.bark_error,
+                )
+                stats["deliveryIds"].append(record.id)
                 stats["failed"] += 1
                 stats["errors"].append(
                     {"recommendationId": row.id, "error": row.bark_error}
@@ -425,6 +471,21 @@ def dispatch_bark_notifications(
                 continue
 
             if cfg.BARK_DRY_RUN:
+                record = create_delivery(
+                    db,
+                    channel="bark",
+                    kind="single",
+                    target=cfg.BARK_GROUP or "OpenFactory",
+                    target_type="group",
+                    status="skipped",
+                    item_count=1,
+                    subject=message.title,
+                    dedupe_key=f"bark:{row.id}",
+                    source_id=row.id,
+                    user_id=row.user_id,
+                    error="dry_run",
+                )
+                stats["deliveryIds"].append(record.id)
                 stats["skipped"] += 1
                 stats["previews"].append(
                     {
@@ -437,6 +498,20 @@ def dispatch_bark_notifications(
                 )
                 continue
 
+            record = create_delivery(
+                db,
+                channel="bark",
+                kind="single",
+                target=cfg.BARK_GROUP or "OpenFactory",
+                target_type="group",
+                status="pending",
+                item_count=1,
+                subject=message.title,
+                dedupe_key=f"bark:{row.id}",
+                source_id=row.id,
+                user_id=row.user_id,
+            )
+            stats["deliveryIds"].append(record.id)
             try:
                 result = bark.send(message)
             except Exception as exc:  # noqa: BLE001 - 客户端异常同样降级为失败
@@ -447,9 +522,13 @@ def dispatch_bark_notifications(
             if result.ok:
                 row.bark_sent_at = _utcnow()
                 row.bark_error = None
+                finish_delivery(db, record, status="sent")
                 stats["sent"] += 1
             else:
                 row.bark_error = truncate_text(result.error or "未知错误", MAX_ERROR_LENGTH)
+                finish_delivery(
+                    db, record, status="failed", error=row.bark_error
+                )
                 stats["failed"] += 1
                 stats["errors"].append(
                     {"recommendationId": row.id, "error": row.bark_error}

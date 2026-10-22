@@ -35,18 +35,16 @@ vps/
 │   │   ├── recommendation_service.py # 每日推荐：画像 / 去重已收藏 / 阈值 / 落库
 │   │   ├── recommendation_eval.py # 每日评估：质量分 / 匹配度门槛 / 运行记录（M4-01）
 │   │   ├── email_channel.py      # Email 摘要：SMTP 投递 / 幂等 / 送达记录（M4-05）
-
 │   │   ├── bark.py               # Bark 推送通道：消息构建 / 投递 / 状态（M4-03）
-
 │   │   ├── telegram.py           # Telegram 摘要：HTML / 分片 / 重试 / 送达记录（M4-04）
+│   │   ├── push_records.py       # 统一推送记录 / 回执 / 统计（M4-08）
 │   │   └── vector_sync.py        # Vectorize 批量 upsert / 重试 / 对账 / 孤儿清理
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
 │   │   ├── trending.py           # GET /api/trending、POST /api/trending/crawl
 │   │   ├── recommend.py          # /api/recommend/*（查询 / 生成 / 评估 / 合格推荐）
-│   │   ├── notifications.py      # /api/notifications/email/*（状态 / 测试邮件）
-
-│   │   ├── push.py               # /api/push/bark/*（状态 / 测试 / 投递入队）
+│   │   ├── notifications.py      # /api/notifications/{email,telegram}/*（状态 / 测试）
+│   │   ├── push.py               # /api/push/*（Bark 通道 + 推送记录 / 回执）
 
 │   │   ├── notifications.py      # /api/notifications/telegram/*（状态 / 测试消息，M4-04）
 │   │   ├── vector_sync.py        # /api/vector-index/*（同步入队、状态、运行记录）
@@ -150,8 +148,6 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | `EMAIL_RETRY_BASE_SECONDS` | `0.5` | 重试指数退避基数 |
 | `EMAIL_DAILY_LIMIT` | `10` | 单封摘要最多包含的推荐数 |
 | `EMAIL_DIGEST_WINDOW_HOURS` | `24` | 摘要回溯窗口（小时） |
-| `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/vector-index/*`、`/api/notifications/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
-
 | `BARK_ENABLED` | `false` | Bark 推送通道总开关 |
 | `BARK_SERVER_URL` | `https://api.day.app` | Bark 服务地址（支持自建，自动拼接 `/push`） |
 | `BARK_DEVICE_KEY` | 空 | Bark device key（密钥，仅存 `.env`，接口不回显） |
@@ -162,7 +158,6 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | `BARK_TIMEOUT_SECONDS` | `10` | 单次请求超时 |
 | `BARK_MAX_PER_RUN` | `5` | 单次任务最多投递条数 |
 | `BARK_DRY_RUN` | `false` | 试运行：只生成消息不发送、不写投递标记 |
-
 | `TELEGRAM_ENABLED` | `false` | Telegram 通道总开关；关闭时任务直接跳过 |
 | `TELEGRAM_BOT_TOKEN` | 空 | BotFather 颁发的 Bot Token（机密，仅存本机 `.env`） |
 | `TELEGRAM_CHAT_ID` | 空 | 接收推送的私聊 / 群组 id（群组为负数） |
@@ -172,12 +167,11 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | `TELEGRAM_RETRY_BASE_SECONDS` | `0.5` | 指数退避基数（429 优先用 `retry_after`） |
 | `TELEGRAM_DAILY_LIMIT` | `10` | 单条摘要最多包含的推荐数 |
 | `TELEGRAM_DIGEST_WINDOW_HOURS` | `24` | 摘要只取最近 N 小时进入 `pushed` 的推荐 |
-| `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/vector-index/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
+| `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/vector-index/*`、`/api/notifications/*`、`/api/push/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
 | `EMBEDDING_FORCE_FALLBACK` | `0` | 置 `1` 强制使用确定性 hash 向量（CI / 2G 预算紧张时） |
 | `VECTORIZE_BATCH_SIZE` | `32` | 向量化每批编码 / 提交条数（1~256） |
 | `VECTORIZE_MAX_PER_RUN` | `1000` | 单次向量化默认上限 |
 | `VECTORIZE_AUTO` | `1` | 同步 / 热榜抓取完成后自动入队增量向量化 |
-| `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
 | `CELERY_TASK_ALWAYS_EAGER` | `0` | 置 `1` 时任务同步执行（本地调试 / 测试用） |
 | `GITHUB_TOKEN` | 空 | GitHub PAT（仅需 read 权限）；为空时同步任务跳过 |
 
@@ -195,7 +189,6 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | POST | `/api/tasks/evaluate-recommendations` | 入队每日评估（可选 `user_id`、`match_threshold`、`quality_threshold`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/daily-push` | 入队每日推送准备（仅将 `qualified` 推荐标记为 `pushed`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/send-email-digest` | 入队 Email 每日摘要（可选 `user_id`、`limit`、`force`） | `202 {"taskId": "..."}` |
-
 | POST | `/api/tasks/send-telegram-digest` | 入队 Telegram 每日摘要（可选 `user_id` / `limit` / `force`） | `202 {"taskId": "..."}` |
 | GET | `/api/notifications/telegram/status` | Telegram 通道开关 / 配置状态 / 最近送达（chat id 脱敏） | `200 {...}` |
 | POST | `/api/notifications/telegram/test` | 同步发送一条 Telegram 测试消息（`{"text": "..."}` 可选） | `200 {...}` / `409` / `502` |
@@ -207,16 +200,19 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | GET | `/api/vector-index/runs/{run_id}` | 单次运行详情 | `200 {...}` |
 | GET | `/api/notifications/email/status` | Email 通道开关、配置完整性与最近送达（收件人脱敏） | `200 {...}` |
 | POST | `/api/notifications/email/test` | 发送测试邮件（`to` / `subject` / `body` 均可选） | `200 {...}`；未启用 / 未配置 `409` |
-
 | GET | `/api/push/bark/status` | Bark 通道状态与待投递 / 已投递 / 失败计数 | `200 {...}` |
 | POST | `/api/push/bark/test` | 同步发送 Bark 测试通知（需已配置） | `200 {"ok":true}` |
 | POST | `/api/push/bark/dispatch` | 入队 Bark 投递（可选 `user_id` / `limit`） | `202 {"taskId":"..."}` |
-
-Celery beat 每 30 分钟（`7,37` 分）自动执行一次增量同步；对账建议在低峰期手动触发。
+| GET | `/api/push/records` | 统一推送记录（`channel` / `status` / `kind` / `user_id` / `q` / 时间 + 分页） | `200 {...}` |
+| GET | `/api/push/records/stats` | 投递统计（分通道 / 分状态 / 回执 / 送达率） | `200 {...}` |
+| GET | `/api/push/records/{id}` | 投递详情 + 回执时间线 | `200 {...}` / `404` |
+| POST | `/api/push/receipts` | 写入送达回执（`deliveryId` / `status` / `source` / `externalId`） | `200 {...}` / `400` / `404` |
 | GET | `/api/vectors/stats` | 向量覆盖率与最近运行 | `200` |
 | GET | `/api/vectors/runs?limit=20` | 最近向量化运行 | `200` |
 | GET | `/api/vectors/runs/{runId}` | 单次运行详情（含游标 / 计数 / 错误） | `200` |
 | GET | `/api/vectors/{source}/{repoId}` | 单条仓库向量（`source=my\|trending`） | `200` |
+
+Celery beat 每 30 分钟（`7,37` 分）自动执行一次向量索引增量同步；对账建议在低峰期手动触发。
 
 约定：
 
@@ -406,7 +402,37 @@ curl -sS -X POST 'http://127.0.0.1:8000/api/tasks/send-telegram-digest?force=tru
 ```
 
 > 单用户口径：`TELEGRAM_CHAT_ID` 为一个会话；多用户 / 多会话偏好由 M4-06 承接，
-> 去重与静默策略由 M4-07 承接，送达回执由 M4-08 承接。
+> 去重与静默策略由 M4-07 承接。
+
+## 推送记录与回执（M4-08）
+
+Bark / Telegram / Email 每次实际发送都会写一条 `push_deliveries`，并在发送结束后回写
+`sent` / `failed` / `skipped`；服务商异步回执或人工补记通过 `POST /api/push/receipts`
+写入 `push_receipts`，支持 `accepted / delivered / bounced / failed` 四种状态。
+
+```bash
+# 最近 7 天的记录（可按 channel / status / kind / q / date_from / date_to 过滤）
+curl -sS 'http://127.0.0.1:8000/api/push/records?date_from=2026-10-15T00:00:00&page=1&pageSize=20' \
+  -H 'X-Internal-Token: <token>'
+
+# 统计
+curl -sS 'http://127.0.0.1:8000/api/push/records/stats?days=30' \
+  -H 'X-Internal-Token: <token>'
+
+# 写入回执（服务商回调或人工确认）
+curl -sS -X POST 'http://127.0.0.1:8000/api/push/receipts' \
+  -H 'Content-Type: application/json' \
+  -H 'X-Internal-Token: <token>' \
+  -d '{"deliveryId":"<id>","status":"delivered","source":"manual","detail":"人工确认已送达"}'
+```
+
+说明：
+
+- 列表接口的 `days` 只用于 `stats`；记录列表用 `date_from` / `date_to`（ISO 时间）过滤；
+- 目标字段统一脱敏：邮箱 `a***@example.com`，chat id `12***89`，Bark group 原样返回；
+- 同一 `deliveryId + externalId + status` 重复回调幂等；已 `delivered` 的记录不会被迟到回执降级；
+- Bark / Telegram 官方 API 没有逐条送达回执，默认只有发送结果；需要精确送达时由服务商适配器或人工补记；
+- 历史 `telegram_deliveries` / `email_deliveries` 不回填，统一记录从本版本起生效。
 
 ## 常用检查
 

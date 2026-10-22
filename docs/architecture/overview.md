@@ -141,7 +141,7 @@ BARK_DRY_RUN=true → 只返回预览，不发送、不写标记；
 
 M4-02 站内通知中心与本通道消费同一批 `pushed` 推荐，彼此独立：站内通知失败不影响 Bark 投递，反之亦然。
 
-### 3.7 Telegram 推送流（M4-04）
+### 3.9 Telegram 推送流（M4-04）
 
 ```
 Celery beat 09:05（daily_push 之后）或 POST /api/tasks/send-telegram-digest
@@ -154,6 +154,22 @@ Celery beat 09:05（daily_push 之后）或 POST /api/tasks/send-telegram-digest
 
 未启用 / 未配置 / 无数据时任务返回结构化状态并直接跳过，不访问网络；Bot Token 仅存
 VPS 本机 `.env`，状态接口只返回脱敏 chat id。
+
+### 3.10 推送记录与回执（M4-08）
+
+```
+Bark / Telegram / Email 每次实际发送
+→ push_records.create_delivery：写 push_deliveries（channel / kind / target / status）
+→ 发送结束：finish_delivery 回写 sent / failed / skipped、消息数与 message_id
+→ 服务商回调或人工补记：POST /api/push/receipts
+→ push_receipts 追加 accepted / delivered / bounced / failed 流水
+→ 回执更新 push_deliveries.receipt_status，并同步 email_deliveries / telegram_deliveries 状态
+```
+
+查询：`GET /api/push/records`（通道 / 状态 / 类型 / 时间 / 关键字 + 分页）、
+`GET /api/push/records/stats`（分通道 / 分状态计数与送达率）、
+`GET /api/push/records/{id}`（详情 + 回执时间线）。目标在 API 输出时统一脱敏；
+已 `delivered` 的记录不会被迟到的 `accepted` / `bounced` 回执降级。
 
 ## 4. 接口边界
 
@@ -184,7 +200,6 @@ VPS 本机 `.env`，状态接口只返回脱敏 chat id。
 | `/api/tasks/send-email-digest` | POST | 入队 Email 每日摘要（`user_id` / `limit` / `force`） |
 | `/api/notifications/email/status` | GET | Email 通道状态与最近送达（脱敏） |
 | `/api/notifications/email/test` | POST | 发送测试邮件（未启用 / 未配置 409） |
-
 | `/api/tasks/send-telegram-digest` | POST | 入队 Telegram 每日摘要（M4-04，可选 `user_id` / `limit` / `force`） |
 | `/api/notifications/telegram/status` | GET | Telegram 通道状态（不返回 token，chat id 脱敏） |
 | `/api/notifications/telegram/test` | POST | 发送 Telegram 测试消息 |
@@ -200,6 +215,10 @@ VPS 本机 `.env`，状态接口只返回脱敏 chat id。
 | `/api/push/bark/status` | GET | Bark 通道状态与待投递 / 已投递 / 失败计数 |
 | `/api/push/bark/test` | POST | 同步发送 Bark 测试通知 |
 | `/api/push/bark/dispatch` | POST | 入队 Bark 投递（`user_id` / `limit` 可选） |
+| `/api/push/records` | GET | 统一推送记录（通道 / 状态 / 时间 / 关键字 + 分页） |
+| `/api/push/records/stats` | GET | 投递统计（分通道 / 分状态 / 回执 / 送达率） |
+| `/api/push/records/{id}` | GET | 投递详情 + 回执时间线 |
+| `/api/push/receipts` | POST | 写入送达回执（服务商 / 人工，幂等） |
 | `/healthz` | GET | 健康检查 |
 
 ### 4.3 vps → edge（Vectorize 内部接口，`X-Internal-Token`）

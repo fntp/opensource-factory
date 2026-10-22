@@ -295,3 +295,64 @@ class TelegramDelivery(Base):
     error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class PushDelivery(Base):
+    """统一推送投递记录（M4-08）。
+
+    三个站外通道（Bark / Telegram / Email）每次实际发送都写一条，字段口径统一，
+    供 `/api/push/records` 查询与统计；通道原表继续保留，`source_id` 指向原表 id
+    以便对账。`target` 可能是邮箱 / chat id / group 名，API 输出时统一脱敏。
+    """
+
+    __tablename__ = "push_deliveries"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    channel: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False, default="digest")
+    target: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    target_type: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="pending", index=True
+    )  # pending | sent | delivered | failed | skipped
+    item_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    message_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    message_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    subject: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    dedupe_key: Mapped[str] = mapped_column(
+        String(255), nullable=False, default="", index=True
+    )
+    receipt_status: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    receipt_detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    source_id: Mapped[str] = mapped_column(String(64), nullable=False, default="", index=True)
+    user_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=_utcnow, index=True
+    )
+    sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    delivered_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class PushReceipt(Base):
+    """推送送达回执流水（M4-08）。
+
+    一个 delivery 可有多条回执（服务商异步回调 / 人工补记），
+    `delivery_id + external_id + status` 用于幂等去重。
+    """
+
+    __tablename__ = "push_receipts"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    delivery_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    channel: Mapped[str] = mapped_column(String(16), nullable=False, default="", index=True)
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, index=True
+    )  # accepted | delivered | bounced | failed
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="provider")
+    external_id: Mapped[str] = mapped_column(String(255), nullable=False, default="", index=True)
+    detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)

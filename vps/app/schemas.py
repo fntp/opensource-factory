@@ -378,3 +378,89 @@ class EmailSendResponse(BaseModel):
     messageId: Optional[str] = None
     error: Optional[str] = None
     reason: Optional[str] = None
+
+
+class PushDeliveryOut(BaseModel):
+    """统一推送投递记录输出（目标已脱敏）。"""
+
+    id: str
+    channel: str
+    kind: str
+    targetMasked: str = ""
+    targetType: str = ""
+    status: str
+    itemCount: int = 0
+    messageCount: int = 0
+    messageId: Optional[str] = None
+    subject: Optional[str] = None
+    dedupeKey: str = ""
+    receiptStatus: Optional[str] = None
+    receiptDetail: Optional[str] = None
+    error: Optional[str] = None
+    attempts: int = 1
+    sourceId: str = ""
+    userId: Optional[str] = None
+    createdAt: Optional[datetime] = None
+    sentAt: Optional[datetime] = None
+    finishedAt: Optional[datetime] = None
+    deliveredAt: Optional[datetime] = None
+
+
+class PushReceiptOut(BaseModel):
+    """单条送达回执。"""
+
+    id: str
+    deliveryId: str
+    channel: str
+    status: str
+    source: str
+    externalId: Optional[str] = None
+    detail: Optional[str] = None
+    occurredAt: Optional[datetime] = None
+    createdAt: Optional[datetime] = None
+
+
+class PushDeliveryDetailOut(PushDeliveryOut):
+    """投递详情（附回执时间线）。"""
+
+    receipts: list[PushReceiptOut] = Field(default_factory=list)
+
+
+class PushRecordListOut(BaseModel):
+    """投递记录分页响应。"""
+
+    total: int
+    count: int
+    page: int
+    pageSize: int
+    items: list[PushDeliveryOut]
+
+
+class PushStatsOut(BaseModel):
+    """投递统计响应。"""
+
+    windowDays: int
+    total: int
+    byChannel: dict[str, int]
+    byStatus: dict[str, int]
+    receipts: dict[str, int]
+    deliveryRate: float
+
+
+class PushReceiptCreate(BaseModel):
+    """回执写入请求（服务商回调 / 人工补记）。"""
+
+    deliveryId: str = Field(min_length=1, max_length=64)
+    status: Literal["accepted", "delivered", "bounced", "failed"]
+    source: Literal["provider", "manual", "system"] = "provider"
+    externalId: Optional[str] = Field(default=None, max_length=255)
+    detail: Optional[str] = Field(default=None, max_length=1000)
+    occurredAt: Optional[datetime] = None
+
+
+class PushReceiptResponse(BaseModel):
+    """回执写入结果。"""
+
+    ok: bool
+    delivery: PushDeliveryOut
+    receipt: PushReceiptOut
