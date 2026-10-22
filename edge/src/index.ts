@@ -19,6 +19,7 @@ import syncRoutes from './routes/sync';
 import internalTrendingRoutes from './routes/internal-trending';
 import searchRoutes from './routes/search';
 import similarRoutes from './routes/similar';
+import duplicatesRoutes from './routes/duplicates';
 import internalVectorsRoutes from './routes/internal-vectors';
 import internalRecommendationsRoutes from './routes/internal-recommendations';
 
@@ -59,6 +60,7 @@ app.route('/api/sync', syncRoutes);
 app.route('/api/internal/trending', internalTrendingRoutes);
 app.route('/api/search', searchRoutes);
 app.route('/api/similar', similarRoutes);
+app.route('/api/duplicates', duplicatesRoutes);
 app.route('/api/internal/vectors', internalVectorsRoutes);
 app.route('/api/internal/recommendations', internalRecommendationsRoutes);
 

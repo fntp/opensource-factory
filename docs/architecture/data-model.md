@@ -19,6 +19,7 @@ trending_repositories        （最新状态，公共数据）
 trending_snapshots           （按日快照 + 趋势字段）
 summary_quality_samples      （摘要抽检样本，按批次留存）
 recommendations              （user_id 可空 = 全局推荐）
+duplicate_dismissals         （重复检测：按用户忽略的簇）
 ```
 
 ## 2. 核心表（需求原文，字段保持不变）
@@ -172,7 +173,21 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 > （如 `["相似度 87%","语言 Python","技术栈 FastAPI"]`），旧 SQLite 库由 `init_db()` 幂等补列；
 > 生成逻辑见 `vps/app/services/recommend_reason.py`（纯规则，不调用 LLM）。
 
-### 3.7 `crawl_alerts` / `crawl_page_stats` 抓取告警（VPS 本地表）
+### 3.7 `duplicate_dismissals` 重复检测忽略（M6-03）
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | 忽略记录 id（UUID） |
+| user_id | 用户 id（D1 会话用户） |
+| cluster_key TEXT | 重复簇稳定签名（簇成员 `source:repoId` 排序后哈希） |
+| repo_ids TEXT | 簇成员 JSON 数组，便于排查 / 恢复 |
+| reason TEXT | 忽略原因（可选） |
+| created_at | 忽略时间 |
+
+唯一索引 `(user_id, cluster_key)` 保证同一簇重复忽略幂等；按 `(user_id, created_at DESC)` 查已忽略列表。
+簇成员变化后签名改变，旧忽略记录不会误伤新簇，重复项会重新出现供复核。
+
+### 3.8 `crawl_alerts` / `crawl_page_stats` 抓取告警（VPS 本地表）
 
 > 仅存在于 VPS 本地镜像库，不进入 D1；用于热榜抓取的容错基线与值班告警。
 
@@ -214,6 +229,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | recommendations | `(user_id, score DESC)` | 推荐列表 |
 | crawl_alerts | `(dedupe_key)`、`(status)` | 告警去重与未确认列表 |
 | recommendation_feedback | `(user_id, recommendation_id, action)` UNIQUE、`(user_id, created_at)`、`(user_id, repo_id)` | 反馈幂等 / 回流查询 |
+| duplicate_dismissals | `(user_id, cluster_key)` UNIQUE、`(user_id, created_at DESC)` | 重复检测忽略幂等 / 列表 |
 
 ## 5. 向量数据（M3）
 

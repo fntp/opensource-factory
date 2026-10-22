@@ -220,6 +220,27 @@ VPS 不可达 / 种子未向量化 / 0 命中 → edge D1 同语言 + 共享技�
 纯向量近邻复用 M3 `repo_vectors`，不新增表；`scope` 控制候选来源（`my` / `trending` / `all`），
 `excludeSaved` 可排除收藏库；`minScore` 可过滤低分近邻。
 
+### 3.13 重复 / 相似项目检测（M6-03）
+
+```
+admin 重复检测页 POST /api/duplicates/scan {scope, minScore?, maxClusters?}
+→ edge 读取当前用户收藏 + 热榜（上限 500），把 myRepoIds 传给 VPS（不传用户身份）
+→ VPS POST /api/duplicates/scan：
+   地址归一化（platform:owner/repo）→ 名称 SequenceMatcher / token Jaccard
+   → 简介 token Jaccard（中文 bigram）→ 同 model/dim 向量余弦复核
+   → union-find 聚类 → 选保留项 + 字段合并建议（只读，不落库）
+→ edge 按 D1 行水合、二次校验 my 归属、按用户过滤已忽略簇 → 返回簇列表
+```
+
+降级：VPS 不可达时 edge 用名称 / 简介规则本地兜底（`mode=local`）；VPS 可用时本地规则只补扫收藏库
+（`mode=hybrid`）。忽略记录存 D1 `duplicate_dismissals`（按 `user_id + cluster_key` 唯一），
+簇成员变化后 `cluster_key` 改变，会重新出现供复核。
+
+阈值：`DUPLICATE_NAME_THRESHOLD`（0.86）、`DUPLICATE_DESCRIPTION_THRESHOLD`（0.75）、
+`DUPLICATE_VECTOR_THRESHOLD`（0.88）、`DUPLICATE_MIN_CONFIDENCE`（0.70）、
+`DUPLICATE_MAX_REPOS`（500）、`DUPLICATE_MAX_CLUSTERS`（50）。检测为 O(n²) 有界扫描，
+超过 500 个仓库时按 Star 截断，后续可改为分桶 / 向量近邻候选。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -249,6 +270,10 @@ VPS 不可达 / 种子未向量化 / 0 命中 → edge D1 同语言 + 共享技�
 | `/api/sync` | POST | 触发同步任务（202） |
 | `/api/search/semantic` | POST | 语义搜索（`query` / `topK` / `scope`；vectorize → local → keyword 三级降级） |
 | `/api/similar` | GET | 相似项目推荐（`source=my\|trending` / `repoId` / `topK` / `scope` / `minScore` / `excludeSaved`；local → keyword 降级） |
+| `/api/duplicates/scan` | POST | 重复 / 相似项目扫描（`scope` / `minScore` / `maxClusters`；VPS 规则 + 向量 → 本地兜底；需登录） |
+| `/api/duplicates/dismiss` | POST | 忽略一个重复簇（`clusterId` / `repoIds` / `reason`，按用户存 D1） |
+| `/api/duplicates/dismissed` | GET | 当前用户已忽略的重复簇 |
+| `/api/duplicates/dismiss/:clusterId` | DELETE | 取消忽略（恢复展示） |
 
 ### 4.2 edge ↔ vps（内部 API，`X-Internal-Token`）
 
@@ -285,6 +310,7 @@ VPS 不可达 / 种子未向量化 / 0 命中 → edge D1 同语言 + 共享技�
 | `/api/search/query` | POST | 本地 `repo_vectors` 余弦检索（降级路径） |
 | `/api/search/semantic` | POST | 本地检索并水合完整项目信息 |
 | `/api/search/similar` | POST | 相似项目向量近邻（`source` / `repoId` / `topK` / `scope` / `minScore` / `excludeSaved`；返回未水合 hits） |
+| `/api/duplicates/scan` | POST | 重复 / 相似项目检测（`scope` / `myRepoIds` / `maxRepos` / `maxClusters`；返回未水合簇，只读不落库） |
 | `/api/search/status` | GET | 向量覆盖率、模型分布与最近向量化运行 |
 | `/api/vectors/stats` | GET | 向量覆盖率与最近运行 |
 | `/api/vectors/runs/{runId}` | GET | 向量化运行详情 |

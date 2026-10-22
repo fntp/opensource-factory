@@ -312,6 +312,88 @@ export interface SimilarResponse {
   items: SearchResultItem[];
 }
 
+/** 重复 / 相似项目检测（M6-03） */
+export type DuplicateScope = 'my' | 'trending' | 'all';
+export type DuplicateKind = 'exact' | 'name' | 'semantic' | 'mixed';
+export type DuplicateSource = 'my' | 'trending';
+
+export interface DuplicateSignals {
+  nameSimilarity: number;
+  descriptionSimilarity: number;
+  vectorSimilarity: number | null;
+  exactKey: boolean;
+}
+
+export interface DuplicateMember {
+  source: DuplicateSource;
+  repoId: string;
+  fullName: string;
+  name: string;
+  description: string;
+  language: string;
+  stars: number;
+  url: string;
+  platform: string;
+  categoryId: string;
+  readmeSummary: string;
+  techStack: string[];
+  role: 'canonical' | 'merge';
+  signals: DuplicateSignals;
+}
+
+export interface DuplicateFieldSuggestion {
+  field: string;
+  value: unknown;
+  from: { source: DuplicateSource; repoId: string };
+  reason: string;
+}
+
+export interface DuplicateSuggestion {
+  action: 'merge' | 'review';
+  keep: { source: DuplicateSource; repoId: string };
+  mergeTargets: Array<{ source: DuplicateSource; repoId: string }>;
+  fields: DuplicateFieldSuggestion[];
+  notes: string;
+}
+
+export interface DuplicateCluster {
+  id: string;
+  kind: DuplicateKind;
+  confidence: number;
+  reasons: string[];
+  members: DuplicateMember[];
+  suggestion: DuplicateSuggestion;
+}
+
+export interface DuplicateThresholds {
+  minScore: number;
+  nameThreshold: number;
+  descriptionThreshold: number;
+  vectorThreshold: number;
+  maxRepos: number;
+  maxClusters: number;
+}
+
+export interface DuplicateScanResponse {
+  scanId: string;
+  scope: DuplicateScope;
+  mode: 'vps' | 'hybrid' | 'local';
+  count: number;
+  scanned: number;
+  compared: number;
+  tookMs: number;
+  thresholds: DuplicateThresholds;
+  dismissedCount: number;
+  clusters: DuplicateCluster[];
+}
+
+export interface DuplicateDismissal {
+  clusterId: string;
+  repoIds: string[];
+  reason: string | null;
+  createdAt: string | null;
+}
+
 /** GitHub /user 接口返回（仅取所需字段） */
 export interface GithubUser {
   id: number;

@@ -93,6 +93,14 @@ class Settings(BaseSettings):
     SEARCH_QUERY_EXPANSION_ENABLED: bool = True
     SEARCH_QUERY_EXPANSION_MAX_TERMS: int = 12
 
+    # 重复 / 相似项目检测（M6-03）
+    DUPLICATE_MAX_REPOS: int = 500  # 单次参与扫描的仓库上限（收藏库 + 热榜）
+    DUPLICATE_NAME_THRESHOLD: float = 0.86  # 名称相似度阈值
+    DUPLICATE_DESCRIPTION_THRESHOLD: float = 0.75  # 简介 token 相似度阈值
+    DUPLICATE_VECTOR_THRESHOLD: float = 0.88  # 向量余弦复核阈值
+    DUPLICATE_MIN_CONFIDENCE: float = 0.70  # 低于该置信度的命中丢弃
+    DUPLICATE_MAX_CLUSTERS: int = 50  # 单次返回的重复簇上限
+
     # 推荐生成（M3-05）
     # 最终得分最低阈值（0~1）：相似度 × 权重 + 热榜热度 × 权重
     RECOMMEND_MIN_SCORE: float = 0.30

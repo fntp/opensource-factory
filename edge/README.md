@@ -33,7 +33,9 @@ edge/
 │   ├── 0001_init.sql     # 初始 D1 schema（表 + 索引）
 │   ├── 0002_trending_snapshots.sql  # 热榜按日快照（M2-05）
 │   ├── 0007_trending_summary.sql  # 热榜摘要列（M2-04）
-│   └── 0008_trending_detail.sql  # 热榜详情：平台/Star 查询索引（摘要列见 0007）
+│   ├── 0008_trending_detail.sql  # 热榜详情：平台/Star 查询索引（摘要列见 0007）
+│   ├── 0009_recommendation_feedback.sql # 推荐反馈明细（M3-07）
+│   └── 0010_duplicate_dismissals.sql    # 重复检测按用户忽略（M6-03）
 └── src/
     ├── index.ts          # Hono 入口：CORS、日志、/healthz、路由挂载、404/500
     ├── types.ts          # Env 绑定 + 数据库行 + API 响应实体
@@ -43,6 +45,8 @@ edge/
     │   └── items.ts      # 搜索结果水合（语义搜索 / 相似推荐共用）
     ├── similar/
     │   └── helpers.ts    # 相似推荐参数归一化 + 关键词兜底打分（纯函数）
+    ├── duplicates/
+    │   └── helpers.ts    # 重复检测：地址 / 名称归一化、本地聚类、合并建议（纯函数）
     └── routes/
         ├── auth.ts       # /api/auth/*（login / callback / me / logout）
         ├── repos.ts      # /api/repos
@@ -54,6 +58,7 @@ edge/
         ├── sync.ts       # /api/sync
         ├── search.ts     # /api/search/semantic（查询理解 + Vectorize → 本地向量 → 关键词三级降级）
         ├── similar.ts    # /api/similar（相似项目：VPS 向量近邻 → D1 关键词兜底）
+        ├── duplicates.ts # /api/duplicates/*（重复检测：VPS 规则 + 向量 → 本地兜底；按用户忽略）
         └── internal-vectors.ts # /api/internal/vectors/*（VPS → Vectorize，X-Internal-Token）
 ```
 
@@ -178,6 +183,10 @@ npm run test:m2 -- --strict \
 | `POST /api/sync` | 202 `{"status":"queued"}`（已配置 VPS）或 `{"status":"accepted","note":"vps node not configured"}` |
 | `POST /api/search/semantic` | `SearchResponse`：body `{query, topK?, scope?}`；mode 为 `vectorize` / `local` / `keyword`；`my` 结果仅当前用户；响应可带 `understanding`（查询理解结果），关键词兜底用其扩展词做多词 OR LIKE |
 | `GET /api/similar` | `SimilarResponse`：query `source=my\|trending` / `repoId` / `topK` / `scope` / `minScore` / `excludeSaved`；mode 为 `local`（VPS 向量近邻）/ `keyword`（D1 同语言 + 技术栈兜底）；`source=my` 需登录且只返回当前用户仓库 |
+| `POST /api/duplicates/scan` | `DuplicateScanResponse`：body `{scope, minScore?, maxClusters?}`；mode 为 `vps` / `hybrid` / `local`；返回簇、成员信号、保留项与字段合并建议；需登录，`my` 成员二次校验归属 |
+| `POST /api/duplicates/dismiss` | 忽略重复簇，body `{clusterId, repoIds?, reason?}`；按 `user_id + cluster_key` 幂等 |
+| `GET /api/duplicates/dismissed` | `{count, items:[{clusterId, repoIds, reason, createdAt}]}`（当前用户） |
+| `DELETE /api/duplicates/dismiss/:clusterId` | 取消忽略，返回 `{removed, clusterId}` |
 | `GET /healthz` | `{"status":"ok"}` |
 
 JSON 形状（前端契约，勿改字段名）：
