@@ -30,7 +30,8 @@ edge/
 ├── tsconfig.json         # strict TypeScript 配置（@cloudflare/workers-types）
 ├── wrangler.toml         # Worker 名称、D1 绑定、vars（机密不在此处）
 ├── migrations/
-│   └── 0001_init.sql     # 初始 D1 schema（表 + 索引）
+│   ├── 0001_init.sql     # 初始 D1 schema（表 + 索引）
+│   └── 0010_notifications.sql  # 站内通知表 + 去重/列表索引
 └── src/
     ├── index.ts          # Hono 入口：CORS、日志、/healthz、路由挂载、404/500
     ├── types.ts          # Env 绑定 + 数据库行 + API 响应实体
@@ -43,6 +44,7 @@ edge/
         ├── recommend.ts  # /api/recommendations
         ├── categories.ts # /api/categories
         ├── dashboard.ts  # /api/dashboard/stats
+        ├── notifications.ts  # /api/notifications + /api/internal/notifications
         └── sync.ts       # /api/sync
 ```
 
@@ -131,6 +133,11 @@ npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FR
 | `GET /api/repos?q=&categoryId=` | `RepoItem[]`（会话用户自己的仓库；`q` 模糊匹配名称/描述，`categoryId` 过滤分类） |
 | `GET /api/trending?limit=20` | `TrendingRepo[]`（公开；按 `stars_today` 降序，limit 上限 100） |
 | `GET /api/recommendations` | `Recommendation[]`（用户私有 + 全局，按 `score` 降序；需登录） |
+| `GET /api/notifications?status=&limit=&offset=` | `NotificationsPayload`（`all`/`unread`/`read`，limit ≤100；需登录；惰性物化 `pushed` 推荐） |
+| `GET /api/notifications/unread-count` | `{unread:number}`（侧边栏徽标） |
+| `POST /api/notifications/:id/read` | 单条标记已读（幂等；404 = 不存在或已忽略） |
+| `POST /api/notifications/read-all` | `{updated,unread:0}` |
+| `POST /api/notifications/:id/dismiss` | 忽略通知，并同步关联推荐状态为 `dismissed` |
 | `GET /api/categories` | `CategoriesPayload` |
 | `GET /api/dashboard/stats` | `DashboardStats` |
 | `POST /api/sync` | 202 `{"status":"queued"}`（已配置 VPS）或 `{"status":"accepted","note":"vps node not configured"}` |

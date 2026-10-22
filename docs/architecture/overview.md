@@ -75,6 +75,16 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 → 结果聚合排序 → 返回（含匹配度与理由）；每日推送任务见 M4
 ```
 
+### 3.5 站内通知流（M4-02）
+
+```
+VPS 每日评估 → recommendations.status = 'pushed'
+→ admin 打开通知中心 / 轮询未读数 → edge 惰性物化 notifications（幂等）
+→ 用户标记已读 / 全部已读 / 忽略 → 未读数徽标同步刷新
+```
+
+通知正文与推荐快照同表存储，前端无需二次请求推荐接口；同一 `(user_id, recommendation_id)` 只生成一条通知。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -90,6 +100,11 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 | `/api/recommendations` | GET | 推荐列表 |
 | `/api/categories` | GET | 分类 + 标签 |
 | `/api/dashboard/stats` | GET | 仪表盘统计 |
+| `/api/notifications` | GET | 通知列表（`?status=` / `?limit=` / `?offset=`，需登录） |
+| `/api/notifications/unread-count` | GET | 未读数（侧边栏徽标轮询） |
+| `/api/notifications/:id/read` | POST | 单条标记已读（幂等） |
+| `/api/notifications/read-all` | POST | 全部标记已读 |
+| `/api/notifications/:id/dismiss` | POST | 忽略通知（同步推荐状态） |
 | `/api/sync` | POST | 触发同步任务（202） |
 
 ### 4.2 edge ↔ vps（内部 API，`X-Internal-Token`）
@@ -100,6 +115,8 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 | `/api/tasks/crawl-trending` | POST | 入队热榜抓取 |
 | `/api/tasks/generate-recommendations` | POST | 入队推荐生成 |
 | `/api/tasks/daily-push` | POST | 入队每日推送 |
+| `/api/internal/notifications` | POST | 批量写入站内通知（`X-Internal-Token`，单批 ≤100） |
+| `/api/internal/notifications/sync-recommendations` | POST | 物化指定用户的 `pushed` 推荐为通知 |
 | `/api/tasks/{taskId}` | GET | 任务状态 |
 | `/healthz` | GET | 健康检查 |
 

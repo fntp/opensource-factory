@@ -13,6 +13,7 @@
 | `/categories` | 分类与标签 | 无限级分类 + 标签云 |
 | `/trending` | 每日热榜 | GitHub Trending 抓取结果 |
 | `/recommend` | 智能推荐 | 语义匹配推荐（含匹配度与理由） |
+| `/notifications` | 通知中心 | 站内通知（全部/未读/已读筛选、标记已读、忽略，侧边栏未读徽标） |
 | `/settings/*` | 设置 | 账号、外观等（模板内置） |
 | `/sign-in` | 登录 | 仅 GitHub 授权登录（+ 演示模式） |
 
@@ -55,7 +56,7 @@ npm run format     # Prettier 格式化
 ```
 src/
 ├── components/        # 通用组件（layout / ui / ...）
-├── features/          # 业务模块（dashboard / repos / trending / recommend / categories / auth）
+├── features/          # 业务模块（dashboard / repos / trending / recommend / notifications / categories / auth）
 ├── routes/            # TanStack Router 文件式路由
 ├── stores/            # zustand 状态（auth-store 等）
 └── lib/               # 工具（api.ts 等）
