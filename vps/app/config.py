@@ -201,6 +201,22 @@ class Settings(BaseSettings):
     # 从 edge 拉取偏好的超时（秒）
     PUSH_PREFERENCES_TIMEOUT_SECONDS: float = 10.0
 
+    # 推送去重与静默（M4-07）
+    # 总开关；关闭时 daily_push 保持旧行为（只把 qualified 标记为 pushed）。
+    PUSH_POLICY_ENABLED: bool = True
+    # 静默时段（用户本地时区，HH:MM）；留空或开始 / 结束相同表示不静默。
+    PUSH_QUIET_HOURS_START: str = "22:00"
+    PUSH_QUIET_HOURS_END: str = "08:00"
+    PUSH_TIMEZONE: str = "Asia/Shanghai"
+    # 每用户每日最多推送条数（按去重仓库计数；0 表示不限）。
+    PUSH_DAILY_LIMIT: int = 3
+    # 同一用户同一仓库的去重窗口（天；0 表示只做当日幂等）。
+    PUSH_DEDUPE_DAYS: int = 7
+    # true 时跨通道去重；false 时仅同通道去重。
+    PUSH_DEDUPE_CROSS_CHANNEL: bool = True
+    # 静默结束后的重试任务间隔（分钟）。
+    PUSH_RETRY_INTERVAL_MINUTES: int = 30
+
     # 内部接口鉴权（设置后 /api/tasks/*、/api/push/*、/api/vector-index/*、/api/search/* 校验 X-Internal-Token）
     INTERNAL_TOKEN: str = ""
 

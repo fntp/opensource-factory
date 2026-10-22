@@ -596,22 +596,33 @@ def _resolve_push_now(value: Optional[str | datetime]) -> datetime:
     return current
 
 
-@celery_app.task(name="app.tasks.jobs.daily_push")
-def daily_push(
+def _iso(value: Optional[Any]) -> Optional[str]:
+    """把 datetime 转为 ISO 字符串（None 透传），便于 Celery JSON 序列化。"""
+    return value.isoformat() if value is not None else None
+
+
+def _run_daily_push(
     limit: int = 50,
     user_id: Optional[str] = None,
     respect_schedule: bool = False,
     now: Optional[str | datetime] = None,
 ) -> dict[str, Any]:
-    """按用户推送偏好准备每日推送（M4-06）。
+    """按用户偏好 + 去重 / 静默策略准备每日推送（M4-06 + M4-07）。
 
     - 只处理通过评估的 `qualified` 推荐；
     - 按用户偏好过滤：启用开关、至少一个通道、匹配度 / 质量分阈值；
     - `respect_schedule=true`（Celery beat 使用）时还要求当前时间落在用户推送窗口内；
       手动触发默认立即推送，便于调试与补推；
-    - 标记 `pushed` 后由 edge 站内通知中心惰性物化，Bark / Telegram / Email 通道
-      按 `channels` 结果下发（M4-03~05）。
+    - 统一经过 M4-07 静默 / 去重 / 每日上限闸门：静默期整体 deferred，
+      去重命中标记 `expired`，超限保留 `qualified`；
+    - 通过后标记 `pushed` 并写 `push_events(prepared)`，由站内通知中心与各通道消费。
     """
+    from app.services.push_policy import (
+        evaluate_push,
+        is_quiet_hours,
+        next_allowed_at,
+        record_push_event,
+    )
     from app.services.push_preferences import (
         default_preferences,
         fetch_all_preferences,
@@ -619,13 +630,24 @@ def daily_push(
         is_due,
     )
 
+    settings = get_settings()
+    current = _resolve_push_now(now)
+    policy_enabled = bool(settings.PUSH_POLICY_ENABLED)
+    result: dict[str, Any] = {
+        "status": "ok",
+        "total": 0,
+        "pushed": 0,
+        "skipped": 0,
+        "deferred": 0,
+        "expired": 0,
+        "skippedUsers": 0,
+        "skippedReasons": {},
+        "users": [],
+        "nextAllowedAt": None,
+    }
     db = SessionLocal()
-    pushed = 0
-    skipped_users = 0
-    user_summaries: list[dict[str, Any]] = []
     try:
         preferences = fetch_all_preferences()
-        current = _resolve_push_now(now)
 
         if user_id:
             targets: list[Optional[str]] = [user_id]
@@ -648,41 +670,64 @@ def daily_push(
                 if global_exists:
                     targets = [None]
 
+        if not targets:
+            return result
+
+        def _condition(target: Optional[str]):
+            if target is None:
+                return Recommendation.user_id.is_(None)
+            return or_(
+                Recommendation.user_id == target,
+                Recommendation.user_id.is_(None),
+            )
+
+        # 静默时段：不改状态，整体 deferred，等待 retry_deferred_push 重试（M4-07）。
+        if policy_enabled and is_quiet_hours(current, settings):
+            total = 0
+            for target in targets:
+                total += len(
+                    db.execute(
+                        select(Recommendation.id).where(
+                            Recommendation.status == "qualified",
+                            _condition(target),
+                        )
+                    ).all()
+                )
+            result.update(
+                status="silenced",
+                total=total,
+                deferred=total,
+                nextAllowedAt=_iso(next_allowed_at(current, settings)),
+            )
+            return result
+
         for target in targets:
             prefs = preferences.get(target or "") or default_preferences()
             if not prefs.enabled:
-                skipped_users += 1
-                user_summaries.append(
+                result["skippedUsers"] += 1
+                result["users"].append(
                     {"userId": target, "pushed": 0, "reason": "disabled"}
                 )
                 continue
             if not prefs.channels.any_enabled():
-                skipped_users += 1
-                user_summaries.append(
+                result["skippedUsers"] += 1
+                result["users"].append(
                     {"userId": target, "pushed": 0, "reason": "no_channel"}
                 )
                 continue
-            if respect_schedule and not is_due(prefs, now=current):
-                skipped_users += 1
-                user_summaries.append(
+            if respect_schedule and not is_due(prefs, now=current, settings=settings):
+                result["skippedUsers"] += 1
+                result["users"].append(
                     {"userId": target, "pushed": 0, "reason": "not_due"}
                 )
                 continue
 
-            condition = (
-                Recommendation.user_id.is_(None)
-                if target is None
-                else or_(
-                    Recommendation.user_id == target,
-                    Recommendation.user_id.is_(None),
-                )
-            )
             candidates = (
                 db.execute(
                     select(Recommendation)
                     .where(
                         Recommendation.status == "qualified",
-                        condition,
+                        _condition(target),
                     )
                     .order_by(
                         Recommendation.quality_score.desc(),
@@ -694,14 +739,80 @@ def daily_push(
                 .scalars()
                 .all()
             )
+            result["total"] += len(candidates)
             eligible = filter_recommendations(candidates, prefs)
+            user_pushed = 0
             for row in eligible:
-                row.status = "pushed"
-            pushed += len(eligible)
-            user_summaries.append(
+                if not policy_enabled:
+                    row.status = "pushed"
+                    result["pushed"] += 1
+                    user_pushed += 1
+                    continue
+
+                decision = evaluate_push(
+                    db,
+                    user_id=row.user_id or target or "",
+                    repo_id=row.repo_id,
+                    recommendation_id=row.id,
+                    channel="inapp",
+                    now=current,
+                    settings=settings,
+                )
+                reason = str(decision["reason"])
+                if decision["allowed"]:
+                    row.status = "pushed"
+                    record_push_event(
+                        db,
+                        user_id=row.user_id or target or "",
+                        repo_id=row.repo_id,
+                        recommendation_id=row.id,
+                        channel="inapp",
+                        status="prepared",
+                        reason="daily_push",
+                        now=current,
+                        settings=settings,
+                    )
+                    result["pushed"] += 1
+                    user_pushed += 1
+                    continue
+
+                result["skipped"] += 1
+                reasons = result["skippedReasons"]
+                reasons[reason] = int(reasons.get(reason, 0)) + 1
+                if reason == "duplicate_repo":
+                    # 去重命中：不再进入后续候选，避免每天重复打扰。
+                    row.status = "expired"
+                    result["expired"] += 1
+                    record_push_event(
+                        db,
+                        user_id=row.user_id or target or "",
+                        repo_id=row.repo_id,
+                        recommendation_id=row.id,
+                        channel="inapp",
+                        status="skipped",
+                        reason="duplicate_repo",
+                        now=current,
+                        settings=settings,
+                    )
+                else:
+                    # daily_limit / quiet_hours 等：保留 qualified，等重试或次日。
+                    result["deferred"] += 1
+                    record_push_event(
+                        db,
+                        user_id=row.user_id or target or "",
+                        repo_id=row.repo_id,
+                        recommendation_id=row.id,
+                        channel="inapp",
+                        status="skipped",
+                        reason=reason,
+                        now=current,
+                        settings=settings,
+                    )
+
+            result["users"].append(
                 {
                     "userId": target,
-                    "pushed": len(eligible),
+                    "pushed": user_pushed,
                     "filtered": len(candidates) - len(eligible),
                     "channels": prefs.channels.enabled_keys(),
                 }
@@ -711,14 +822,71 @@ def daily_push(
         db.close()
 
     logger.info(
-        "每日推送准备完成: %d 条（跳过用户 %d）", pushed, skipped_users
+        "每日推送准备完成: total=%d pushed=%d skipped=%d deferred=%d expired=%d（跳过用户 %d）",
+        result["total"],
+        result["pushed"],
+        result["skipped"],
+        result["deferred"],
+        result["expired"],
+        result["skippedUsers"],
     )
-    return {
-        "status": "ok",
-        "pushed": pushed,
-        "skippedUsers": skipped_users,
-        "users": user_summaries,
-    }
+    return result
+
+
+@celery_app.task(name="app.tasks.jobs.daily_push")
+def daily_push(
+    limit: int = 50,
+    user_id: Optional[str] = None,
+    respect_schedule: bool = False,
+    now: Optional[str | datetime] = None,
+) -> dict[str, Any]:
+    """每日推送准备：按用户偏好与推送策略把 `qualified` 推荐标记为 `pushed`。
+
+    Celery beat 以 `respect_schedule=True` 每 10 分钟检查用户推送窗口；
+    手动触发默认立即推送。真实下发由站内通知中心与各通道负责。
+    """
+    return _run_daily_push(
+        limit=limit,
+        user_id=user_id,
+        respect_schedule=respect_schedule,
+        now=now,
+    )
+
+
+@celery_app.task(name="app.tasks.jobs.retry_deferred_push")
+def retry_deferred_push(limit: int = 50) -> dict[str, Any]:
+    """静默结束后重试推送准备：仅在非静默且存在 `qualified` 时执行。"""
+    from app.services.push_policy import is_quiet_hours, next_allowed_at
+
+    settings = get_settings()
+    if not settings.PUSH_POLICY_ENABLED:
+        return {"status": "disabled", "pushed": 0}
+    if is_quiet_hours(settings=settings):
+        return {
+            "status": "quiet_hours",
+            "pushed": 0,
+            "nextAllowedAt": _iso(next_allowed_at(settings=settings)),
+        }
+
+    db = SessionLocal()
+    try:
+        has_qualified = (
+            db.execute(
+                select(Recommendation.id)
+                .where(Recommendation.status == "qualified")
+                .limit(1)
+            ).first()
+            is not None
+        )
+    finally:
+        db.close()
+
+    if not has_qualified:
+        return {"status": "idle", "pushed": 0}
+
+    result = _run_daily_push(limit=limit)
+    result["trigger"] = "retry"
+    return result
 
 
 @celery_app.task(name="app.tasks.jobs.send_bark_notifications")
@@ -811,7 +979,6 @@ def send_email_digest(
         result.get("itemCount", 0),
     )
     return result
-
 
 @celery_app.task(bind=True, name="app.tasks.jobs.vectorize_repositories")
 def vectorize_repositories(

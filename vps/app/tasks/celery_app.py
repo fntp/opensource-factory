@@ -4,9 +4,12 @@
 - `CELERY_TASK_ALWAYS_EAGER=1` 时任务同步执行（本地调试 / 测试）；
 - beat 计划：每日抓取热榜（全局页 + 多语言页）、每日 08:30 生成推荐、08:45 评估推荐、
   每 10 分钟按用户偏好检查推送窗口（M4-06）、09:05 Bark 投递与 Telegram 摘要、
-  09:10 Email 每日精选，以及每日向量索引同步与对账。
+  09:10 Email 每日精选、按 `PUSH_RETRY_INTERVAL_MINUTES` 重试静默期推迟的推送（M4-07），
+  以及每日向量索引同步与对账。
 """
 from __future__ import annotations
+
+from datetime import timedelta
 
 from celery import Celery
 from celery.schedules import crontab
@@ -68,6 +71,13 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.jobs.daily_push",
         "schedule": crontab(minute="*/10"),
         "kwargs": {"respect_schedule": True},
+    },
+    # 静默结束后重试（M4-07）：非静默且存在 qualified 时才会真正执行
+    "retry-deferred-push": {
+        "task": "app.tasks.jobs.retry_deferred_push",
+        "schedule": timedelta(
+            minutes=max(1, int(settings.PUSH_RETRY_INTERVAL_MINUTES or 30))
+        ),
     },
     # Bark 通道（M4-03）：09:05 投递 09:00 推送准备产生的 pushed 推荐
     "send-bark-notifications-daily": {

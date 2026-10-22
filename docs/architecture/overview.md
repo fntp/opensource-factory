@@ -116,7 +116,8 @@ Celery beat 08:30 → 收藏库平均向量（复用 repo_vectors）→ 热榜�
 08:45 每日评估 → 质量分 = 仓库质量 × 0.7 + 理由质量 × 0.3
 → 双重门槛：match_score ≥ EVAL_MATCH_THRESHOLD 且 quality_score ≥ EVAL_QUALITY_THRESHOLD
 → qualified / filtered，写 recommendation_evaluation_runs
-→ 推送准备按用户偏好（时间 / 阈值 / 通道）把 qualified 标记为 pushed
+→ 推送准备按用户偏好（时间 / 阈值 / 通道）经 M4-07 静默 / 去重 / 日限额闸门
+→ 通过的 qualified 标记为 pushed，并写 push_events 账本
 ```
 
 ### 3.5 模型选型与推理预算（M3-01）
@@ -273,6 +274,22 @@ admin「设置 → 通知设置」→ GET/PUT /api/push-preferences（edge，登
 未保存偏好的用户使用默认值（启用、09:00、Asia/Shanghai、匹配度 0.35、质量分 0.55、仅站内通知）；edge 不可达时 VPS 回退默认值，不阻塞推送。
 
 
+### 3.10 推送去重与静默流（M4-07）
+
+```
+qualified 推荐 → Celery beat 09:00 daily_push（或静默结束后 retry_deferred_push）
+→ 读取 PUSH_* 策略（开关 / 静默时段 / 去重窗口 / 每日上限）
+→ 静默中：不改状态，整体 deferred，等待下一轮重试
+→ 去重命中（窗口内同用户同仓库）：标记 expired，写 push_events(skipped)
+→ 超过每日上限：保留 qualified，写 push_events(skipped)
+→ 通过：标记 pushed + 写 push_events(prepared)
+→ 站内通知中心 / Bark / Telegram / Email 只消费 pushed
+```
+
+所有通道共用 `push_events` 账本；通道侧重试前可调用 `POST /api/push/policy/check` 复核。
+静默窗口支持跨午夜（如 22:00–08:00），按 `PUSH_TIMEZONE` 解释；`PUSH_POLICY_ENABLED=false`
+时 `daily_push` 保持旧行为（仅把 `qualified` 标记为 `pushed`）。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -326,7 +343,7 @@ admin「设置 → 通知设置」→ GET/PUT /api/push-preferences（edge，登
 | `/api/tasks/generate-recommendations` | POST | 入队推荐生成 |
 | `/api/tasks/regenerate-recommendation-reasons` | POST | 入队重算存量推荐理由与依据字段 |
 | `/api/tasks/evaluate-recommendations` | POST | 入队每日评估（质量分 + 匹配度阈值） |
-| `/api/tasks/daily-push` | POST | 入队每日推送（按用户偏好筛选 `qualified`，可 `respect_schedule`） |
+| `/api/tasks/daily-push` | POST | 入队每日推送（按用户偏好 + M4-07 策略筛选 `qualified`，可 `respect_schedule`） |
 | `/api/tasks/send-telegram-digest` | POST | 入队 Telegram 每日摘要（M4-04，可选 `user_id` / `limit` / `force`） |
 | `/api/tasks/send-email-digest` | POST | 入队 Email 每日摘要（`user_id` / `limit` / `force`） |
 | `/api/recommend/query` | POST | 语义查询（返回 `reason` + `based_on`） |
@@ -335,6 +352,10 @@ admin「设置 → 通知设置」→ GET/PUT /api/push-preferences（edge，登
 | `/api/notifications/telegram/test` | POST | 发送 Telegram 测试消息 |
 | `/api/notifications/email/status` | GET | Email 通道状态与最近送达（脱敏） |
 | `/api/notifications/email/test` | POST | 发送测试邮件（未启用 / 未配置 409） |
+| `/api/push/policy/status` | GET | 推送策略状态：静默、限额、今日计数与最近事件 |
+| `/api/push/policy/check` | POST | 单条推送发送前预演（不写库） |
+| `/api/push/policy/events` | GET | 查询推送事件（按用户 / 通道 / 状态） |
+| `/api/push/policy/events` | POST | 记录通道投递事件（幂等） |
 | `/api/tasks/vectorize` | POST | 入队向量化（批量 / 增量 / 断点续跑） |
 | `/api/internal/notifications` | POST | 批量写入站内通知（`X-Internal-Token`，单批 ≤100） |
 | `/api/internal/notifications/sync-recommendations` | POST | 物化指定用户的 `pushed` 推荐为通知 |

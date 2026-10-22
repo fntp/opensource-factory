@@ -17,6 +17,7 @@ from app.api import (
     degradation,
     notifications,
     push,
+    push_policy,
     recommend,
     repos,
     search,
@@ -88,6 +89,7 @@ app.include_router(repos.router)
 app.include_router(trending.router)
 app.include_router(summaries.router)
 app.include_router(recommend.router)
+app.include_router(push_policy.router)
 app.include_router(vectors.router)
 app.include_router(vector_index.router)
 app.include_router(search.router)

@@ -46,6 +46,7 @@ vps/
 │   │   ├── bark.py               # Bark 推送通道：消息构建 / 投递 / 状态（M4-03）
 │   │   ├── telegram.py           # Telegram 摘要：HTML / 分片 / 重试 / 送达记录（M4-04）
 │   │   ├── email_channel.py      # Email 摘要：SMTP 投递 / 幂等 / 送达记录（M4-05）
+│   │   ├── push_policy.py        # 推送去重 / 静默 / 每日上限 / 事件账本（M4-07）
 │   │   ├── vector_index.py       # Vectorize 批量 upsert / 重试 / 对账 / 孤儿清理
 │   │   ├── query_understanding.py # 同义词 / 技术栈词表查询理解（离线、确定性）
 │   │   ├── semantic_search.py    # 查询向量化 + repo_vectors 余弦检索 + 结果水合
@@ -56,6 +57,7 @@ vps/
 │   │   ├── recommend.py          # /api/recommend/*（查询 / 列表 / 生成 / 质量评估 / 每日评估 / 合格推荐）
 │   │   ├── push.py               # /api/push/bark/*（状态 / 测试 / 投递入队）
 │   │   ├── notifications.py      # /api/notifications/telegram/*、/api/notifications/email/*（状态 / 测试）
+│   │   ├── push_policy.py        # /api/push/policy/*（状态 / 预演 / 事件）
 │   │   ├── vector_index.py       # /api/vector-index/*（同步入队、对账、状态、运行记录）
 │   │   ├── vectors.py            # GET /api/vectors/stats、runs、单条向量
 │   │   ├── search.py             # /api/search/*（understand / embed / query / semantic / status）
@@ -294,7 +296,11 @@ cd vps
 | POST | `/api/tasks/generate-recommendations` | 入队推荐生成（可选 `user_id`、`top_k`、`min_score`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/regenerate-recommendation-reasons` | 入队重算存量推荐理由与 `based_on`（可选 `user_id`、`limit`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/evaluate-recommendations` | 入队每日评估（可选 `user_id`、`match_threshold`、`quality_threshold`） | `202 {"taskId": "..."}` |
-| POST | `/api/tasks/daily-push` | 入队每日推送准备（按用户偏好筛选 `qualified`；可选 `user_id` / `respect_schedule`） | `202 {"taskId": "..."}` |
+| POST | `/api/tasks/daily-push` | 入队每日推送准备（按用户偏好 + M4-07 策略筛选 `qualified`；可选 `user_id` / `respect_schedule`） | `202 {"taskId": "..."}` |
+| GET | `/api/push/policy/status` | 推送策略状态（静默 / 限额 / 今日计数 / 最近事件） | `200 {...}` |
+| POST | `/api/push/policy/check` | 单条推送发送前预演（不写库） | `200 {...}` |
+| GET | `/api/push/policy/events` | 查询推送事件（按用户 / 通道 / 状态） | `200 {...}` |
+| POST | `/api/push/policy/events` | 记录通道投递事件（幂等） | `200 {...}` |
 | POST | `/api/tasks/send-telegram-digest` | 入队 Telegram 每日摘要（可选 `user_id` / `limit` / `force`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/send-email-digest` | 入队 Email 每日摘要（可选 `user_id`、`limit`、`force`） | `202 {"taskId": "..."}` |
 | GET | `/api/notifications/telegram/status` | Telegram 通道开关 / 配置状态 / 最近送达（chat id 脱敏） | `200 {...}` |
@@ -626,6 +632,33 @@ curl -sS -X POST 'http://127.0.0.1:8000/api/tasks/daily-push' \
 curl -sS -X POST 'http://127.0.0.1:8000/api/tasks/daily-push?user_id=default&respect_schedule=true' \
   -H 'X-Internal-Token: <token>'
 ```
+## 推送去重与静默（M4-07）
+
+`daily_push` 在把 `qualified` 标记为 `pushed` 前统一经过策略闸门，所有推送通道共用 `push_events` 账本：
+
+1. **静默时段**：`PUSH_QUIET_HOURS_START` / `PUSH_QUIET_HOURS_END`（默认 22:00–08:00，支持跨午夜），按 `PUSH_TIMEZONE` 解释；静默中不改推荐状态，由 `retry_deferred_push` 在窗口结束后重试；
+2. **跨天去重**：同一用户 + 仓库在 `PUSH_DEDUPE_DAYS`（默认 7 天）内已推送过则标记 `expired`；`PUSH_DEDUPE_CROSS_CHANNEL=true` 时跨通道生效；
+3. **每日上限**：每用户每个本地自然日最多 `PUSH_DAILY_LIMIT`（默认 3）个去重仓库；超限保留 `qualified` 等次日 / 重试；
+4. **事件账本**：`push_events` 以 `event_key = user:repo:channel:YYYY-MM-DD` 幂等记录 `prepared / sent / failed / skipped`，`failed` / `skipped` 不占额度；
+5. **总开关**：`PUSH_POLICY_ENABLED=false` 时保持旧行为（仅标记 `pushed`，不做静默 / 去重 / 限额）。
+
+```bash
+# 策略状态 / 今日计数 / 最近事件
+curl -sS 'http://127.0.0.1:8000/api/push/policy/status' -H 'X-Internal-Token: <token>'
+
+# 发送前预演（不写库）
+curl -sS -X POST 'http://127.0.0.1:8000/api/push/policy/check' \
+  -H 'Content-Type: application/json' -H 'X-Internal-Token: <token>' \
+  -d '{"userId":"default","repoId":"owner/repo","channel":"bark"}'
+
+# 通道回报投递结果（幂等）
+curl -sS -X POST 'http://127.0.0.1:8000/api/push/policy/events' \
+  -H 'Content-Type: application/json' -H 'X-Internal-Token: <token>' \
+  -d '{"userId":"default","repoId":"owner/repo","channel":"bark","status":"sent"}'
+```
+
+Celery beat 每 10 分钟执行 `daily_push(respect_schedule=True)`，并按 `PUSH_RETRY_INTERVAL_MINUTES`（默认 30 分钟）执行
+`retry_deferred_push`；重试任务只在非静默且存在 `qualified` 时真正运行。
 
 ## 常用检查
 

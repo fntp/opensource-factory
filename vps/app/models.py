@@ -10,7 +10,17 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Boolean, Date, DateTime, Float, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    Float,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -366,3 +376,40 @@ class TelegramDelivery(Base):
     error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class PushEvent(Base):
+    """推送策略账本（M4-07）。
+
+    记录一次推送准备 / 投递 / 跳过事件，用于跨通道、跨天的去重与每日上限。
+    同一用户 + 仓库 + 通道 + 自然日由 `event_key` 唯一约束保证幂等；
+    `dedupe_key` 固定为 `user_id:repo_id`，便于按去重窗口查询。
+    """
+
+    __tablename__ = "push_events"
+    __table_args__ = (
+        UniqueConstraint("event_key", name="uq_push_events_event_key"),
+        Index("ix_push_events_user_repo_updated", "user_id", "repo_id", "updated_at"),
+        Index("ix_push_events_user_updated", "user_id", "updated_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    repo_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    recommendation_id: Mapped[Optional[str]] = mapped_column(
+        String(64), nullable=True, index=True
+    )
+    channel: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="inapp"
+    )  # inapp | bark | telegram | email
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="prepared"
+    )  # prepared | sent | failed | skipped
+    dedupe_key: Mapped[str] = mapped_column(String(512), nullable=False, index=True)
+    event_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=_utcnow, onupdate=_utcnow
+    )
+    sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
