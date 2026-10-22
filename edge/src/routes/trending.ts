@@ -24,6 +24,7 @@ import type {
 import { all, first, run } from '../db';
 import { parseTrendingQuery } from '../trending/query';
 import { toTrendingDetail } from '../trending/detail';
+import { licenseFromRow } from '../license/compliance';
 
 const trending = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -57,6 +58,7 @@ export function toTrendingRepo(row: TrendingRow, rank = 0): TrendingRepo {
     rank,
     rankChange: 0,
     trend: 'same',
+    license: licenseFromRow(row),
   };
 }
 
@@ -81,6 +83,7 @@ export function toTrendingRepoFromSnapshot(row: TrendingSnapshotRow): TrendingRe
     rankDelta: row.rank_delta ?? 0,
     appearances: row.appearances ?? 1,
     isNew: Boolean(row.is_new),
+    license: licenseFromRow(row),
   };
 }
 
@@ -255,18 +258,24 @@ trending.get('/', async (c) => {
   }
 
   if (snapshotDate) {
-    const where = ['snapshot_date = ?'];
+    const where = ['s.snapshot_date = ?'];
     const params: Array<string | number> = [snapshotDate];
     if (language) {
-      where.push('LOWER(language) = ?');
+      where.push('LOWER(s.language) = ?');
       params.push(language.toLowerCase());
     }
     params.push(limit);
     const rows = await all<TrendingSnapshotRow>(
       c.env.DB,
-      `SELECT * FROM trending_snapshots
+      `SELECT s.*,
+              r.license_spdx AS license_spdx,
+              r.license_name AS license_name,
+              r.license_source AS license_source,
+              r.license_checked_at AS license_checked_at
+         FROM trending_snapshots s
+         LEFT JOIN trending_repositories r ON r.id = s.repo_id
         WHERE ${where.join(' AND ')}
-        ORDER BY rank ASC, repo_id ASC
+        ORDER BY s.rank ASC, s.repo_id ASC
         LIMIT ?`,
       params
     );
@@ -334,8 +343,9 @@ trending.post('/:owner/:name/favorite', async (c) => {
     c.env.DB,
     `INSERT OR IGNORE INTO my_repositories
        (id, platform, name, description, html_url, stars, language, readme_summary,
-        category_id, user_id, owner, forks, updated_at, synced_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, 0, ?, ?)`,
+        category_id, user_id, owner, forks, updated_at, synced_at,
+        license_spdx, license_name, license_source, license_checked_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       row.platform,
@@ -349,6 +359,10 @@ trending.post('/:owner/:name/favorite', async (c) => {
       owner,
       now,
       now,
+      row.license_spdx ?? null,
+      row.license_name ?? null,
+      row.license_source ?? null,
+      row.license_checked_at ?? null,
     ]
   );
 

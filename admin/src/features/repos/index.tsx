@@ -26,6 +26,7 @@ import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
+import { LicenseBadge } from '@/features/licenses/license-badge'
 import { fetchRepos, MOCK_REPOS } from './api'
 
 export function Repos() {
@@ -90,6 +91,7 @@ export function Repos() {
                 <TableRow>
                   <TableHead>仓库</TableHead>
                   <TableHead>分类</TableHead>
+                  <TableHead>License</TableHead>
                   <TableHead>标签</TableHead>
                   <TableHead className='text-end'>Stars</TableHead>
                   <TableHead className='text-end'>最近更新</TableHead>
@@ -120,6 +122,9 @@ export function Repos() {
                       <Badge variant='secondary'>{repo.category}</Badge>
                     </TableCell>
                     <TableCell>
+                      <LicenseBadge license={repo.license} />
+                    </TableCell>
+                    <TableCell>
                       <div className='flex flex-wrap gap-1'>
                         {repo.tags.map((tag) => (
                           <Badge key={tag} variant='outline'>
@@ -139,7 +144,7 @@ export function Repos() {
                 {filtered.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={5}
+                      colSpan={6}
                       className='h-24 text-center text-muted-foreground'
                     >
                       没有匹配的仓库。

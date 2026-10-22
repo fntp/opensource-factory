@@ -1,4 +1,39 @@
 import { fetchWithFallback } from '@/lib/api'
+import type { LicenseInfo } from '@/features/licenses/api'
+
+function demoLicense(
+  spdxId: string,
+  name: string,
+  category: LicenseInfo['category'],
+  riskLevel: LicenseInfo['riskLevel']
+): LicenseInfo {
+  const categoryLabel =
+    category === 'permissive'
+      ? '宽松许可'
+      : category === 'weak-copyleft'
+        ? '弱著佐权'
+        : category === 'network-copyleft'
+          ? '网络著佐权'
+          : '强著佐权'
+  return {
+    spdxId,
+    name,
+    category,
+    categoryLabel,
+    riskLevel,
+    riskLabel:
+      riskLevel === 'low'
+        ? '低风险'
+        : riskLevel === 'medium'
+          ? '中风险'
+          : '高风险',
+    summary: `${name}：请按许可证义务使用、修改与分发。`,
+    obligations: ['保留版权与许可证声明'],
+    warnings: [],
+    source: 'github',
+    checkedAt: '2026-10-22T08:00:00',
+  }
+}
 
 export interface RepoItem {
   id: string
@@ -13,6 +48,8 @@ export interface RepoItem {
   tags: string[]
   updatedAt: string
   url: string
+  /** License 合规提示（M6-06） */
+  license?: LicenseInfo | null
 }
 
 export const MOCK_REPOS: RepoItem[] = [
@@ -27,6 +64,7 @@ export const MOCK_REPOS: RepoItem[] = [
     tags: ['资产', '推荐'],
     updatedAt: '2026-10-12',
     url: 'https://github.com/fntp/opensource-factory',
+    license: demoLicense('MIT', 'MIT License', 'permissive', 'low'),
   },
   {
     id: '2',
@@ -39,6 +77,7 @@ export const MOCK_REPOS: RepoItem[] = [
     tags: ['LLM', '框架'],
     updatedAt: '2026-10-13',
     url: 'https://github.com/langchain-ai/langchain',
+    license: demoLicense('MIT', 'MIT License', 'permissive', 'low'),
   },
   {
     id: '3',
@@ -51,6 +90,7 @@ export const MOCK_REPOS: RepoItem[] = [
     tags: ['组件', '设计'],
     updatedAt: '2026-10-12',
     url: 'https://github.com/shadcn-ui/ui',
+    license: demoLicense('MIT', 'MIT License', 'permissive', 'low'),
   },
   {
     id: '4',
@@ -63,6 +103,12 @@ export const MOCK_REPOS: RepoItem[] = [
     tags: ['本地模型', '推理'],
     updatedAt: '2026-10-13',
     url: 'https://github.com/ollama/ollama',
+    license: demoLicense(
+      'AGPL-3.0',
+      'GNU Affero General Public License 3.0',
+      'network-copyleft',
+      'high'
+    ),
   },
   {
     id: '5',
@@ -75,6 +121,7 @@ export const MOCK_REPOS: RepoItem[] = [
     tags: ['聊天', '应用'],
     updatedAt: '2026-10-11',
     url: 'https://github.com/lobehub/lobe-chat',
+    license: demoLicense('MIT', 'MIT License', 'permissive', 'low'),
   },
   {
     id: '6',
@@ -87,6 +134,7 @@ export const MOCK_REPOS: RepoItem[] = [
     tags: ['API', '异步'],
     updatedAt: '2026-10-10',
     url: 'https://github.com/fastapi/fastapi',
+    license: demoLicense('MIT', 'MIT License', 'permissive', 'low'),
   },
   {
     id: '7',
@@ -99,6 +147,7 @@ export const MOCK_REPOS: RepoItem[] = [
     tags: ['Vue', '框架'],
     updatedAt: '2026-10-12',
     url: 'https://github.com/vuejs/core',
+    license: demoLicense('MIT', 'MIT License', 'permissive', 'low'),
   },
   {
     id: '8',
@@ -111,6 +160,12 @@ export const MOCK_REPOS: RepoItem[] = [
     tags: ['跨平台', 'Rust'],
     updatedAt: '2026-10-09',
     url: 'https://github.com/tauri-apps/tauri',
+    license: demoLicense(
+      'Apache-2.0',
+      'Apache License 2.0',
+      'permissive',
+      'low'
+    ),
   },
 ]
 

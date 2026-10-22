@@ -13,6 +13,22 @@ class ORMModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class LicenseInfoOut(BaseModel):
+    """License 合规提示（M6-06，字段与 edge / admin 保持一致）。"""
+
+    spdxId: Optional[str] = None
+    name: Optional[str] = None
+    category: str = "unknown"
+    categoryLabel: str = "未知许可"
+    riskLevel: str = "unknown"
+    riskLabel: str = "未知风险"
+    summary: str = ""
+    obligations: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    source: Optional[str] = None  # github | readme | none
+    checkedAt: Optional[str] = None
+
+
 class RepoOut(ORMModel):
     """仓库输出。"""
 
@@ -25,6 +41,7 @@ class RepoOut(ORMModel):
     language: Optional[str] = None
     readme_summary: Optional[str] = None
     category_id: Optional[str] = None
+    license: Optional[LicenseInfoOut] = None
     created_at: Optional[datetime] = None
 
 
@@ -42,6 +59,7 @@ class TrendingRepoOut(ORMModel):
     owner: Optional[str] = None
     language: Optional[str] = None
     stars: int = 0
+    license: Optional[LicenseInfoOut] = None
     crawled_at: Optional[date] = None
     snapshot_date: Optional[date] = None
     rank: Optional[int] = None
@@ -78,6 +96,7 @@ class TrendingSnapshotOut(ORMModel):
     is_new: int = 0
     trend: str = "steady"
     trending_pages: Optional[str] = None
+    license: Optional[LicenseInfoOut] = None
 
 
 class TrendingSnapshotDateOut(BaseModel):

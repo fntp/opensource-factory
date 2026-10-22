@@ -1,13 +1,14 @@
 """仓库接口：列表查询与同步入队。"""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import MyRepository
-from app.schemas import RepoOut, TaskEnqueued
+from app.schemas import LicenseInfoOut, RepoOut, TaskEnqueued
+from app.services.license import build_compliance_hint
 from app.tasks.jobs import summarize_readmes, sync_repositories
 
 router = APIRouter(prefix="/api/repos", tags=["repos"])
@@ -28,6 +29,19 @@ def list_repos(
         like = f"%{q.strip()}%"
         stmt = stmt.where(or_(MyRepository.name.like(like), MyRepository.description.like(like)))
     return list(db.execute(stmt).scalars().all())
+
+
+@router.get(
+    "/{repo_id:path}/license",
+    response_model=LicenseInfoOut,
+    summary="单仓库 License 合规提示（未识别时返回 unknown）",
+)
+def get_repo_license(repo_id: str, db: Session = Depends(get_db)) -> dict:
+    normalized = repo_id.strip().strip("/")
+    row = db.get(MyRepository, normalized)
+    if row is None:
+        raise HTTPException(status_code=404, detail="repo not found")
+    return row.license or build_compliance_hint(None, None)
 
 
 @router.post(

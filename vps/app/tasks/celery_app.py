@@ -70,6 +70,12 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(minute=17, hour=5),
         "kwargs": {"scope": "all", "repair": False},
     },
+    # License 补全（M6-06）：每日增量识别一次，只处理尚未识别的仓库
+    "enrich-licenses-daily": {
+        "task": "app.tasks.jobs.enrich_licenses",
+        "schedule": crontab(minute=47, hour=6),
+        "kwargs": {"scope": "all", "limit": 500, "force": False},
+    },
 }
 
 # 兼容 `celery -A app.tasks.celery_app`（默认按属性名 app/celery 查找）

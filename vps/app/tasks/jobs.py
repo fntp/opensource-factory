@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import logging
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any, Coroutine, Optional
 
 from sqlalchemy import select
@@ -19,6 +19,11 @@ from app.models import Category, MyRepository, Recommendation, TrendingRepositor
 from app.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
+
+
+def _utcnow() -> datetime:
+    """与模型层一致的无时区 UTC 时间。"""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def _maybe_enqueue_vectorization(scope: str) -> None:
@@ -86,6 +91,10 @@ def sync_repositories(
                         html_url=item.get("html_url") or f"https://github.com/{repo_id}",
                         stars=int(item.get("stars") or 0),
                         language=item.get("language") or None,
+                        license_spdx=item.get("license_spdx") or None,
+                        license_name=item.get("license_name") or None,
+                        license_source=item.get("license_source") or None,
+                        license_checked_at=_utcnow() if item.get("license_source") else None,
                     )
                 )
                 created += 1
@@ -96,6 +105,11 @@ def sync_repositories(
                 row.html_url = item.get("html_url") or row.html_url
                 row.stars = int(item.get("stars") or 0)
                 row.language = item.get("language") or row.language
+                if item.get("license_source"):
+                    row.license_spdx = item.get("license_spdx") or None
+                    row.license_name = item.get("license_name") or None
+                    row.license_source = item.get("license_source") or None
+                    row.license_checked_at = _utcnow()
                 updated += 1
                 changed_ids.append(repo_id)
         db.commit()
@@ -654,3 +668,50 @@ def reconcile_vector_index(
     from app.services import vector_index
 
     return vector_index.reconcile_vectors(scope=scope, repair=repair, limit=limit)
+
+
+@celery_app.task(bind=True, name="app.tasks.jobs.enrich_licenses")
+def enrich_licenses(
+    self,
+    scope: str = "all",
+    limit: int = 200,
+    force: bool = False,
+) -> dict[str, Any]:
+    """License 异步补全（M6-06）：GitHub API 优先，README 回退，并回写 edge。
+
+    未配置 `GITHUB_TOKEN` 时仍会尝试匿名调用（限流更严格）；
+    回写失败只记录在结果里，不影响本地补全。
+    """
+    from app.services.license_enrichment import (
+        enrich_licenses as run_enrichment,
+        writeback_licenses,
+    )
+
+    settings = get_settings()
+    db = SessionLocal()
+    try:
+        result = run_enrichment(
+            db,
+            scope=scope,
+            limit=limit,
+            force=force,
+            token=(settings.GITHUB_TOKEN or "").strip() or None,
+        )
+    except Exception as exc:  # noqa: BLE001 - 任务失败降级返回结构化结果
+        logger.exception("License 补全任务失败（scope=%s）", scope)
+        return {"status": "error", "error": str(exc)[:300], "scope": scope}
+    finally:
+        db.close()
+
+    parts = result.pop("scopes", [])
+    writebacks = []
+    for part in parts:
+        writebacks.append(
+            {
+                "scope": part["scope"],
+                **writeback_licenses(part["scope"], part.get("items") or []),
+            }
+        )
+    result["writeback"] = writebacks
+    result["status"] = "ok"
+    return result

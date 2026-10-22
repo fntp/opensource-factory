@@ -45,20 +45,35 @@ def _ensure_sqlite_columns() -> None:
     if not settings.DATABASE_URL.startswith("sqlite"):
         return
     inspector = inspect(engine)
-    if "trending_repositories" in inspector.get_table_names():
-        existing = {column["name"] for column in inspector.get_columns("trending_repositories")}
-        additions = {
+    table_additions: dict[str, dict[str, str]] = {
+        "trending_repositories": {
             "readme_summary": "TEXT",
             "owner": "TEXT",
             "language": "TEXT",
             "stars": "INTEGER NOT NULL DEFAULT 0",
-        }
+            "license_spdx": "TEXT",
+            "license_name": "TEXT",
+            "license_source": "TEXT",
+            "license_checked_at": "DATETIME",
+        },
+        "my_repositories": {
+            "license_spdx": "TEXT",
+            "license_name": "TEXT",
+            "license_source": "TEXT",
+            "license_checked_at": "DATETIME",
+        },
+    }
+    tables = set(inspector.get_table_names())
+    for table, additions in table_additions.items():
+        if table not in tables:
+            continue
+        existing = {column["name"] for column in inspector.get_columns(table)}
         missing = {name: ddl for name, ddl in additions.items() if name not in existing}
         if missing:
             with engine.begin() as connection:
                 for name, ddl in missing.items():
-                    connection.execute(text(f"ALTER TABLE trending_repositories ADD COLUMN {name} {ddl}"))
-            logger.info("trending_repositories 已补齐列: %s", ", ".join(sorted(missing)))
+                    connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+            logger.info("%s 已补齐列: %s", table, ", ".join(sorted(missing)))
 
     with engine.begin() as conn:
         rows = conn.exec_driver_sql("PRAGMA table_info(recommendations)").fetchall()

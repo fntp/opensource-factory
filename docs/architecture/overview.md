@@ -220,6 +220,25 @@ VPS 不可达 / 种子未向量化 / 0 命中 → edge D1 同语言 + 共享技�
 纯向量近邻复用 M3 `repo_vectors`，不新增表；`scope` 控制候选来源（`my` / `trending` / `all`），
 `excludeSaved` 可排除收藏库；`minScore` 可过滤低分近邻。
 
+### 3.13 License 识别与合规提示流（M6-06）
+
+```
+VPS 定时任务 enrich_licenses（每日 06:47 beat，或 POST /api/tasks/enrich-licenses 手动触发）
+→ 逐仓库识别：GitHub API license.spdx_id 优先
+   ↳ 无元数据时读 README：SPDX-License-Identifier / shields 徽章 / 许可证名称正则
+   ↳ 仍未命中 → unknown（license_source=none）
+→ 写入本地镜像 license_spdx / license_name / license_source / license_checked_at
+→ POST {edge}/api/internal/licenses 批量回写 D1（my_repositories / trending_repositories）
+→ edge 读取时按 SPDX 目录派生 category / riskLevel / obligations / warnings
+→ admin 仓库列表、热榜列表与详情页展示 License 徽章；/licenses 汇总覆盖率与风险分布
+
+分类：permissive / weak-copyleft / strong-copyleft / network-copyleft / public-domain / unknown
+风险：low / medium / high / unknown（AGPL 等网络著佐权为 high，无许可证按 unknown 提示）
+```
+
+分类与义务在读取时派生，数据库只存 SPDX 与来源，避免升级目录后存量数据口径不一致；
+提示为工程辅助信息，不构成法律意见。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -249,6 +268,8 @@ VPS 不可达 / 种子未向量化 / 0 命中 → edge D1 同语言 + 共享技�
 | `/api/sync` | POST | 触发同步任务（202） |
 | `/api/search/semantic` | POST | 语义搜索（`query` / `topK` / `scope`；vectorize → local → keyword 三级降级） |
 | `/api/similar` | GET | 相似项目推荐（`source=my\|trending` / `repoId` / `topK` / `scope` / `minScore` / `excludeSaved`；local → keyword 降级） |
+| `/api/licenses/catalog` | GET | License 目录（分类 / 风险 / 义务 / 提醒，公开） |
+| `/api/licenses/summary` | GET | License 分布与风险统计（`?scope=my\|trending\|all`；`my` / `all` 需登录） |
 
 ### 4.2 edge ↔ vps（内部 API，`X-Internal-Token`）
 
@@ -270,6 +291,11 @@ VPS 不可达 / 种子未向量化 / 0 命中 → edge D1 同语言 + 共享技�
 | `/api/recommend/query` | POST | 语义查询（返回 `reason` + `based_on`） |
 | `/api/recommend/list` | GET | 本地已生成推荐（`reason` + `based_on`） |
 | `/api/tasks/vectorize` | POST | 入队向量化（批量 / 增量 / 断点续跑） |
+| `/api/tasks/enrich-licenses` | POST | 入队 License 识别补全（`scope=my\|trending\|all` / `limit` / `force`） |
+| `/api/licenses/catalog` | GET | License 目录（VPS 侧同一份目录） |
+| `/api/licenses/summary` | GET | 本地镜像 License 分布与风险统计（`?scope=`） |
+| `/api/repos/{repoId}/license` | GET | 单仓库 License 合规提示（未识别时返回 unknown 结构） |
+| `/api/internal/licenses` | POST | 反向：VPS 批量回写 License 到 edge / D1（`X-Internal-Token`） |
 | `/api/tasks/{taskId}` | GET | 任务状态 |
 | `/api/trending/retention` | GET | 热榜保留策略状态（窗口 / 过期数 / 库与归档占用） |
 | `/api/trending/retention/cleanup` | POST | 入队热榜归档与清理（`?dryRun=` / `?retentionDays=` / `?archive=`） |

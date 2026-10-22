@@ -6,6 +6,7 @@
 import { Hono } from 'hono';
 import type { Env, RepoItem, RepoRow, Variables } from '../types';
 import { all, run } from '../db';
+import { licenseFromRow } from '../license/compliance';
 
 const repos = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -29,6 +30,7 @@ export function toRepoItem(row: RepoRow): RepoItem {
     tags,
     updatedAt: row.updated_at ?? row.synced_at ?? row.created_at ?? null,
     url: row.html_url,
+    license: licenseFromRow(row),
   };
 }
 

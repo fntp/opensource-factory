@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy import Boolean, Date, DateTime, Float, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
@@ -35,7 +35,26 @@ class MyRepository(Base):
     language: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     readme_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # VPS 大模型生成的项目摘要
     category_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)  # 关联分类 ID
+    # License 识别（M6-06）：spdx / 展示名 / 来源（github / readme / none）/ 最近识别时间
+    license_spdx: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    license_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    license_source: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    license_checked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+
+    @property
+    def license(self) -> Optional[dict[str, Any]]:
+        """API 序列化用的合规提示；从未识别过时返回 None。"""
+        if not (self.license_spdx or self.license_source):
+            return None
+        from app.services.license import build_compliance_hint
+
+        return build_compliance_hint(
+            self.license_spdx,
+            self.license_name,
+            source=self.license_source,
+            checked_at=self.license_checked_at,
+        )
 
 
 class TrendingRepository(Base):
@@ -54,7 +73,26 @@ class TrendingRepository(Base):
     owner: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)  # owner（与 D1 扩展列对齐）
     language: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)  # 主语言
     stars: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 总 Star
+    # License 识别（M6-06）
+    license_spdx: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    license_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    license_source: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    license_checked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     crawled_at: Mapped[date] = mapped_column(Date, nullable=False, default=date.today)
+
+    @property
+    def license(self) -> Optional[dict[str, Any]]:
+        """API 序列化用的合规提示；从未识别过时返回 None。"""
+        if not (self.license_spdx or self.license_source):
+            return None
+        from app.services.license import build_compliance_hint
+
+        return build_compliance_hint(
+            self.license_spdx,
+            self.license_name,
+            source=self.license_source,
+            checked_at=self.license_checked_at,
+        )
 
 
 class TrendingSnapshot(Base):

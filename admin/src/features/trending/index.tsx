@@ -25,6 +25,7 @@ import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
+import { LicenseBadge } from '@/features/licenses/license-badge'
 import {
   fetchTrending,
   fetchTrendingDates,
@@ -219,6 +220,7 @@ export function Trending() {
                         {item.description}
                       </p>
                     </div>
+                    <LicenseBadge license={item.license} />
                     <Badge variant='outline'>{item.language || '未知'}</Badge>
                     <div className='w-20 shrink-0 text-end'>
                       <div className='text-sm font-medium'>

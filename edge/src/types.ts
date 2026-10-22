@@ -2,6 +2,7 @@
  * 类型定义：Env 绑定 + 数据库行 + API 响应实体
  * 前端管理后台依赖的 JSON 形状见各实体接口。
  */
+import type { LicenseInfo } from './license/compliance';
 
 /** Worker 运行时绑定（wrangler.toml vars + secrets） */
 export interface Env {
@@ -56,6 +57,11 @@ export interface RepoRow {
   forks: number | null;
   updated_at: string | null;
   synced_at: string | null;
+  /** License 识别（M6-06） */
+  license_spdx: string | null;
+  license_name: string | null;
+  license_source: string | null;
+  license_checked_at: string | null;
   /** JOIN 得到的分类名（可选） */
   category_name?: string | null;
   /** 聚合得到的标签名列表（可选） */
@@ -76,6 +82,11 @@ export interface TrendingRow {
   stars: number | null;
   /** VPS 生成的中文摘要（M2-04） */
   readme_summary: string | null;
+  /** License 识别（M6-06） */
+  license_spdx: string | null;
+  license_name: string | null;
+  license_source: string | null;
+  license_checked_at: string | null;
 }
 
 /** 热榜按日快照（M2-05） */
@@ -99,6 +110,11 @@ export interface TrendingSnapshotRow {
   is_new: number | null;
   trend: string | null;
   trending_pages: string | null;
+  /** LEFT JOIN trending_repositories 得到的 License 字段（M6-06，可选） */
+  license_spdx?: string | null;
+  license_name?: string | null;
+  license_source?: string | null;
+  license_checked_at?: string | null;
 }
 
 /** GET /api/trending/:owner/:name 详情 */
@@ -191,6 +207,8 @@ export interface RepoItem {
   tags: string[];
   updatedAt: string | null;
   url: string;
+  /** License 合规提示（M6-06；未识别过为 null） */
+  license: LicenseInfo | null;
 }
 
 /** GET /api/trending 列表项 */
@@ -219,6 +237,8 @@ export interface TrendingRepo {
   rankDelta?: number;
   appearances?: number;
   isNew?: boolean;
+  /** License 合规提示（M6-06；未识别过为 null） */
+  license?: LicenseInfo | null;
 }
 
 /** GET /api/recommendations 列表项 */

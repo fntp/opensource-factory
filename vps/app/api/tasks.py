@@ -24,6 +24,7 @@ from app.tasks.celery_app import celery_app
 from app.tasks.jobs import (
     crawl_trending,
     daily_push,
+    enrich_licenses,
     generate_recommendations,
     regenerate_recommendation_reasons,
     summarize_readmes,
@@ -143,6 +144,22 @@ async def enqueue_regenerate_recommendation_reasons(
     limit: int = Query(default=500, ge=1, le=5000),
 ) -> TaskEnqueued:
     task = regenerate_recommendation_reasons.delay(user_id=user_id, limit=limit)
+    return TaskEnqueued(taskId=task.id)
+
+
+@router.post(
+    "/enrich-licenses",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=TaskEnqueued,
+    dependencies=[Depends(require_internal_token)],
+    summary="入队：License 异步补全（GitHub API + README 回退）",
+)
+async def enqueue_enrich_licenses(
+    scope: str = Query(default="all", pattern="^(my|trending|all)$"),
+    limit: int = Query(default=200, ge=1, le=1000),
+    force: bool = Query(default=False, description="已识别仓库也重新识别"),
+) -> TaskEnqueued:
+    task = enrich_licenses.delay(scope=scope, limit=limit, force=force)
     return TaskEnqueued(taskId=task.id)
 
 

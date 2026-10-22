@@ -39,6 +39,7 @@ recommendations              （user_id 可空 = 全局推荐）
 | created_at | DATETIME | 收录时间 |
 
 > 本仓库扩展列（不改变上述语义）：`user_id`、`owner`、`forks`、`updated_at`、`synced_at`。
+> License 扩展列（M6-06）：`license_spdx`（SPDX 标识）、`license_name`、`license_source`（`github` / `readme` / `none`）、`license_checked_at`。
 
 ### 2.2 `trending_repositories` 热榜项目
 
@@ -55,6 +56,7 @@ recommendations              （user_id 可空 = 全局推荐）
 | readme_summary | TEXT | VPS 生成的中文摘要（`source=trending` 批量任务写入，Ollama → DeepSeek → 截断降级） |
 
 > 扩展列：`owner`、`language`、`stars`（总 Star）、`readme_summary`（M2-04 中文摘要；为空时详情页回退 `description`）。
+> License 扩展列（M6-06）：`license_spdx` / `license_name` / `license_source` / `license_checked_at`；快照表不存 License，查询时按 `repo_id` 关联最新状态表。
 > 详情页收藏写入 `my_repositories`，字段映射见 REQ-202610-0915 实施计划；VPS 本地镜像在 `init_db()` 中对既有 SQLite 库幂等补列。
 
 ### 2.2.1 `trending_snapshots` 热榜按日快照（REQ-202610-0913 / M2-05）
