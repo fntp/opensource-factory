@@ -110,7 +110,10 @@ def crawl_trending(platform: str = "github", language: Optional[str] = None) -> 
             if not repo_id:
                 continue
             tech_stack = extract_tech_stack(
-                " ".join(filter(None, [item.get("description"), item.get("language")]))
+                " ".join(
+                    filter(None, [item.get("name"), item.get("description"), item.get("language")])
+                ),
+                language=item.get("language"),
             )
             row = db.get(TrendingRepository, repo_id)
             if row is None:

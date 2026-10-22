@@ -65,7 +65,7 @@ admin「同步仓库」→ POST /api/sync（edge）→ POST {VPS}/api/tasks/sync
 
 ```
 Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trending_repositories
-→ 摘要/技术栈提取 → （M3）向量化 → 同步 Vectorize
+→ README 去噪（徽章 / 图片 / HTML）与技术栈提取（别名归并 / language 优先） → （M3）向量化 → 同步 Vectorize
 ```
 
 ### 3.4 推荐流（RAG）
