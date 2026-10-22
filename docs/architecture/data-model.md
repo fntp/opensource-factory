@@ -78,7 +78,7 @@ recommendations              （user_id 可空 = 全局推荐）
 
 趋势口径：基线取该仓库在快照日之前最近一条快照（最多回看 7 天）；`rank_delta >= 3` 记为 `up`，`<= -3` 记为 `down`，其余 `steady`。
 
-### 2.3 `categories` 分类
+### 2.4 `categories` 分类
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -178,6 +178,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | --- | --- | --- |
 | my_repositories | `(user_id)`、`(category_id)`、`(platform)` | 列表与筛选 |
 | trending_repositories | `(stars_today DESC)`、`(crawled_at)` | 榜单查询 |
+| trending_snapshots | `(snapshot_date, rank)`、`(snapshot_date, language)` | 按日榜单、日期/语言筛选 |
 | sessions | `(user_id)`、`(expires_at)` | 会话校验与清理 |
 | repo_tags | `(repo_id)`、`(tag_id)` | 反查 |
 | summary_quality_samples | `(batch_id)`、唯一 `(batch_id, repo_source, repo_id)` | 抽检批次查询与去重 |

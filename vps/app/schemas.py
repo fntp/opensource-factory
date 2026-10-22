@@ -29,7 +29,7 @@ class RepoOut(ORMModel):
 
 
 class TrendingRepoOut(ORMModel):
-    """热榜仓库输出。"""
+    """热榜仓库输出（含按日快照与趋势字段）。"""
 
     id: str
     platform: str
@@ -43,6 +43,10 @@ class TrendingRepoOut(ORMModel):
     language: Optional[str] = None
     stars: int = 0
     crawled_at: Optional[date] = None
+    snapshot_date: Optional[date] = None
+    rank: Optional[int] = None
+    rank_change: Optional[int] = None
+    trend: Optional[str] = None
 
 
 class TrendingSnapshotOut(ORMModel):

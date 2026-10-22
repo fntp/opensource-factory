@@ -32,24 +32,105 @@ def _parse_snapshot_date(value: Optional[str]) -> Optional[date]:
         raise HTTPException(status_code=422, detail="date 需为 YYYY-MM-DD") from exc
 
 
-def _latest_snapshot_date(db: Session) -> Optional[date]:
-    return db.execute(select(func.max(TrendingSnapshot.snapshot_date))).scalar()
+def _latest_snapshot_date(db: Session, platform: str = "all") -> Optional[date]:
+    stmt = select(func.max(TrendingSnapshot.snapshot_date))
+    if platform and platform != "all":
+        stmt = stmt.where(TrendingSnapshot.platform == platform)
+    return db.execute(stmt).scalar()
 
 
-@router.get("", response_model=list[TrendingRepoOut], summary="热榜列表")
+def _trend_of(row: TrendingSnapshot) -> str:
+    """页面趋势按排名变化符号标注（M2-05 的 trend 字段采用 ±3 阈值）。"""
+    if row.is_new:
+        return "new"
+    if (row.rank_delta or 0) > 0:
+        return "up"
+    if (row.rank_delta or 0) < 0:
+        return "down"
+    return "same"
+
+
+def _snapshot_out(row: TrendingSnapshot) -> TrendingRepoOut:
+    return TrendingRepoOut(
+        id=row.repo_id,
+        platform=row.platform,
+        name=row.name,
+        html_url=row.html_url,
+        stars_today=row.stars_today or 0,
+        description=row.description,
+        tech_stack=row.tech_stack,
+        crawled_at=row.created_at.date() if row.created_at else None,
+        owner=row.owner,
+        language=row.language,
+        stars=row.stars or 0,
+        snapshot_date=row.snapshot_date,
+        rank=row.rank or 0,
+        rank_change=None if row.is_new else (row.rank_delta or 0),
+        trend=_trend_of(row),
+    )
+
+
+def _latest_out(row: TrendingRepository, rank: int) -> TrendingRepoOut:
+    return TrendingRepoOut(
+        id=row.id,
+        platform=row.platform,
+        name=row.name,
+        html_url=row.html_url,
+        stars_today=row.stars_today or 0,
+        description=row.description,
+        tech_stack=row.tech_stack,
+        crawled_at=row.crawled_at,
+        owner=row.owner,
+        language=row.language,
+        stars=row.stars or 0,
+        snapshot_date=row.crawled_at,
+        rank=rank,
+        rank_change=0,
+        trend="same",
+    )
+
+
+@router.get("", response_model=list[TrendingRepoOut], summary="热榜列表（按日快照）")
 def list_trending(
     db: Session = Depends(get_db),
     platform: str = Query(default="github", description="github / gitee / all"),
+    snapshot_date: Optional[date] = Query(default=None, alias="date", description="YYYY-MM-DD"),
+    language: Optional[str] = Query(default=None, description="按主语言筛选"),
     limit: int = Query(default=20, ge=1, le=100),
-) -> list[TrendingRepository]:
+) -> list[TrendingRepoOut]:
+    target = snapshot_date or _latest_snapshot_date(db, platform)
+
+    if target is not None:
+        stmt = (
+            select(TrendingSnapshot)
+            .where(TrendingSnapshot.snapshot_date == target)
+            .order_by(TrendingSnapshot.rank.asc(), TrendingSnapshot.repo_id.asc())
+            .limit(limit)
+        )
+        if platform and platform != "all":
+            stmt = stmt.where(TrendingSnapshot.platform == platform)
+        if language:
+            stmt = stmt.where(func.lower(TrendingSnapshot.language) == language.strip().lower())
+        rows = list(db.execute(stmt).scalars().all())
+        if rows:
+            return [_snapshot_out(row) for row in rows]
+
+        # 明确指定日期 / 语言但无匹配：返回空列表，不静默回退
+        if snapshot_date is not None or language:
+            return []
+
+    # 兼容旧数据：尚无任何快照时读最新状态表
     stmt = (
         select(TrendingRepository)
-        .order_by(TrendingRepository.crawled_at.desc(), TrendingRepository.stars_today.desc())
+        .order_by(TrendingRepository.stars_today.desc(), TrendingRepository.id.asc())
         .limit(limit)
     )
     if platform and platform != "all":
         stmt = stmt.where(TrendingRepository.platform == platform)
-    return list(db.execute(stmt).scalars().all())
+    if language:
+        stmt = stmt.where(func.lower(TrendingRepository.language) == language.strip().lower())
+    rows = list(db.execute(stmt).scalars().all())
+    return [_latest_out(row, index) for index, row in enumerate(rows, start=1)]
 
 
 @router.get(
@@ -95,10 +176,65 @@ def list_trending_snapshot_dates(
         .order_by(TrendingSnapshot.snapshot_date.desc())
         .limit(limit)
     )
-    return [
+    rows = [
         {"date": row[0], "count": int(row[1])}
         for row in db.execute(stmt).all()
     ]
+    if rows:
+        return rows
+
+    # 兼容旧数据：没有快照时用最新表的抓取日期
+    fallback = (
+        select(TrendingRepository.crawled_at, func.count().label("count"))
+        .where(TrendingRepository.crawled_at.is_not(None))
+        .group_by(TrendingRepository.crawled_at)
+        .order_by(TrendingRepository.crawled_at.desc())
+        .limit(limit)
+    )
+    return [
+        {"date": row[0], "count": int(row[1])}
+        for row in db.execute(fallback).all()
+    ]
+
+
+@router.get("/languages", summary="指定日期的语言分布")
+def list_languages(
+    db: Session = Depends(get_db),
+    snapshot_date: Optional[date] = Query(default=None, alias="date", description="YYYY-MM-DD"),
+) -> dict[str, object]:
+    target = snapshot_date or _latest_snapshot_date(db)
+    rows: list[tuple[str, int]] = []
+    if target is not None:
+        rows = [
+            (language, int(count))
+            for language, count in db.execute(
+                select(TrendingSnapshot.language, func.count())
+                .where(
+                    TrendingSnapshot.snapshot_date == target,
+                    TrendingSnapshot.language.is_not(None),
+                    TrendingSnapshot.language != "",
+                )
+                .group_by(TrendingSnapshot.language)
+                .order_by(func.count().desc(), TrendingSnapshot.language.asc())
+            ).all()
+        ]
+    if not rows:
+        rows = [
+            (language, int(count))
+            for language, count in db.execute(
+                select(TrendingRepository.language, func.count())
+                .where(
+                    TrendingRepository.language.is_not(None),
+                    TrendingRepository.language != "",
+                )
+                .group_by(TrendingRepository.language)
+                .order_by(func.count().desc(), TrendingRepository.language.asc())
+            ).all()
+        ]
+    return {
+        "date": target.isoformat() if target is not None else None,
+        "languages": [{"language": language, "count": count} for language, count in rows],
+    }
 
 
 @router.get(

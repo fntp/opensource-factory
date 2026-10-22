@@ -74,6 +74,7 @@ Celery beat 每日 → 抓取 GitHub Trending（全局页 + 多语言页，超�
 → 写 trending_snapshots（按日快照 + 排名 / Star 增量 / 连续上榜等趋势字段）
 → 变化仓库入队 summarize_readmes（source=trending）→ 摘要 / 质量抽检
 → 配置 EDGE_BASE_URL 时批量回写 D1（快照 + 摘要）→ （M3）向量化 → 同步 Vectorize
+→ admin 热榜页按日期 / 语言筛选，展示趋势徽标（↑ / ↓ / 新上榜 / —）
 ```
 
 > 快照以 `(snapshot_date, repo_id)` 为主键，重复执行同一日任务幂等；趋势基线最多回看 7 天（M2-05）。
@@ -100,8 +101,9 @@ Celery beat 每日 → 抓取 GitHub Trending（全局页 + 多语言页，超�
 | `/api/auth/me` | GET | 当前用户（未登录 401） |
 | `/api/auth/logout` | POST | 退出（204） |
 | `/api/repos` | GET | 仓库列表（`?q=` / `?categoryId=`，含 `summary`） |
-| `/api/trending` | GET | 热榜（`?date=` / `?language=` / `?limit=`；优先读按日快照，无快照回退最新状态，含 `summary`） |
+| `/api/trending` | GET | 热榜（`?date=` / `?language=` / `?limit=`；优先读按日快照，返回 `rank` / `rankChange` / `trend` / `summary`，无快照回退最新状态） |
 | `/api/trending/dates` | GET | 可用快照日期（倒序） |
+| `/api/trending/languages` | GET | 指定日期的语言分布（`?date=`） |
 | `/api/trending/history` | GET | 单仓库历史（`?repoId=` / `?days=`） |
 | `/api/trending/alerts` | GET | 抓取告警（`?status=open\|acknowledged\|all`） |
 | `/api/trending/alerts/{id}/ack` | POST | 确认抓取告警 |

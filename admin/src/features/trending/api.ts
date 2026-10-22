@@ -1,5 +1,7 @@
 import { fetchWithFallback } from '@/lib/api'
 
+export type TrendingTrend = 'up' | 'down' | 'new' | 'same'
+
 export interface TrendingRepo {
   id: string
   owner: string
@@ -9,7 +11,37 @@ export interface TrendingRepo {
   stars: number
   starsToday: number
   url: string
+  /** 快照日期（YYYY-MM-DD） */
+  snapshotDate: string | null
+  /** 当日排名（从 1 开始） */
+  rank: number
+  /** 相对上一快照日的排名变化（正数 = 上升，null = 新上榜） */
+  rankChange: number | null
+  trend: TrendingTrend
 }
+
+export interface TrendingQuery {
+  date?: string
+  language?: string
+  limit?: number
+}
+
+export interface TrendingDatesResponse {
+  dates: string[]
+  latest: string | null
+}
+
+export interface TrendingLanguage {
+  language: string
+  count: number
+}
+
+export interface TrendingLanguagesResponse {
+  date: string | null
+  languages: TrendingLanguage[]
+}
+
+export const MOCK_TRENDING_DATES = ['2026-10-22', '2026-10-21', '2026-10-20']
 
 export const MOCK_TRENDING_REPOS: TrendingRepo[] = [
   {
@@ -21,6 +53,10 @@ export const MOCK_TRENDING_REPOS: TrendingRepo[] = [
     stars: 94210,
     starsToday: 512,
     url: 'https://github.com/langchain-ai/langchain',
+    snapshotDate: '2026-10-22',
+    rank: 1,
+    rankChange: 2,
+    trend: 'up',
   },
   {
     id: '2',
@@ -31,6 +67,10 @@ export const MOCK_TRENDING_REPOS: TrendingRepo[] = [
     stars: 38000,
     starsToday: 402,
     url: 'https://github.com/microsoft/autogen',
+    snapshotDate: '2026-10-22',
+    rank: 2,
+    rankChange: -1,
+    trend: 'down',
   },
   {
     id: '3',
@@ -41,6 +81,10 @@ export const MOCK_TRENDING_REPOS: TrendingRepo[] = [
     stars: 78120,
     starsToday: 366,
     url: 'https://github.com/shadcn-ui/ui',
+    snapshotDate: '2026-10-22',
+    rank: 3,
+    rankChange: 0,
+    trend: 'same',
   },
   {
     id: '4',
@@ -51,6 +95,10 @@ export const MOCK_TRENDING_REPOS: TrendingRepo[] = [
     stars: 102340,
     starsToday: 298,
     url: 'https://github.com/ollama/ollama',
+    snapshotDate: '2026-10-22',
+    rank: 4,
+    rankChange: null,
+    trend: 'new',
   },
   {
     id: '5',
@@ -61,6 +109,10 @@ export const MOCK_TRENDING_REPOS: TrendingRepo[] = [
     stars: 55120,
     starsToday: 254,
     url: 'https://github.com/lobehub/lobe-chat',
+    snapshotDate: '2026-10-22',
+    rank: 5,
+    rankChange: 3,
+    trend: 'up',
   },
   {
     id: '6',
@@ -71,6 +123,10 @@ export const MOCK_TRENDING_REPOS: TrendingRepo[] = [
     stars: 68100,
     starsToday: 233,
     url: 'https://github.com/ggml-org/llama.cpp',
+    snapshotDate: '2026-10-22',
+    rank: 6,
+    rankChange: -2,
+    trend: 'down',
   },
   {
     id: '7',
@@ -81,6 +137,10 @@ export const MOCK_TRENDING_REPOS: TrendingRepo[] = [
     stars: 32400,
     starsToday: 210,
     url: 'https://github.com/browser-use/browser-use',
+    snapshotDate: '2026-10-22',
+    rank: 7,
+    rankChange: 0,
+    trend: 'same',
   },
   {
     id: '8',
@@ -91,6 +151,10 @@ export const MOCK_TRENDING_REPOS: TrendingRepo[] = [
     stars: 61200,
     starsToday: 198,
     url: 'https://github.com/n8n-io/n8n',
+    snapshotDate: '2026-10-22',
+    rank: 8,
+    rankChange: null,
+    trend: 'new',
   },
   {
     id: '9',
@@ -101,6 +165,10 @@ export const MOCK_TRENDING_REPOS: TrendingRepo[] = [
     stars: 74500,
     starsToday: 187,
     url: 'https://github.com/supabase/supabase',
+    snapshotDate: '2026-10-22',
+    rank: 9,
+    rankChange: 1,
+    trend: 'up',
   },
   {
     id: '10',
@@ -111,9 +179,82 @@ export const MOCK_TRENDING_REPOS: TrendingRepo[] = [
     stars: 92100,
     starsToday: 165,
     url: 'https://github.com/tauri-apps/tauri',
+    snapshotDate: '2026-10-22',
+    rank: 10,
+    rankChange: -1,
+    trend: 'down',
   },
 ]
 
-export function fetchTrending(): Promise<TrendingRepo[]> {
-  return fetchWithFallback<TrendingRepo[]>('/api/trending', MOCK_TRENDING_REPOS)
+/** 生成查询串：空值不写入，保持缓存键稳定。 */
+export function buildTrendingQuery(params: TrendingQuery = {}): string {
+  const search = new URLSearchParams()
+  if (params.date) search.set('date', params.date)
+  if (params.language) search.set('language', params.language)
+  if (params.limit) search.set('limit', String(params.limit))
+  const qs = search.toString()
+  return qs ? `?${qs}` : ''
+}
+
+/** 演示模式：按语言过滤，并按当前日期重排演示数据的排名。 */
+export function filterMockTrending(
+  items: TrendingRepo[],
+  params: TrendingQuery = {}
+): TrendingRepo[] {
+  const language = params.language?.toLowerCase()
+  const filtered = language
+    ? items.filter((item) => item.language.toLowerCase() === language)
+    : items
+  return filtered
+    .slice(0, params.limit ?? filtered.length)
+    .map((item, index) => ({
+      ...item,
+      snapshotDate: params.date ?? item.snapshotDate,
+      rank: index + 1,
+    }))
+}
+
+export function fetchTrending(
+  params: TrendingQuery = {}
+): Promise<TrendingRepo[]> {
+  return fetchWithFallback<TrendingRepo[]>(
+    `/api/trending${buildTrendingQuery(params)}`,
+    filterMockTrending(MOCK_TRENDING_REPOS, params)
+  )
+}
+
+/** 兼容两种 /dates 返回：{dates,latest} 或 [{date,count}]。 */
+export async function fetchTrendingDates(): Promise<TrendingDatesResponse> {
+  const fallback: TrendingDatesResponse = {
+    dates: MOCK_TRENDING_DATES,
+    latest: MOCK_TRENDING_DATES[0] ?? null,
+  }
+  const raw = await fetchWithFallback<
+    TrendingDatesResponse | Array<{ date: string; count: number }>
+  >('/api/trending/dates', fallback)
+  if (Array.isArray(raw)) {
+    const dates = raw.map((item) => item.date)
+    return { dates, latest: dates[0] ?? null }
+  }
+  return raw
+}
+
+export function fetchTrendingLanguages(
+  date?: string
+): Promise<TrendingLanguagesResponse> {
+  const counts = new Map<string, number>()
+  for (const item of MOCK_TRENDING_REPOS) {
+    counts.set(item.language, (counts.get(item.language) ?? 0) + 1)
+  }
+  return fetchWithFallback<TrendingLanguagesResponse>(
+    `/api/trending/languages${date ? `?date=${encodeURIComponent(date)}` : ''}`,
+    {
+      date: date ?? MOCK_TRENDING_DATES[0] ?? null,
+      languages: [...counts.entries()]
+        .map(([language, count]) => ({ language, count }))
+        .sort(
+          (a, b) => b.count - a.count || a.language.localeCompare(b.language)
+        ),
+    }
+  )
 }

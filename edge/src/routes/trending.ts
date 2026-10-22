@@ -4,6 +4,7 @@
  *   - 有按日快照时优先读 trending_snapshots（默认最近一天，可按日期 / 语言筛选）；
  *   - 无快照时回退 trending_repositories 最新状态，保持旧前端兼容。
  * GET /api/trending/dates     可用快照日期
+ * GET /api/trending/languages?date=  指定日期的语言分布
  * GET /api/trending/history?repoId=&days=  单仓库历史
  * POST /api/trending/summaries  内部：VPS 摘要任务批量回写热榜中文摘要
  */
@@ -16,13 +17,25 @@ import type {
   Variables,
 } from '../types';
 import { all, first, run } from '../db';
+import { parseTrendingQuery } from '../trending/query';
 
 const trending = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 
-export function toTrendingRepo(row: TrendingRow): TrendingRepo {
+type SnapshotTrend = TrendingRepo['trend'];
+
+function mapTrend(row: TrendingSnapshotRow): SnapshotTrend {
+  if (row.is_new) return 'new';
+  // 页面按排名变化的符号标注（M2-05 的 trend 字段采用 ±3 阈值，仅作后端参考）
+  if ((row.rank_delta ?? 0) > 0) return 'up';
+  if ((row.rank_delta ?? 0) < 0) return 'down';
+  return 'same';
+}
+
+/** 旧表行 → 前端 TrendingRepo（无趋势数据，按持平处理）。 */
+export function toTrendingRepo(row: TrendingRow, rank = 0): TrendingRepo {
   const owner = row.owner ?? row.id.split('/')[0] ?? '';
   return {
     id: row.id,
@@ -34,10 +47,14 @@ export function toTrendingRepo(row: TrendingRow): TrendingRepo {
     stars: row.stars ?? 0,
     starsToday: row.stars_today ?? 0,
     url: row.html_url,
+    snapshotDate: row.crawled_at,
+    rank,
+    rankChange: 0,
+    trend: 'same',
   };
 }
 
-/** 快照行 → 前端 TrendingRepo（附带趋势字段） */
+/** 快照行 → 前端 TrendingRepo（附带排名与趋势字段）。 */
 export function toTrendingRepoFromSnapshot(row: TrendingSnapshotRow): TrendingRepo {
   const owner = row.owner ?? row.repo_id.split('/')[0] ?? '';
   return {
@@ -51,12 +68,13 @@ export function toTrendingRepoFromSnapshot(row: TrendingSnapshotRow): TrendingRe
     url: row.html_url,
     snapshotDate: row.snapshot_date,
     rank: row.rank ?? 0,
+    rankChange: row.is_new ? null : (row.rank_delta ?? 0),
+    trend: mapTrend(row),
     languageRank: row.language_rank ?? 0,
     starDelta: row.star_delta ?? 0,
     rankDelta: row.rank_delta ?? 0,
     appearances: row.appearances ?? 1,
     isNew: Boolean(row.is_new),
-    trend: row.trend ?? 'steady',
   };
 }
 
@@ -115,7 +133,9 @@ trending.post('/summaries', async (c) => {
 
 function parseLimit(raw: string | undefined): number {
   const parsed = Number.parseInt(raw ?? '', 10);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, MAX_LIMIT) : DEFAULT_LIMIT;
+  return Number.isFinite(parsed) && parsed > 0
+    ? Math.min(parsed, MAX_LIMIT)
+    : DEFAULT_LIMIT;
 }
 
 trending.get('/dates', async (c) => {
@@ -130,6 +150,57 @@ trending.get('/dates', async (c) => {
     [limit]
   );
   return c.json(rows.map((row) => ({ date: row.snapshot_date, count: row.n })));
+});
+
+trending.get('/languages', async (c) => {
+  const rawDate = (c.req.query('date') ?? '').trim();
+  if (rawDate) {
+    const parsed = parseTrendingQuery(new URLSearchParams({ date: rawDate }));
+    if (!parsed.ok) {
+      return c.json(
+        { error: 'invalid_query', field: parsed.field, message: parsed.message },
+        400
+      );
+    }
+  }
+
+  let date = rawDate;
+  if (!date) {
+    const latest = await first<{ d: string | null }>(
+      c.env.DB,
+      'SELECT MAX(snapshot_date) AS d FROM trending_snapshots'
+    );
+    date = latest?.d ?? '';
+  }
+
+  let rows: Array<{ language: string; n: number }> = [];
+  if (date) {
+    rows = await all<{ language: string; n: number }>(
+      c.env.DB,
+      `SELECT language, COUNT(*) AS n
+         FROM trending_snapshots
+        WHERE snapshot_date = ?
+          AND language IS NOT NULL AND language <> ''
+        GROUP BY language
+        ORDER BY n DESC, language ASC`,
+      [date]
+    );
+  }
+  if (rows.length === 0) {
+    rows = await all<{ language: string; n: number }>(
+      c.env.DB,
+      `SELECT language, COUNT(*) AS n
+         FROM trending_repositories
+        WHERE language IS NOT NULL AND language <> ''
+        GROUP BY language
+        ORDER BY n DESC, language ASC`
+    );
+  }
+
+  return c.json({
+    date: date || null,
+    languages: rows.map((row) => ({ language: row.language, count: row.n })),
+  });
 });
 
 trending.get('/history', async (c) => {
@@ -150,9 +221,14 @@ trending.get('/history', async (c) => {
 });
 
 trending.get('/', async (c) => {
-  const limit = parseLimit(c.req.query('limit'));
-  const dateParam = (c.req.query('date') ?? '').trim();
-  const language = (c.req.query('language') ?? '').trim();
+  const parsed = parseTrendingQuery(new URLSearchParams(c.req.query()));
+  if (!parsed.ok) {
+    return c.json(
+      { error: 'invalid_query', field: parsed.field, message: parsed.message },
+      400
+    );
+  }
+  const { date: dateParam, language, limit } = parsed.query;
 
   // 优先按日快照；未指定日期时取最近一天
   let snapshotDate = dateParam;
@@ -176,7 +252,7 @@ trending.get('/', async (c) => {
       c.env.DB,
       `SELECT * FROM trending_snapshots
         WHERE ${where.join(' AND ')}
-        ORDER BY rank ASC
+        ORDER BY rank ASC, repo_id ASC
         LIMIT ?`,
       params
     );
@@ -190,14 +266,22 @@ trending.get('/', async (c) => {
   }
 
   // 兼容：尚无任何快照时读最新状态表
+  const where: string[] = [];
+  const params: Array<string | number> = [];
+  if (language) {
+    where.push('LOWER(language) = ?');
+    params.push(language.toLowerCase());
+  }
+  params.push(limit);
   const rows = await all<TrendingRow>(
     c.env.DB,
     `SELECT * FROM trending_repositories
-      ORDER BY stars_today DESC
+      ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
+      ORDER BY stars_today DESC, id ASC
       LIMIT ?`,
-    [limit]
+    params
   );
-  return c.json(rows.map(toTrendingRepo));
+  return c.json(rows.map((row, index) => toTrendingRepo(row, index + 1)));
 });
 
 export default trending;

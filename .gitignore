@@ -26,7 +26,7 @@ venv/
 *.db
 *.sqlite3
 **/data/
-# 例外：admin 布局的静态数据目录（sidebar-data.ts 属于源码，必须入库）
+# 例外：admin 布局的静态数据目录（sidebar-data.ts 属于源码而非运行时数据，必须入库）
 !admin/src/components/layout/data/
 !admin/src/components/layout/data/**
 
