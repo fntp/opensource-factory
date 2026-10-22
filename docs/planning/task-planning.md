@@ -63,3 +63,4 @@
 | 2026-10-22 | 交付 | IT-0011 / REQ-202610-0905 完成：README 摘要接入同步流程（Ollama 降级链 + 批量队列 + D1 回写），vps 29 用例 / edge tsc / admin 73 用例全绿 |
 | 2026-10-22 | 交付 | IT-0013 / REQ-202610-0912 完成：摘要批量生成扩展至热榜，新增启发式质量评分、确定性抽检、样本留存与人工复核 API；计划见 `planning/plan-req-202610-0912-summary-quality.md` |
 | 2026-10-22 | M2-02 | 抓取容错与页面结构变更告警：有限重试、解析诊断、`crawl_alerts` / `crawl_page_stats` 与告警 API，vps 用例全绿 |
+| 2026-10-22 | M2-03 | README 清洗强化：徽章 / 图片 / HTML 块 / 链接地址去除、HTML 实体与零宽字符处理、技术栈别名归并与 language/topics 加权；vps 用例全绿 |

@@ -253,7 +253,10 @@ def crawl_trending(
             stars = int(item.get("stars") or 0)
             stars_today = int(item.get("stars_today") or 0)
             tech_stack = extract_tech_stack(
-                " ".join(filter(None, [item.get("description"), language_name]))
+                " ".join(
+                    filter(None, [item.get("name"), item.get("description"), item.get("language")])
+                ),
+                language=item.get("language"),
             )
             row = db.get(TrendingRepository, repo_id)
             if row is None:

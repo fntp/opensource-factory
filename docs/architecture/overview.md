@@ -70,7 +70,8 @@ admin「同步仓库」→ POST /api/sync（edge）→ POST {VPS}/api/tasks/sync
 ```
 Celery beat 每日 → 抓取 GitHub Trending（全局页 + 多语言页，超时/429/5xx 指数退避重试）
 → 清洗解析 / 去重 → 页面健康判定（结构变更 / 条数骤降）→ 告警落库（可选 webhook）
-→ upsert trending_repositories（最新状态）→ 写 trending_snapshots（按日快照 + 排名 / Star 增量 / 连续上榜等趋势字段）
+→ upsert trending_repositories（最新状态）→ README 去噪（徽章 / 图片 / HTML）+ 技术栈提取（别名归并 / language 优先）
+→ 写 trending_snapshots（按日快照 + 排名 / Star 增量 / 连续上榜等趋势字段）
 → 变化仓库入队 summarize_readmes（source=trending）→ 摘要 / 质量抽检
 → 配置 EDGE_BASE_URL 时批量回写 D1（快照 + 摘要）→ （M3）向量化 → 同步 Vectorize
 ```

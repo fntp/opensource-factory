@@ -10,6 +10,8 @@
 
 本节点负责：GitHub 数据同步、热榜抓取（GitHub Trending / Gitee）、README 清洗与摘要、向量生成与语义推荐、每日推送准备。
 
+README 清洗（`app/services/readme.py`）会去除 HTML 注释 / 脚本块 / 徽章 / 图片 / HTML 标签与链接地址，解码 HTML 实体并折叠空行；技术栈提取支持别名归并（Golang → Go、K8s → Kubernetes）、语言字段优先与 topics 提示。
+
 ## 目录结构
 
 ```
@@ -29,7 +31,7 @@ vps/
 │   │   ├── trending_crawler.py   # GitHub Trending 解析/抓取 + Gitee 探索页（尽力而为）
 │   │   ├── trending_snapshot.py  # 按日快照去重 / 排名 / 趋势字段 + D1 批量回写
 │   │   ├── crawl_guard.py        # 抓取重试、页面结构变更判定与告警落库（M2-02）
-│   │   ├── readme.py             # README 清洗 + 技术栈启发式提取
+│   │   ├── readme.py             # README 去噪（徽章 / 图片 / HTML）+ 技术栈别名归并
 │   │   ├── embedding.py          # BGE-M3（懒加载）与确定性 hash 降级向量
 │   │   ├── summarizer.py         # Ollama → DeepSeek → 截断降级 的摘要生成
 │   │   └── recommender.py        # 余弦排序 + 中文推荐理由模板
