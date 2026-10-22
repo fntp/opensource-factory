@@ -12,9 +12,19 @@
   }
   html {
     @apply overflow-x-hidden;
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
   }
   body {
     @apply min-h-svh w-full bg-background text-foreground has-[div[data-variant='inset']]:bg-sidebar;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
+
+  /* 移动端 PWA：避免双击缩放与点击高亮破坏原生感 */
+  a,
+  button {
+    touch-action: manipulation;
   }
 
   /* Override Radix scroll locking for sticky headers */

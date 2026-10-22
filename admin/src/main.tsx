@@ -10,6 +10,7 @@ import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { handleServerError } from '@/lib/handle-server-error'
+import { registerServiceWorker } from '@/lib/service-worker'
 import { DirectionProvider } from './context/direction-provider'
 import { FontProvider } from './context/font-provider'
 import { ThemeProvider } from './context/theme-provider'
@@ -105,3 +106,6 @@ if (!rootElement.innerHTML) {
     </StrictMode>
   )
 }
+
+// PWA：仅生产构建注册 Service Worker，开发模式不缓存 HMR 资源。
+registerServiceWorker()

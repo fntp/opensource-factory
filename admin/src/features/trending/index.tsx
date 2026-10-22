@@ -188,7 +188,7 @@ export function Trending() {
                 return (
                   <div
                     key={`${item.snapshotDate}-${item.id}`}
-                    className='flex items-center gap-4 border-b py-3 last:border-b-0'
+                    className='flex items-start gap-3 border-b py-3 last:border-b-0 sm:items-center sm:gap-4'
                   >
                     <div
                       className={`flex size-8 shrink-0 items-center justify-center rounded-full border text-sm font-medium ${
@@ -216,13 +216,17 @@ export function Trending() {
                           {badge.label}
                         </Badge>
                       </div>
-                      <p className='truncate text-sm text-muted-foreground'>
+                      <p className='line-clamp-2 text-sm text-muted-foreground sm:truncate'>
                         {item.description}
                       </p>
                     </div>
-                    <LicenseBadge license={item.license} />
-                    <Badge variant='outline'>{item.language || '未知'}</Badge>
-                    <div className='w-20 shrink-0 text-end'>
+                    <div className='hidden sm:block'>
+                      <LicenseBadge license={item.license} />
+                    </div>
+                    <Badge variant='outline' className='hidden md:inline-flex'>
+                      {item.language || '未知'}
+                    </Badge>
+                    <div className='w-16 shrink-0 text-end sm:w-20'>
                       <div className='text-sm font-medium'>
                         +{item.starsToday}
                       </div>
@@ -238,12 +242,17 @@ export function Trending() {
                         总 Star
                       </div>
                     </div>
-                    <Button variant='ghost' size='sm' asChild>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      className='shrink-0 px-2 sm:px-3'
+                      asChild
+                    >
                       <Link
                         to='/trending/$owner/$name'
                         params={{ owner: item.owner, name: item.name }}
                       >
-                        详情
+                        <span className='hidden sm:inline'>详情</span>
                         <ChevronRight />
                       </Link>
                     </Button>
