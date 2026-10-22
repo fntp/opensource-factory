@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 
@@ -36,10 +37,22 @@ def require_internal_token(
     status_code=status.HTTP_202_ACCEPTED,
     response_model=TaskEnqueued,
     dependencies=[Depends(require_internal_token)],
-    summary="入队：GitHub 仓库同步",
+    summary="入队：GitHub 仓库同步（增量优先，可全量对账）",
 )
-async def enqueue_sync(include_starred: bool = Query(default=True)) -> TaskEnqueued:
-    task = sync_repositories.delay(include_starred=include_starred)
+async def enqueue_sync(
+    include_starred: bool = Query(default=True),
+    mode: Literal["incremental", "full"] = Query(
+        default="incremental", description="incremental=按水位线增量；full=全量对账"
+    ),
+    per_page: int = Query(default=100, ge=1, le=100),
+    max_pages: int | None = Query(default=None, ge=1, le=10000),
+) -> TaskEnqueued:
+    task = sync_repositories.delay(
+        include_starred=include_starred,
+        mode=mode,
+        per_page=per_page,
+        max_pages=max_pages,
+    )
     return TaskEnqueued(taskId=task.id)
 
 

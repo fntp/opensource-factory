@@ -22,7 +22,8 @@ CREATE TABLE my_repositories (
     owner TEXT,
     forks INTEGER DEFAULT 0,
     updated_at TEXT,
-    synced_at TEXT
+    synced_at TEXT,
+    pushed_at TEXT                   -- 最近一次代码推送时间（REQ-202610-0899 增量同步）
 );
 
 -- ── 今日趋势仓库（爬虫写入）─────────────────────────────────────

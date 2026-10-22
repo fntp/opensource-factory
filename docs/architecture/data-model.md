@@ -36,7 +36,10 @@ recommendations              （user_id 可空 = 全局推荐）
 | category_id | TEXT | 关联分类 |
 | created_at | DATETIME | 收录时间 |
 
-> 本仓库扩展列（不改变上述语义）：`user_id`、`owner`、`forks`、`updated_at`、`synced_at`。
+> 本仓库扩展列（不改变上述语义）：`user_id`、`owner`、`forks`、`updated_at`、`synced_at`、`pushed_at`。
+>
+> 增量同步（REQ-202610-0899）：`pushed_at` 记录 GitHub 最近一次代码推送时间，`updated_at` 作为
+> 同步水位线，`synced_at` 记录最近一次内容变更写入时间；未变化的行不会更新 `synced_at`。
 
 ### 2.2 `trending_repositories` 热榜项目
 
@@ -98,6 +101,19 @@ recommendations              （user_id 可空 = 全局推荐）
 | based_on TEXT | 依据（JSON 数组，如 `["AI/LLM","Python"]`） |
 | status TEXT | `new` / `saved` / `dismissed` / `pushed` |
 | created_at | 生成时间 |
+
+### 3.5 `sync_state` 增量同步水位线（仅 VPS 本地）
+
+| 字段 | 说明 |
+| --- | --- |
+| source TEXT PK | `github:own` / `github:starred` |
+| last_synced_at TEXT | 上次成功同步的 `updated_at` 高水位（ISO 8601，用于 `since`） |
+| last_full_synced_at TEXT | 上次全量对账时间 |
+| last_run_at TEXT | 最近一次执行时间 |
+| last_status TEXT | `never` / `ok` / `error` |
+| last_result TEXT | 最近一次计数快照（JSON） |
+
+> 该表是算力节点的运行态，不写入 D1；水位线只在同步成功后推进，失败保留旧值等待重试。
 
 ## 4. 索引策略
 

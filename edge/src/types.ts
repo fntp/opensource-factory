@@ -54,6 +54,8 @@ export interface RepoRow {
   forks: number | null;
   updated_at: string | null;
   synced_at: string | null;
+  /** 最近一次代码推送时间（增量同步） */
+  pushed_at: string | null;
   /** JOIN 得到的分类名（可选） */
   category_name?: string | null;
   /** 聚合得到的标签名列表（可选） */

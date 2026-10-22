@@ -35,6 +35,12 @@ class MyRepository(Base):
     readme_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # VPS 大模型生成的项目摘要
     category_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)  # 关联分类 ID
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    # 增量同步字段（与 D1 my_repositories 扩展列对齐）
+    owner: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    forks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    pushed_at: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)  # 最近一次代码推送时间
+    updated_at: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)  # GitHub updated_at
+    synced_at: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)  # 最近一次内容变更写入时间
 
 
 class TrendingRepository(Base):
@@ -84,3 +90,20 @@ class Recommendation(Base):
     reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="new")  # new | pushed | ...
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+
+
+class SyncState(Base):
+    """增量同步水位线（VPS 本地运行态，不写入 D1）。
+
+    `source` 取 `github:own` / `github:starred`；时间字段统一存 ISO 8601 UTC 字符串，
+    与 GitHub API 返回格式一致，便于直接用于 `since` 参数与字符串比较。
+    """
+
+    __tablename__ = "sync_state"
+
+    source: Mapped[str] = mapped_column(String(64), primary_key=True)
+    last_synced_at: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    last_full_synced_at: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    last_run_at: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    last_status: Mapped[str] = mapped_column(String(16), nullable=False, default="never")  # never | ok | error
+    last_result: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON 计数快照

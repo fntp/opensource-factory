@@ -1,6 +1,8 @@
 """仓库接口：列表查询与同步入队。"""
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
@@ -36,6 +38,11 @@ def list_repos(
     response_model=TaskEnqueued,
     summary="入队：GitHub 仓库同步（/api/tasks/sync 的便捷别名）",
 )
-async def enqueue_repos_sync(include_starred: bool = Query(default=True)) -> TaskEnqueued:
-    task = sync_repositories.delay(include_starred=include_starred)
+async def enqueue_repos_sync(
+    include_starred: bool = Query(default=True),
+    mode: Literal["incremental", "full"] = Query(
+        default="incremental", description="incremental=按水位线增量；full=全量对账"
+    ),
+) -> TaskEnqueued:
+    task = sync_repositories.delay(include_starred=include_starred, mode=mode)
     return TaskEnqueued(taskId=task.id)
