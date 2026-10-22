@@ -33,8 +33,17 @@ def _run_async(coro: Coroutine[Any, Any, Any]) -> Any:
 
 
 @celery_app.task(name="app.tasks.jobs.sync_repositories")
-def sync_repositories(include_starred: bool = True) -> dict[str, Any]:
-    """同步 GitHub 仓库（自己的 + 可选 Starred）到本地镜像表。"""
+def sync_repositories(
+    include_starred: bool = True,
+    with_summary: bool = True,
+    summary_limit: Optional[int] = None,
+    summary_batch_size: Optional[int] = None,
+) -> dict[str, Any]:
+    """同步 GitHub 仓库（自己的 + 可选 Starred）到本地镜像表。
+
+    `with_summary=True` 时，upsert 完成后把本次变化的仓库交给独立的摘要批量队列，
+    同步任务本身不被 LLM 阻塞。
+    """
     settings = get_settings()
     token = (settings.GITHUB_TOKEN or "").strip()
     if not token:
@@ -50,6 +59,7 @@ def sync_repositories(include_starred: bool = True) -> dict[str, Any]:
 
     created = 0
     updated = 0
+    changed_ids: list[str] = []
     db = SessionLocal()
     try:
         for item in repos:
@@ -70,6 +80,7 @@ def sync_repositories(include_starred: bool = True) -> dict[str, Any]:
                     )
                 )
                 created += 1
+                changed_ids.append(repo_id)
             else:
                 row.name = item.get("name") or row.name
                 row.description = item.get("description") or row.description
@@ -77,40 +88,175 @@ def sync_repositories(include_starred: bool = True) -> dict[str, Any]:
                 row.stars = int(item.get("stars") or 0)
                 row.language = item.get("language") or row.language
                 updated += 1
+                changed_ids.append(repo_id)
         db.commit()
     finally:
         db.close()
 
-    logger.info("GitHub 同步完成: 共 %d 个仓库（新增 %d / 更新 %d）", len(repos), created, updated)
-    return {"status": "ok", "total": len(repos), "created": created, "updated": updated}
+    summary_task_id: Optional[str] = None
+    if with_summary and changed_ids:
+        limit = int(summary_limit if summary_limit is not None else settings.SUMMARY_MAX_PER_RUN)
+        batch = int(
+            summary_batch_size if summary_batch_size is not None else settings.SUMMARY_BATCH_SIZE
+        )
+        try:
+            summary_task = summarize_readmes.delay(
+                repo_ids=changed_ids[: max(1, limit)],
+                limit=limit,
+                batch_size=batch,
+            )
+            summary_task_id = getattr(summary_task, "id", None)
+        except Exception:  # noqa: BLE001 - 入队失败不影响同步结果，可手动补跑
+            logger.exception("摘要任务入队失败")
+
+    logger.info(
+        "GitHub 同步完成: 共 %d 个仓库（新增 %d / 更新 %d），摘要任务 %s",
+        len(repos),
+        created,
+        updated,
+        summary_task_id or "未入队",
+    )
+    return {
+        "status": "ok",
+        "total": len(repos),
+        "created": created,
+        "updated": updated,
+        "summaryTaskId": summary_task_id,
+    }
+
+
+@celery_app.task(bind=True, name="app.tasks.jobs.summarize_readmes")
+def summarize_readmes(
+    self,
+    repo_ids: Optional[list[str]] = None,
+    limit: Optional[int] = None,
+    batch_size: Optional[int] = None,
+    force: bool = False,
+    max_chars: Optional[int] = None,
+    source: str = "my",
+) -> dict[str, Any]:
+    """批量生成 README 中文摘要（Ollama → DeepSeek → 截断降级）。
+
+    `source` 支持 `my` / `trending` / `all`；作为独立 Celery 任务排队执行，
+    避免阻塞同步任务；`PROGRESS` 状态供边缘侧轮询。
+    """
+    from app.services.summary_pipeline import summarize_repositories
+
+    def report(meta: dict[str, Any]) -> None:
+        try:
+            self.update_state(state="PROGRESS", meta=meta)
+        except Exception:  # noqa: BLE001 - 进度上报失败不影响摘要生成
+            logger.debug("摘要任务进度上报失败", exc_info=True)
+
+    stats = summarize_repositories(
+        repo_ids=repo_ids,
+        limit=limit,
+        batch_size=batch_size,
+        force=force,
+        max_chars=max_chars,
+        source=source,
+        batch_id=getattr(self.request, "id", None) or None,
+        progress=report,
+    )
+    logger.info(
+        "README 摘要批量完成（source=%s）: 共 %d 条（成功 %d / 跳过 %d / 失败 %d，抽检 %d）",
+        stats.get("source", source),
+        stats.get("total", 0),
+        stats.get("summarized", 0),
+        stats.get("skipped", 0),
+        stats.get("failed", 0),
+        stats.get("sampled", 0),
+    )
+    return stats
 
 
 @celery_app.task(name="app.tasks.jobs.crawl_trending")
-def crawl_trending(platform: str = "github", language: Optional[str] = None) -> dict[str, Any]:
-    """抓取热榜（GitHub Trending，可选 Gitee）并 upsert 到 trending 表。"""
-    from app.services.readme import extract_tech_stack
-    from app.services.trending_crawler import crawl_gitee_explore, crawl_github_trending
+def crawl_trending(
+    platform: str = "github",
+    language: Optional[str] = None,
+    languages: Optional[list[str] | str] = None,
+    since: str = "daily",
+    with_summary: bool = True,
+    summary_limit: Optional[int] = None,
+) -> dict[str, Any]:
+    """抓取热榜（GitHub Trending 全局页 + 多语言页，可选 Gitee）并 upsert。
 
+    - 未指定 `language` 时按 `languages`（默认 `TRENDING_LANGUAGES`）抓取多语言页；
+    - 容错（M2-02）：单页失败只记录并继续其他页，抓取 / 解析 / 告警任何环节都不抛异常；
+    - `with_summary=True` 时，抓取完成后把本次变化的热榜仓库交给摘要队列，
+      由 M2-04 的批量管线生成中文摘要并回写 D1。
+    """
+    from app.services.crawl_guard import process_crawl_health
+    from app.services.readme import extract_tech_stack
+    from app.services.trending_crawler import (
+        crawl_gitee_explore,
+        crawl_github_trending_pages,
+    )
+    from app.services.trending_snapshot import push_trending_snapshots, save_trending_snapshots
+
+    settings = get_settings()
     items: list[dict[str, Any]] = []
+    pages: list[dict[str, Any]] = []
     try:
         if platform in ("github", "all", ""):
-            items.extend(_run_async(crawl_github_trending(language=language)))
+            if language:
+                result = _run_async(
+                    crawl_github_trending_pages(
+                        languages=[language],
+                        since=since,
+                        include_global=False,
+                    )
+                )
+            else:
+                configured = settings.TRENDING_LANGUAGES if languages is None else languages
+                result = _run_async(
+                    crawl_github_trending_pages(languages=configured, since=since)
+                )
+            items.extend(result.get("items") or [])
+            pages.extend(result.get("pages") or [])
         if platform in ("gitee", "all"):
-            items.extend(_run_async(crawl_gitee_explore()))
+            gitee_items = _run_async(crawl_gitee_explore())
+            items.extend(gitee_items)
+            pages.append(
+                {
+                    "platform": "gitee",
+                    "language": "gitee",
+                    "ok": True,
+                    "count": len(gitee_items),
+                    "error": None,
+                }
+            )
     except Exception as exc:  # noqa: BLE001 - 抓取失败降级返回空结果
         logger.exception("热榜抓取失败")
-        return {"status": "error", "error": str(exc)[:300]}
+        return {"status": "error", "error": str(exc)[:300], "pages": pages}
+
+    # 跨平台 / 多页去重（同一 owner/repo 只保留一条）
+    unique: dict[str, dict[str, Any]] = {}
+    for item in items:
+        repo_id = str(item.get("id") or "").strip()
+        if repo_id and repo_id not in unique:
+            unique[repo_id] = item
+    items = list(unique.values())
 
     created = 0
     updated = 0
+    changed_ids: list[str] = []
+    today = date.today()
     db = SessionLocal()
     try:
         for item in items:
-            repo_id = item.get("id") or ""
+            repo_id = str(item.get("id") or "").strip()
             if not repo_id:
                 continue
+            owner = item.get("owner") or repo_id.split("/")[0]
+            language_name = (item.get("language") or "").strip() or None
+            stars = int(item.get("stars") or 0)
+            stars_today = int(item.get("stars_today") or 0)
             tech_stack = extract_tech_stack(
-                " ".join(filter(None, [item.get("description"), item.get("language")]))
+                " ".join(
+                    filter(None, [item.get("name"), item.get("description"), item.get("language")])
+                ),
+                language=item.get("language"),
             )
             row = db.get(TrendingRepository, repo_id)
             if row is None:
@@ -120,10 +266,13 @@ def crawl_trending(platform: str = "github", language: Optional[str] = None) -> 
                         platform=item.get("platform") or "github",
                         name=item.get("name") or repo_id.split("/")[-1],
                         html_url=item.get("html_url") or "",
-                        stars_today=int(item.get("stars_today") or 0),
+                        stars_today=stars_today,
                         description=item.get("description") or "",
                         tech_stack=tech_stack,
-                        crawled_at=date.today(),
+                        owner=owner,
+                        language=language_name,
+                        stars=stars,
+                        crawled_at=today,
                     )
                 )
                 created += 1
@@ -131,17 +280,158 @@ def crawl_trending(platform: str = "github", language: Optional[str] = None) -> 
                 row.platform = item.get("platform") or row.platform
                 row.name = item.get("name") or row.name
                 row.html_url = item.get("html_url") or row.html_url
-                row.stars_today = int(item.get("stars_today") or 0)
-                row.description = item.get("description") or row.description
+                row.owner = owner or row.owner
+                row.language = language_name or row.language
+                row.stars = stars
+                row.stars_today = stars_today
+                if item.get("description"):
+                    row.description = item["description"]
                 row.tech_stack = tech_stack or row.tech_stack
-                row.crawled_at = date.today()
+                row.crawled_at = today
                 updated += 1
+            changed_ids.append(repo_id)
         db.commit()
+        # M2-05：写按日快照（去重 + 趋势字段）；失败不影响抓取主流程
+        try:
+            snapshot_result = save_trending_snapshots(db, items, snapshot_date=today)
+        except Exception as exc:  # noqa: BLE001 - 快照失败降级，不影响最新状态
+            logger.exception("热榜快照入库失败")
+            snapshot_result = {
+                "date": today.isoformat(),
+                "total": 0,
+                "created": 0,
+                "updated": 0,
+                "rows": [],
+                "error": str(exc)[:300],
+            }
     finally:
         db.close()
 
-    logger.info("热榜抓取完成: 共 %d 条（新增 %d / 更新 %d）", len(items), created, updated)
-    return {"status": "ok", "total": len(items), "created": created, "updated": updated}
+    # M2-05：快照批量回写边缘 D1（未配置 EDGE_BASE_URL / INTERNAL_TOKEN 时跳过）
+    push_result = {"skipped": True, "pushed": 0, "failed": 0, "batches": 0}
+    if snapshot_result.get("rows"):
+        try:
+            push_result = push_trending_snapshots(snapshot_result["rows"], today)
+        except Exception as exc:  # noqa: BLE001 - 回写失败只记录，任务仍算成功
+            logger.exception("热榜快照回写边缘失败")
+            push_result = {"skipped": False, "pushed": 0, "failed": len(snapshot_result["rows"]), "batches": 0, "error": str(exc)[:300]}
+
+    snapshots = {
+        "date": snapshot_result.get("date"),
+        "total": snapshot_result.get("total", 0),
+        "created": snapshot_result.get("created", 0),
+        "updated": snapshot_result.get("updated", 0),
+        "pushed": push_result.get("pushed", 0),
+        "pushFailed": push_result.get("failed", 0),
+        "skipped": push_result.get("skipped", True),
+    }
+    if snapshot_result.get("error"):
+        snapshots["error"] = snapshot_result["error"]
+    if push_result.get("error"):
+        snapshots["pushError"] = push_result["error"]
+
+    # M2-02：页面健康判定与告警（独立会话，任何异常都不影响抓取结果）
+    health: dict[str, Any] = {"created": 0, "deduplicated": 0, "alerts": []}
+    try:
+        health_db = SessionLocal()
+        try:
+            health = process_crawl_health(
+                health_db,
+                platform="github" if platform in ("github", "all", "") else platform,
+                pages=pages,
+                total_items=len(items),
+                settings=settings,
+            )
+        finally:
+            health_db.close()
+    except Exception:  # noqa: BLE001 - 告警失败不能影响抓取
+        logger.exception("热榜抓取告警处理失败（抓取结果已保留）")
+
+    failed_pages = [page for page in pages if not page.get("ok", True)]
+    if not items and failed_pages:
+        status = "error"
+    elif failed_pages:
+        status = "partial"
+    else:
+        status = "ok"
+
+    # M2-04：把本次变化的热榜仓库交给摘要队列（失败不影响抓取结果，可手动补跑）
+    summary_task_id: Optional[str] = None
+    if with_summary and changed_ids:
+        limit = int(summary_limit if summary_limit is not None else settings.SUMMARY_MAX_PER_RUN)
+        try:
+            summary_task = summarize_readmes.delay(
+                repo_ids=changed_ids[: max(1, limit)],
+                limit=limit,
+                source="trending",
+            )
+            summary_task_id = getattr(summary_task, "id", None)
+        except Exception:  # noqa: BLE001 - 入队失败不影响抓取结果，可手动补跑
+            logger.exception("热榜摘要任务入队失败")
+
+    logger.info(
+        "热榜抓取完成: 共 %d 条（新增 %d / 更新 %d，失败页 %d，告警 %d），摘要任务 %s",
+        len(items),
+        created,
+        updated,
+        len(failed_pages),
+        health.get("created", 0),
+        summary_task_id or "未入队",
+    )
+    return {
+        "status": status,
+        "platform": platform,
+        "total": len(items),
+        "created": created,
+        "updated": updated,
+        "pages": pages,
+        "failedPages": failed_pages,
+        "snapshots": snapshots,
+        "alerts": health,
+        "summaryTaskId": summary_task_id,
+    }
+
+
+@celery_app.task(name="app.tasks.jobs.cleanup_trending_data")
+def cleanup_trending_data(
+    retention_days: Optional[int] = None,
+    archive: Optional[bool] = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """热榜数据保留：本地归档 + 删除，随后清理 D1 同日期范围快照。
+
+    归档失败时服务层会中止删除并返回 error；D1 清理失败只标记 partial，不影响本地结果。
+    """
+    from app.services.trending_retention import (
+        cleanup_edge_trending_snapshots,
+        cleanup_trending_snapshots,
+    )
+
+    db = SessionLocal()
+    try:
+        result = cleanup_trending_snapshots(
+            db,
+            retention_days=retention_days,
+            archive=archive,
+            dry_run=dry_run,
+        )
+    except Exception as exc:  # noqa: BLE001 - 任务失败降级为结构化结果
+        logger.exception("热榜保留清理失败")
+        return {"status": "error", "error": str(exc)[:300]}
+    finally:
+        db.close()
+
+    cutoff = result.get("cutoff")
+    if cutoff and result.get("status") in ("ok", "dry_run"):
+        edge_result = cleanup_edge_trending_snapshots(
+            date.fromisoformat(cutoff),
+            dry_run=dry_run,
+        )
+        result["edge"] = edge_result
+        if edge_result.get("error") and result.get("status") == "ok":
+            result["status"] = "partial"
+
+    return result
 
 
 @celery_app.task(name="app.tasks.jobs.generate_recommendations")

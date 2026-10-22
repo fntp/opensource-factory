@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models import MyRepository
 from app.schemas import RepoOut, TaskEnqueued
-from app.tasks.jobs import sync_repositories
+from app.tasks.jobs import summarize_readmes, sync_repositories
 
 router = APIRouter(prefix="/api/repos", tags=["repos"])
 
@@ -36,6 +36,30 @@ def list_repos(
     response_model=TaskEnqueued,
     summary="入队：GitHub 仓库同步（/api/tasks/sync 的便捷别名）",
 )
-async def enqueue_repos_sync(include_starred: bool = Query(default=True)) -> TaskEnqueued:
-    task = sync_repositories.delay(include_starred=include_starred)
+async def enqueue_repos_sync(
+    include_starred: bool = Query(default=True),
+    with_summary: bool = Query(default=True),
+) -> TaskEnqueued:
+    task = sync_repositories.delay(include_starred=include_starred, with_summary=with_summary)
+    return TaskEnqueued(taskId=task.id)
+
+
+@router.post(
+    "/summarize",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=TaskEnqueued,
+    summary="入队：README 摘要批量生成（/api/tasks/summarize 的便捷别名）",
+)
+async def enqueue_repos_summarize(
+    repo_id: list[str] | None = Query(default=None),
+    limit: int = Query(default=200, ge=1, le=1000),
+    batch_size: int = Query(default=10, ge=1, le=50),
+    force: bool = Query(default=False),
+) -> TaskEnqueued:
+    task = summarize_readmes.delay(
+        repo_ids=repo_id,
+        limit=limit,
+        batch_size=batch_size,
+        force=force,
+    )
     return TaskEnqueued(taskId=task.id)

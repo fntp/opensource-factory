@@ -4,6 +4,8 @@ export interface RepoItem {
   id: string
   fullName: string
   description: string
+  /** VPS 生成的 README 中文摘要（可选） */
+  summary?: string | null
   language: string
   stars: number
   forks: number

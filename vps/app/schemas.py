@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -29,7 +29,7 @@ class RepoOut(ORMModel):
 
 
 class TrendingRepoOut(ORMModel):
-    """热榜仓库输出。"""
+    """热榜仓库输出（含按日快照与趋势字段）。"""
 
     id: str
     platform: str
@@ -38,7 +38,88 @@ class TrendingRepoOut(ORMModel):
     stars_today: Optional[int] = 0
     description: Optional[str] = None
     tech_stack: Optional[str] = None
+    readme_summary: Optional[str] = None
+    owner: Optional[str] = None
+    language: Optional[str] = None
+    stars: int = 0
     crawled_at: Optional[date] = None
+    snapshot_date: Optional[date] = None
+    rank: Optional[int] = None
+    rank_change: Optional[int] = None
+    trend: Optional[str] = None
+
+
+class TrendingRepoDetail(TrendingRepoOut):
+    """热榜详情输出：摘要 + 元信息。"""
+
+    summary: Optional[str] = None
+    summary_source: str = "empty"  # readme | description | tech | empty
+
+
+class TrendingSnapshotOut(ORMModel):
+    """热榜按日快照输出（含趋势字段）。"""
+
+    snapshot_date: date
+    repo_id: str
+    platform: str
+    owner: Optional[str] = None
+    name: str
+    html_url: str
+    description: Optional[str] = None
+    language: Optional[str] = None
+    tech_stack: Optional[str] = None
+    stars: int = 0
+    stars_today: int = 0
+    rank: int = 0
+    language_rank: int = 0
+    star_delta: int = 0
+    rank_delta: int = 0
+    appearances: int = 1
+    is_new: int = 0
+    trend: str = "steady"
+    trending_pages: Optional[str] = None
+
+
+class TrendingSnapshotDateOut(BaseModel):
+    """可用快照日期。"""
+
+    date: date
+    count: int
+
+
+class CrawlAlertOut(ORMModel):
+    """热榜抓取告警输出。"""
+
+    id: str
+    platform: str
+    page: str
+    kind: str
+    severity: str
+    message: str
+    details: Optional[str] = None
+    status: str
+    occurrences: int = 1
+    first_seen_at: Optional[datetime] = None
+    last_seen_at: Optional[datetime] = None
+    acknowledged_at: Optional[datetime] = None
+
+
+class TrendingRetentionStatus(BaseModel):
+    """热榜数据保留策略状态（M2-08，字段与运维接口保持一致）。"""
+
+    enabled: bool
+    retentionDays: int
+    cutoff: Optional[date] = None
+    archiveEnabled: bool
+    archiveDir: str
+    archiveKeepDays: int
+    totalSnapshots: int
+    expiredSnapshots: int
+    oldestDate: Optional[date] = None
+    latestDate: Optional[date] = None
+    databaseBytes: int
+    archiveFiles: int
+    archiveBytes: int
 
 
 class RecommendQuery(BaseModel):
@@ -78,6 +159,77 @@ class TaskStatus(BaseModel):
     """任务状态响应。"""
 
     taskId: str
-    status: str  # pending | started | success | failure
+    status: str  # pending | started | progress | success | failure
     result: Any = None
     error: Optional[str] = None
+    progress: Optional[dict[str, Any]] = None
+
+
+class QualityCheckOut(BaseModel):
+    """单项摘要质量检查。"""
+
+    key: str
+    label: str
+    weight: int
+    critical: bool
+    passed: bool
+    detail: str
+
+
+class QualitySampleOut(BaseModel):
+    """抽检样本输出（camelCase 与前端契约一致）。"""
+
+    id: str
+    batchId: str
+    repoId: str
+    repoSource: str
+    summary: str
+    source: str
+    model: str
+    maxChars: int
+    score: float
+    verdict: str
+    checks: list[QualityCheckOut] = Field(default_factory=list)
+    status: str
+    reviewer: Optional[str] = None
+    reviewNote: Optional[str] = None
+    reviewedAt: Optional[datetime] = None
+    createdAt: Optional[datetime] = None
+
+
+class QualitySampleList(BaseModel):
+    """抽检样本分页列表。"""
+
+    total: int
+    items: list[QualitySampleOut]
+
+
+class QualityStatsOut(BaseModel):
+    """摘要质量统计。"""
+
+    total: int
+    pending: int
+    passed: int
+    failed: int
+    passRate: float
+    avgScore: float
+    bySource: dict[str, int] = Field(default_factory=dict)
+    byRepoSource: dict[str, int] = Field(default_factory=dict)
+    recentBatches: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class QualityReviewIn(BaseModel):
+    """人工复核请求。"""
+
+    result: Literal["passed", "failed"]
+    reviewer: Optional[str] = Field(default=None, max_length=128)
+    note: Optional[str] = Field(default=None, max_length=2000)
+
+
+class QualitySampleExistingIn(BaseModel):
+    """存量摘要补抽样请求。"""
+
+    source: Literal["my", "trending", "all"] = "my"
+    limit: int = Field(default=200, ge=1, le=1000)
+    rate: Optional[float] = Field(default=None, ge=0, le=1)
+    batchId: Optional[str] = Field(default=None, max_length=128)

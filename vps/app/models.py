@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Date, DateTime, Float, Integer, String, Text
+from sqlalchemy import Date, DateTime, Float, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -49,7 +49,80 @@ class TrendingRepository(Base):
     stars_today: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=0)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     tech_stack: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # 自动提取的技术栈描述
+    readme_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # 热榜项目中文摘要（M2-04）
+    owner: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)  # owner（与 D1 扩展列对齐）
+    language: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)  # 主语言
+    stars: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 总 Star
     crawled_at: Mapped[date] = mapped_column(Date, nullable=False, default=date.today)
+
+
+class TrendingSnapshot(Base):
+    """热榜按日快照（M2-05）。
+
+    同一仓库同一天只有一行：主键 `(snapshot_date, repo_id)` 保证重复抓取幂等；
+    `star_delta` / `rank_delta` / `appearances` / `trend` 为对比上一有效快照的趋势字段。
+    """
+
+    __tablename__ = "trending_snapshots"
+
+    snapshot_date: Mapped[date] = mapped_column(Date, primary_key=True)
+    repo_id: Mapped[str] = mapped_column(String(255), primary_key=True)  # owner/repo
+    platform: Mapped[str] = mapped_column(String(32), nullable=False, default="github")
+    owner: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    html_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    language: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    tech_stack: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    stars: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stars_today: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    rank: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 全平台综合排名（1 起）
+    language_rank: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 同语言内排名
+    star_delta: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 对比上一快照的总 Star 增量
+    rank_delta: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 正数=排名上升
+    appearances: Mapped[int] = mapped_column(Integer, nullable=False, default=1)  # 连续上榜天数
+    is_new: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 1=首次上榜
+    trend: Mapped[str] = mapped_column(String(16), nullable=False, default="steady")  # new/up/down/steady
+    trending_pages: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON 数组，来源语言页
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+
+
+class CrawlPageStat(Base):
+    """热榜抓取页面基线（按平台 + 页面记录上次成功条数）。"""
+
+    __tablename__ = "crawl_page_stats"
+
+    page_key: Mapped[str] = mapped_column(String(128), primary_key=True)  # 例如 "github:python"
+    platform: Mapped[str] = mapped_column(String(32), nullable=False, default="github")
+    page: Mapped[str] = mapped_column(String(64), nullable=False, default="all")  # all / 语言 slug
+    last_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_status_code: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    last_rows: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    last_parsed: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    last_ok_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    last_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+
+
+class CrawlAlert(Base):
+    """热榜抓取告警（页面结构变更 / 抓取失败 / 条数骤降）。"""
+
+    __tablename__ = "crawl_alerts"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    platform: Mapped[str] = mapped_column(String(32), nullable=False, default="github")
+    page: Mapped[str] = mapped_column(String(64), nullable=False, default="all")
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)  # fetch_failed | structure_change | count_drop | all_failed
+    severity: Mapped[str] = mapped_column(String(16), nullable=False, default="warning")  # warning | error
+    message: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    details: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON 文本
+    dedupe_key: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="open", index=True)  # open | acknowledged
+    occurrences: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    acknowledged_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 
 class Category(Base):
@@ -83,4 +156,37 @@ class Recommendation(Base):
     score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="new")  # new | pushed | ...
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+
+
+class SummaryQualitySample(Base):
+    """摘要质量抽检样本（REQ-202610-0912 / M2-04）。
+
+    每次批量摘要任务按比例留存样本，并强制留存低质量样本；样本附带自动评分，
+    等待人工复核（passed / failed）。`(batch_id, repo_source, repo_id)` 唯一，
+    重跑只更新不新增；同一仓库同时出现在我的仓库与热榜时也能各留一条。
+    """
+
+    __tablename__ = "summary_quality_samples"
+    __table_args__ = (
+        UniqueConstraint(
+            "batch_id", "repo_source", "repo_id", name="uq_summary_quality_batch_source_repo"
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    batch_id: Mapped[str] = mapped_column(String(128), nullable=False, default="", index=True)
+    repo_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    repo_source: Mapped[str] = mapped_column(String(32), nullable=False, default="my")  # my | trending
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    source: Mapped[str] = mapped_column(String(32), nullable=False, default="")  # ollama | deepseek | truncated
+    model: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    max_chars: Mapped[int] = mapped_column(Integer, nullable=False, default=800)
+    score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    verdict: Mapped[str] = mapped_column(String(16), nullable=False, default="fail")  # pass | fail
+    checks: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON 数组
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")  # pending | passed | failed
+    reviewer: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    review_note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
