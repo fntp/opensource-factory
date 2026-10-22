@@ -15,6 +15,7 @@ from app.db import SessionLocal, init_db
 from app.main import app
 from app.models import (
     MyRepository,
+    PushEvent,
     Recommendation,
     RecommendationEvaluationRun,
     TrendingRepository,
@@ -48,6 +49,7 @@ def db():
 
 
 def _cleanup(session) -> None:
+    session.execute(delete(PushEvent).where(PushEvent.user_id.like("eval-test%")))
     session.execute(delete(Recommendation).where(Recommendation.user_id.like("eval-test%")))
     session.execute(
         delete(RecommendationEvaluationRun).where(

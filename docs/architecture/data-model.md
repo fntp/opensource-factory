@@ -218,6 +218,32 @@ notifications                （站内通知，按用户隔离）
 
 `vector_sync_runs.status`：`running/completed/partial/failed`；`kind`：`sync/reconcile`。
 
+### 5.4 推送事件账本（M4-07）
+
+`push_events` 是推送去重 / 静默 / 日限额的统一账本，位于 VPS 本地 SQLite；站内通知与各推送通道共用同一口径。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| id | TEXT PK | 事件 id（UUID hex） |
+| user_id | TEXT | 用户 id |
+| repo_id | TEXT | 仓库 id（`owner/repo`） |
+| recommendation_id | TEXT | 关联推荐 id（可空） |
+| channel | TEXT | `inapp` / `bark` / `telegram` / `email` |
+| status | TEXT | `prepared` / `sent` / `failed` / `skipped` |
+| dedupe_key | TEXT | 去重键 `user_id:repo_id` |
+| event_key | TEXT UNIQUE | 幂等键 `user_id:repo_id:channel:YYYY-MM-DD`（用户本地日） |
+| reason | TEXT | 事件原因（`daily_push` / `duplicate_repo` / `daily_limit` 等） |
+| created_at / updated_at / sent_at | DATETIME | 创建 / 更新 / 送达时间（UTC） |
+
+索引：`(user_id, repo_id, updated_at)`、`(user_id, updated_at)`、`event_key` 唯一。
+
+约定：
+
+- `prepared` / `sent` 视为占用去重窗口与每日额度；`failed` / `skipped` 不占额度；
+- 同一 `event_key` 幂等写入，状态只升不降（`skipped < prepared < failed < sent`）；
+- 去重窗口按 `PUSH_DEDUPE_DAYS`（默认 7 天）计算，`PUSH_DEDUPE_CROSS_CHANNEL=true` 时跨通道生效；
+- 每日上限按用户本地自然日的去重仓库数计算，避免同一仓库多通道重复计数。
+
 ## 6. 一致性约定
 
 - D1 为**主数据**；VPS 本地 SQLite 为算力镜像（允许重建）；

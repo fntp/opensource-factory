@@ -250,3 +250,120 @@ class VectorDetail(BaseModel):
     textHash: str
     vector: list[float]
     updatedAt: Optional[datetime] = None
+
+
+# ---------------------------------------------------------------------------
+# 推送去重与静默策略（M4-07）
+# ---------------------------------------------------------------------------
+
+
+class PushPolicyCheckRequest(BaseModel):
+    """发送前预演请求。"""
+
+    userId: str = Field(min_length=1, max_length=128)
+    repoId: str = Field(min_length=1, max_length=255)
+    recommendationId: Optional[str] = Field(default=None, max_length=64)
+    channel: Literal["inapp", "bark", "telegram", "email"] = "inapp"
+
+
+class PushPolicyDecision(BaseModel):
+    """单条推送判定结果。"""
+
+    allowed: bool
+    reason: str
+    userId: str
+    repoId: str
+    recommendationId: Optional[str] = None
+    channel: str
+    dedupeKey: str
+    quietHours: bool = False
+    nextAllowedAt: Optional[datetime] = None
+    existingEventId: Optional[str] = None
+    dailyUsed: int = 0
+    dailyLimit: int = 0
+
+
+class PushEventCreate(BaseModel):
+    """通道投递事件上报。"""
+
+    userId: str = Field(min_length=1, max_length=128)
+    repoId: str = Field(min_length=1, max_length=255)
+    recommendationId: Optional[str] = Field(default=None, max_length=64)
+    channel: Literal["inapp", "bark", "telegram", "email"] = "inapp"
+    status: Literal["prepared", "sent", "failed", "skipped"] = "sent"
+    reason: Optional[str] = Field(default=None, max_length=500)
+
+
+class PushEventOut(BaseModel):
+    """推送事件输出。"""
+
+    id: str
+    userId: str
+    repoId: str
+    recommendationId: Optional[str] = None
+    channel: str
+    status: str
+    dedupeKey: str
+    eventKey: str
+    reason: Optional[str] = None
+    createdAt: Optional[datetime] = None
+    updatedAt: Optional[datetime] = None
+    sentAt: Optional[datetime] = None
+
+
+class PushEventListResponse(BaseModel):
+    """推送事件列表。"""
+
+    count: int
+    items: list[PushEventOut]
+
+
+class PushEventWriteResponse(BaseModel):
+    """推送事件写入结果。"""
+
+    id: str
+    created: bool
+    updated: bool
+    status: str
+    eventKey: str
+    dedupeKey: str
+    sentAt: Optional[datetime] = None
+
+
+class PushQuietHoursOut(BaseModel):
+    """静默时段状态。"""
+
+    start: Optional[str] = None
+    end: Optional[str] = None
+    timezone: str
+    active: bool
+    nextAllowedAt: Optional[datetime] = None
+
+
+class PushLimitsOut(BaseModel):
+    """推送限额配置。"""
+
+    dailyLimit: int
+    dedupeDays: int
+    crossChannel: bool
+    retryIntervalMinutes: int
+
+
+class PushTodayOut(BaseModel):
+    """今日事件计数。"""
+
+    prepared: int = 0
+    sent: int = 0
+    failed: int = 0
+    skipped: int = 0
+    repos: int = 0
+
+
+class PushPolicyStatusOut(BaseModel):
+    """策略状态快照。"""
+
+    enabled: bool
+    quietHours: PushQuietHoursOut
+    limits: PushLimitsOut
+    today: PushTodayOut
+    recentEvents: list[PushEventOut]

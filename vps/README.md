@@ -34,11 +34,13 @@ vps/
 │   │   ├── recommender.py        # 余弦排序 + 综合打分 + 中文推荐理由模板
 │   │   ├── recommendation_service.py # 每日推荐：画像 / 去重已收藏 / 阈值 / 落库
 │   │   ├── recommendation_eval.py # 每日评估：质量分 / 匹配度门槛 / 运行记录（M4-01）
+│   │   ├── push_policy.py        # 推送去重 / 静默 / 每日上限 / 事件账本（M4-07）
 │   │   └── vector_sync.py        # Vectorize 批量 upsert / 重试 / 对账 / 孤儿清理
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
 │   │   ├── trending.py           # GET /api/trending、POST /api/trending/crawl
 │   │   ├── recommend.py          # /api/recommend/*（查询 / 生成 / 评估 / 合格推荐）
+│   │   ├── push_policy.py        # /api/push/policy/*（状态 / 预演 / 事件）
 │   │   ├── vector_sync.py        # /api/vector-index/*（同步入队、状态、运行记录）
 │   │   ├── vectors.py            # GET /api/vectors/stats、runs、单条向量
 │   │   └── tasks.py              # /api/tasks/*（与边缘 Worker 的集成契约，X-Internal-Token 鉴权）
@@ -146,7 +148,7 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | POST | `/api/tasks/crawl-trending` | 入队热榜抓取（`platform=github\|gitee\|all`，可选 `language`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/generate-recommendations` | 入队推荐生成（可选 `user_id`、`top_k`、`min_score`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/evaluate-recommendations` | 入队每日评估（可选 `user_id`、`match_threshold`、`quality_threshold`） | `202 {"taskId": "..."}` |
-| POST | `/api/tasks/daily-push` | 入队每日推送准备（仅将 `qualified` 推荐标记为 `pushed`） | `202 {"taskId": "..."}` |
+| POST | `/api/tasks/daily-push` | 入队每日推送准备（经静默 / 去重 / 日限额闸门后标记 `pushed`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/vectorize` | 入队向量化（`scope=my\|trending\|all`，可选 `limit` / `batch_size` / `force` / `run_id`） | `202 {"taskId","runId"}` |
 | GET | `/api/tasks/{task_id}` | 查询任务状态（`pending/started/success/failure`） | `200 {"taskId","status","result"}` |
 | POST | `/api/vector-index/sync` | 入队 Vectorize 同步 / 对账（`kind=sync\|reconcile`、`scope=my\|trending\|all`、`force`、`limit`、`batchSize`） | `202 {"taskId": "..."}` |
@@ -245,6 +247,34 @@ curl -sS -X POST 'http://127.0.0.1:8000/api/tasks/evaluate-recommendations?user_
 curl -sS 'http://127.0.0.1:8000/api/recommend/evaluations?limit=10'
 curl -sS 'http://127.0.0.1:8000/api/recommend/qualified?user_id=default'
 ```
+
+## 推送去重与静默（M4-07）
+
+`daily_push` 在把 `qualified` 标记为 `pushed` 前统一经过策略闸门，所有推送通道共用 `push_events` 账本：
+
+1. **静默时段**：`PUSH_QUIET_HOURS_START` / `PUSH_QUIET_HOURS_END`（默认 22:00–08:00，支持跨午夜），按 `PUSH_TIMEZONE` 解释；静默中不改推荐状态，由 `retry_deferred_push` 在窗口结束后重试；
+2. **跨天去重**：同一用户 + 仓库在 `PUSH_DEDUPE_DAYS`（默认 7 天）内已推送过则标记 `expired`；`PUSH_DEDUPE_CROSS_CHANNEL=true` 时跨通道生效；
+3. **每日上限**：每用户每个本地自然日最多 `PUSH_DAILY_LIMIT`（默认 3）个去重仓库；超限保留 `qualified` 等次日 / 重试；
+4. **事件账本**：`push_events` 以 `event_key = user:repo:channel:YYYY-MM-DD` 幂等记录 `prepared / sent / failed / skipped`，`failed` / `skipped` 不占额度；
+5. **总开关**：`PUSH_POLICY_ENABLED=false` 时保持旧行为（仅标记 `pushed`，不做静默 / 去重 / 限额）。
+
+```bash
+# 策略状态 / 今日计数 / 最近事件
+curl -sS 'http://127.0.0.1:8000/api/push/policy/status' -H 'X-Internal-Token: <token>'
+
+# 发送前预演（不写库）
+curl -sS -X POST 'http://127.0.0.1:8000/api/push/policy/check' \
+  -H 'Content-Type: application/json' -H 'X-Internal-Token: <token>' \
+  -d '{"userId":"default","repoId":"owner/repo","channel":"bark"}'
+
+# 通道回报投递结果（幂等）
+curl -sS -X POST 'http://127.0.0.1:8000/api/push/policy/events' \
+  -H 'Content-Type: application/json' -H 'X-Internal-Token: <token>' \
+  -d '{"userId":"default","repoId":"owner/repo","channel":"bark","status":"sent"}'
+```
+
+Celery beat 在 09:00 执行 `daily_push`，并按 `PUSH_RETRY_INTERVAL_MINUTES`（默认 30 分钟）执行
+`retry_deferred_push`；重试任务只在非静默且存在 `qualified` 时真正运行。
 
 ## 常用检查
 

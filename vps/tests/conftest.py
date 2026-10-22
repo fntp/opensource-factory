@@ -18,3 +18,6 @@ os.environ["OLLAMA_BASE_URL"] = ""
 os.environ["DEEPSEEK_API_KEY"] = ""
 os.environ["EMBEDDING_FORCE_FALLBACK"] = "1"
 os.environ["VECTORIZE_AUTO"] = "0"  # 测试中不自动入队，避免任务互相干扰
+# 默认关闭静默窗口，保证任务测试不受运行时刻影响；静默相关用例显式构造 Settings。
+os.environ["PUSH_QUIET_HOURS_START"] = ""
+os.environ["PUSH_QUIET_HOURS_END"] = ""

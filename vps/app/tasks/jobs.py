@@ -231,13 +231,37 @@ def evaluate_recommendations(
     return result
 
 
-@celery_app.task(name="app.tasks.jobs.daily_push")
-def daily_push(limit: int = 50) -> dict[str, Any]:
-    """每日推送准备：只把通过评估的 `qualified` 推荐标记为 `pushed`。
+def _iso(value: Optional[Any]) -> Optional[str]:
+    """把 datetime 转为 ISO 字符串（None 透传），便于 Celery JSON 序列化。"""
+    return value.isoformat() if value is not None else None
 
-    真实下发由边缘侧（M4-02 站内通知中心及后续通道）负责；未通过评估的
-    `new` / `filtered` 记录不会被推送。
+
+def _run_daily_push(limit: int = 50) -> dict[str, Any]:
+    """每日推送核心逻辑：按 M4-07 策略逐条评估 `qualified` 推荐。
+
+    - 静默时段：不改状态，整体 deferred，等待 `retry_deferred_push`；
+    - 去重命中：标记 `expired` 并记录 skipped 事件；
+    - 每日上限：保留 `qualified`，记录 skipped 事件；
+    - 通过：标记 `pushed` 并写 `push_events(prepared)`，供各通道消费。
     """
+    from app.services.push_policy import (
+        evaluate_push,
+        is_quiet_hours,
+        next_allowed_at,
+        record_push_event,
+    )
+
+    settings = get_settings()
+    result: dict[str, Any] = {
+        "status": "ok",
+        "total": 0,
+        "pushed": 0,
+        "skipped": 0,
+        "deferred": 0,
+        "expired": 0,
+        "skippedReasons": {},
+        "nextAllowedAt": None,
+    }
     db = SessionLocal()
     try:
         rows = (
@@ -250,15 +274,138 @@ def daily_push(limit: int = 50) -> dict[str, Any]:
             .scalars()
             .all()
         )
+        result["total"] = len(rows)
+        if not rows:
+            return result
+
+        # 总开关关闭：保持旧行为，只把 qualified 标记为 pushed。
+        if not settings.PUSH_POLICY_ENABLED:
+            for row in rows:
+                row.status = "pushed"
+            db.commit()
+            result["pushed"] = len(rows)
+            return result
+
+        if is_quiet_hours(settings=settings):
+            result["status"] = "silenced"
+            result["deferred"] = len(rows)
+            result["nextAllowedAt"] = _iso(next_allowed_at(settings=settings))
+            return result
+
         for row in rows:
-            row.status = "pushed"
+            decision = evaluate_push(
+                db,
+                user_id=row.user_id,
+                repo_id=row.repo_id,
+                recommendation_id=row.id,
+                channel="inapp",
+                settings=settings,
+            )
+            reason = str(decision["reason"])
+            if decision["allowed"]:
+                row.status = "pushed"
+                record_push_event(
+                    db,
+                    user_id=row.user_id,
+                    repo_id=row.repo_id,
+                    recommendation_id=row.id,
+                    channel="inapp",
+                    status="prepared",
+                    reason="daily_push",
+                    settings=settings,
+                )
+                result["pushed"] += 1
+                continue
+
+            result["skipped"] += 1
+            reasons = result["skippedReasons"]
+            reasons[reason] = int(reasons.get(reason, 0)) + 1
+            if reason == "duplicate_repo":
+                # 去重命中：不再进入后续候选，避免每天重复打扰。
+                row.status = "expired"
+                result["expired"] += 1
+                record_push_event(
+                    db,
+                    user_id=row.user_id,
+                    repo_id=row.repo_id,
+                    recommendation_id=row.id,
+                    channel="inapp",
+                    status="skipped",
+                    reason="duplicate_repo",
+                    settings=settings,
+                )
+            else:
+                # daily_limit / quiet_hours 等：保留 qualified，等重试或次日。
+                result["deferred"] += 1
+                record_push_event(
+                    db,
+                    user_id=row.user_id,
+                    repo_id=row.repo_id,
+                    recommendation_id=row.id,
+                    channel="inapp",
+                    status="skipped",
+                    reason=reason,
+                    settings=settings,
+                )
         db.commit()
-        pushed = len(rows)
     finally:
         db.close()
 
-    logger.info("每日推送准备完成: %d 条", pushed)
-    return {"status": "ok", "pushed": pushed}
+    logger.info(
+        "每日推送准备完成: total=%d pushed=%d skipped=%d deferred=%d expired=%d",
+        result["total"],
+        result["pushed"],
+        result["skipped"],
+        result["deferred"],
+        result["expired"],
+    )
+    return result
+
+
+@celery_app.task(name="app.tasks.jobs.daily_push")
+def daily_push(limit: int = 50) -> dict[str, Any]:
+    """每日推送准备：把通过评估的 `qualified` 推荐按策略标记为 `pushed`。
+
+    真实下发由边缘侧（M4-02 站内通知中心及后续通道）负责；未通过评估的
+    `new` / `filtered` 记录不会被推送。M4-07 起统一经过静默 / 去重 / 日限额闸门。
+    """
+    return _run_daily_push(limit=limit)
+
+
+@celery_app.task(name="app.tasks.jobs.retry_deferred_push")
+def retry_deferred_push(limit: int = 50) -> dict[str, Any]:
+    """静默结束后重试推送准备：仅在非静默且存在 `qualified` 时执行。"""
+    from app.services.push_policy import is_quiet_hours, next_allowed_at
+
+    settings = get_settings()
+    if not settings.PUSH_POLICY_ENABLED:
+        return {"status": "disabled", "pushed": 0}
+    if is_quiet_hours(settings=settings):
+        return {
+            "status": "quiet_hours",
+            "pushed": 0,
+            "nextAllowedAt": _iso(next_allowed_at(settings=settings)),
+        }
+
+    db = SessionLocal()
+    try:
+        has_qualified = (
+            db.execute(
+                select(Recommendation.id)
+                .where(Recommendation.status == "qualified")
+                .limit(1)
+            ).first()
+            is not None
+        )
+    finally:
+        db.close()
+
+    if not has_qualified:
+        return {"status": "idle", "pushed": 0}
+
+    result = _run_daily_push(limit=limit)
+    result["trigger"] = "retry"
+    return result
 
 
 @celery_app.task(bind=True, name="app.tasks.jobs.vectorize_repositories")
