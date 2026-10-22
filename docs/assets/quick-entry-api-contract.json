@@ -1,0 +1,407 @@
+{
+  "schema": "openfactory.quick-entry.v1",
+  "version": 1,
+  "generatedAt": "2026-10-22",
+  "description": "OpenFactory 快捷入口（Raycast / Apple 快捷指令 / 浏览器 omnibox / VS Code）所需的开放 API 契约；本文件由评估工具生成，供 M8-05 实现参考。",
+  "platforms": [
+    {
+      "id": "raycast",
+      "name": "Raycast 扩展",
+      "os": "macOS 12+",
+      "form": "原生扩展（React / TypeScript）",
+      "distribution": "Raycast Store 审核 + 本地 sideload",
+      "authModel": "扩展偏好中保存个人令牌（password 字段，仅本机）",
+      "devEffortDays": 4,
+      "weightedScore": 4.1,
+      "grade": "A",
+      "rank": 1
+    },
+    {
+      "id": "shortcuts",
+      "name": "Apple 快捷指令",
+      "os": "iOS / iPadOS 16+、macOS 13+",
+      "form": "系统快捷指令（HTTP 请求动作）",
+      "distribution": "系统内置，用户手动导入 / 分享",
+      "authModel": "快捷指令内保存个人令牌；可能随 iCloud 同步",
+      "devEffortDays": 2,
+      "weightedScore": 3.95,
+      "grade": "A-",
+      "rank": 2
+    },
+    {
+      "id": "browser-omnibox",
+      "name": "浏览器地址栏（omnibox）",
+      "os": "Chrome / Edge / Firefox",
+      "form": "浏览器扩展的 omnibox 关键字",
+      "distribution": "浏览器扩展商店（复用 M8-02）",
+      "authModel": "扩展 storage 保存个人令牌",
+      "devEffortDays": 3,
+      "weightedScore": 3.85,
+      "grade": "A-",
+      "rank": 3
+    },
+    {
+      "id": "vscode",
+      "name": "VS Code 扩展",
+      "os": "Windows / macOS / Linux",
+      "form": "VS Code 扩展（命令面板）",
+      "distribution": "VS Code Marketplace 审核",
+      "authModel": "扩展设置保存个人令牌（SecretStorage 可选）",
+      "devEffortDays": 5,
+      "weightedScore": 3.3,
+      "grade": "B-",
+      "rank": 4
+    },
+    {
+      "id": "alfred",
+      "name": "Alfred Workflow",
+      "os": "macOS",
+      "form": "Workflow（脚本 / 二进制）",
+      "distribution": "自行分发；Powerpack 付费",
+      "authModel": "Workflow 配置或 Keychain 保存个人令牌",
+      "devEffortDays": 4,
+      "weightedScore": 3.25,
+      "grade": "B-",
+      "rank": 5
+    },
+    {
+      "id": "utools",
+      "name": "uTools 插件",
+      "os": "macOS / Windows",
+      "form": "uTools 插件（JavaScript）",
+      "distribution": "uTools 插件应用市场审核",
+      "authModel": "插件配置保存个人令牌",
+      "devEffortDays": 5,
+      "weightedScore": 3.2,
+      "grade": "B-",
+      "rank": 6
+    }
+  ],
+  "apiRequirements": [
+    {
+      "key": "token.issue",
+      "label": "个人令牌创建",
+      "category": "令牌",
+      "description": "登录后创建令牌，明文只返回一次，服务端只存 SHA-256 摘要",
+      "requiredBy": [
+        "raycast",
+        "shortcuts",
+        "browser-omnibox",
+        "vscode",
+        "alfred",
+        "utools"
+      ],
+      "ready": false
+    },
+    {
+      "key": "token.list",
+      "label": "令牌列表与指纹",
+      "category": "令牌",
+      "description": "列出令牌名称 / 12 位指纹 / 最近使用时间 / 过期时间，不返回明文",
+      "requiredBy": [
+        "raycast",
+        "shortcuts",
+        "browser-omnibox",
+        "vscode",
+        "alfred",
+        "utools"
+      ],
+      "ready": false
+    },
+    {
+      "key": "token.revoke",
+      "label": "令牌撤销",
+      "category": "令牌",
+      "description": "立即撤销单个令牌，撤销后 60 秒内所有客户端失效",
+      "requiredBy": [
+        "raycast",
+        "shortcuts",
+        "browser-omnibox",
+        "vscode",
+        "alfred",
+        "utools"
+      ],
+      "ready": false
+    },
+    {
+      "key": "auth.bearer",
+      "label": "Bearer 认证",
+      "category": "认证",
+      "description": "`Authorization: Bearer <token>` 访问 `/api/v1/*`，与 Cookie 会话并存",
+      "requiredBy": [
+        "raycast",
+        "shortcuts",
+        "browser-omnibox",
+        "vscode",
+        "alfred",
+        "utools"
+      ],
+      "ready": false
+    },
+    {
+      "key": "scope.read",
+      "label": "只读 scope",
+      "category": "认证",
+      "description": "`read:repos` / `read:trending` / `read:recommendations` / `read:search`",
+      "requiredBy": [
+        "raycast",
+        "shortcuts",
+        "browser-omnibox",
+        "vscode",
+        "alfred",
+        "utools"
+      ],
+      "ready": false
+    },
+    {
+      "key": "scope.write",
+      "label": "写入 scope",
+      "category": "认证",
+      "description": "`write:bookmarks` 仅允许收藏 / 取消收藏，不允许删除仓库或改分类",
+      "requiredBy": [
+        "raycast",
+        "shortcuts",
+        "browser-omnibox",
+        "vscode",
+        "alfred",
+        "utools"
+      ],
+      "ready": false
+    },
+    {
+      "key": "rate_limit",
+      "label": "按令牌限流",
+      "category": "可靠性",
+      "description": "读 60 次/分钟、写 20 次/分钟，返回 429 + Retry-After",
+      "requiredBy": [
+        "raycast",
+        "shortcuts",
+        "browser-omnibox",
+        "vscode",
+        "alfred",
+        "utools"
+      ],
+      "ready": false
+    },
+    {
+      "key": "idempotency",
+      "label": "收藏幂等",
+      "category": "可靠性",
+      "description": "`Idempotency-Key` 去重，重复收藏返回同一结果而不是 409",
+      "requiredBy": [
+        "raycast",
+        "shortcuts",
+        "browser-omnibox",
+        "vscode",
+        "alfred",
+        "utools"
+      ],
+      "ready": false
+    },
+    {
+      "key": "search",
+      "label": "统一搜索",
+      "category": "接口",
+      "description": "`GET /api/v1/search?q=&limit=` 返回仓库卡片，语义 / 关键词降级",
+      "requiredBy": [
+        "raycast",
+        "shortcuts",
+        "browser-omnibox",
+        "vscode",
+        "alfred",
+        "utools"
+      ],
+      "ready": false
+    },
+    {
+      "key": "bookmark.create",
+      "label": "收藏写入",
+      "category": "接口",
+      "description": "`POST /api/v1/bookmarks` 接受 URL 或 `owner/name`，返回仓库与分类",
+      "requiredBy": [
+        "raycast",
+        "shortcuts",
+        "browser-omnibox",
+        "vscode",
+        "alfred",
+        "utools"
+      ],
+      "ready": false
+    },
+    {
+      "key": "bookmark.delete",
+      "label": "取消收藏",
+      "category": "接口",
+      "description": "`DELETE /api/v1/bookmarks/{id}`，幂等",
+      "requiredBy": [
+        "raycast",
+        "shortcuts",
+        "browser-omnibox",
+        "vscode",
+        "alfred",
+        "utools"
+      ],
+      "ready": false
+    },
+    {
+      "key": "me",
+      "label": "当前用户 / 连通性",
+      "category": "接口",
+      "description": "`GET /api/v1/me` 用于客户端启动时校验令牌与显示登录用户",
+      "requiredBy": [
+        "raycast",
+        "shortcuts",
+        "browser-omnibox",
+        "vscode",
+        "alfred",
+        "utools"
+      ],
+      "ready": false
+    },
+    {
+      "key": "openapi",
+      "label": "机器可读契约",
+      "category": "接口",
+      "description": "`GET /api/v1/openapi.json` 或 manifest，客户端可据此生成类型 / 做契约测试",
+      "requiredBy": [
+        "raycast",
+        "browser-omnibox",
+        "vscode"
+      ],
+      "ready": false
+    },
+    {
+      "key": "cors",
+      "label": "浏览器扩展来源白名单",
+      "category": "安全",
+      "description": "仅对 M8-02 扩展来源回显 CORS，不允许任意网页携带令牌调用",
+      "requiredBy": [
+        "browser-omnibox"
+      ],
+      "ready": false
+    },
+    {
+      "key": "deep_link",
+      "label": "深链回跳",
+      "category": "体验",
+      "description": "`openfactory://repo/{owner}/{name}` 从快捷入口跳回 admin 详情",
+      "requiredBy": [
+        "raycast",
+        "shortcuts",
+        "alfred"
+      ],
+      "ready": false
+    },
+    {
+      "key": "audit",
+      "label": "令牌使用审计",
+      "category": "安全",
+      "description": "记录令牌指纹、路径、状态码、时间与 IP 哈希，支持按令牌筛选",
+      "requiredBy": [
+        "raycast",
+        "shortcuts",
+        "browser-omnibox",
+        "vscode",
+        "alfred",
+        "utools"
+      ],
+      "ready": false
+    }
+  ],
+  "endpoints": [
+    {
+      "method": "POST",
+      "path": "/api/v1/tokens",
+      "auth": "session",
+      "scope": "-",
+      "purpose": "创建个人令牌，明文只返回一次"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tokens",
+      "auth": "session",
+      "scope": "-",
+      "purpose": "列出令牌指纹 / 最近使用 / 过期时间"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/tokens/{id}",
+      "auth": "session",
+      "scope": "-",
+      "purpose": "撤销令牌"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/me",
+      "auth": "bearer",
+      "scope": "read:repos",
+      "purpose": "校验令牌并返回当前用户"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/search",
+      "auth": "bearer",
+      "scope": "read:search",
+      "purpose": "搜索收藏 / 热榜（q / limit / scope）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/bookmarks",
+      "auth": "bearer",
+      "scope": "write:bookmarks",
+      "purpose": "按 url 或 fullName 收藏；支持 Idempotency-Key"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/bookmarks/{id}",
+      "auth": "bearer",
+      "scope": "write:bookmarks",
+      "purpose": "取消收藏（幂等）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/trending",
+      "auth": "bearer",
+      "scope": "read:trending",
+      "purpose": "热榜列表（limit / language）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/recommendations",
+      "auth": "bearer",
+      "scope": "read:recommendations",
+      "purpose": "每日推荐列表（limit）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/openapi.json",
+      "auth": "bearer",
+      "scope": "read:repos",
+      "purpose": "机器可读契约"
+    }
+  ],
+  "security": {
+    "tokenStorage": "服务端只存 SHA-256 摘要与 12 位指纹；客户端只保存用户粘贴的令牌，不写入 URL / 日志",
+    "scopes": [
+      "read:repos",
+      "read:trending",
+      "read:recommendations",
+      "read:search",
+      "write:bookmarks"
+    ],
+    "rateLimits": {
+      "read": "60/min",
+      "write": "20/min"
+    },
+    "idempotency": "收藏创建支持 Idempotency-Key，重复请求返回同一结果",
+    "revocation": "撤销后 60 秒内所有客户端失效",
+    "audit": "按令牌指纹记录路径 / 状态码 / 时间 / IP 哈希"
+  },
+  "errors": {
+    "401": "令牌缺失 / 无效 / 已撤销",
+    "403": "scope 不足",
+    "404": "资源不存在或不属于当前用户",
+    "409": "冲突（仅在未提供 Idempotency-Key 时可能出现）",
+    "429": "触发令牌限流，返回 Retry-After"
+  }
+}

@@ -8,11 +8,11 @@
 | --- | --- | --- |
 | `standards/` | 规范落实：项目规范 / 代码约束 / 需求规范 / 编码规范 | [project-spec.md](./standards/project-spec.md) |
 | `guides/` | Agent 维护、开发周期、部署基线 / 正式部署、本机一体化、备份恢复、热榜数据保留等运维手册 | [operations-runbook.md](./guides/operations-runbook.md) · [agent-maintenance.md](./guides/agent-maintenance.md) · [deployment-baseline.md](./guides/deployment-baseline.md) · [production-deployment.md](./guides/production-deployment.md) · [security-audit.md](./guides/security-audit.md) · [local-allinone-deployment.md](./guides/local-allinone-deployment.md) · [resource-budget-verification.md](./guides/resource-budget-verification.md) · [backup-restore.md](./guides/backup-restore.md) · [trending-retention.md](./guides/trending-retention.md) · [knowledge-export.md](./guides/knowledge-export.md) |
-| `planning/` | 路线图、任务规划、资源规划、计划文档与验收报告（`plan-req-*.md` / `acceptance-*.md`） | [roadmap.md](./planning/roadmap.md) · [task-planning.md](./planning/task-planning.md) · [resource-plan.md](./planning/resource-plan.md) · [REQ-202610-0945 运维手册](./planning/plan-req-202610-0945-operations-runbook.md) · [M2 验收](./planning/acceptance-m2.md) · [M3 验收](./planning/acceptance-m3.md) · [M5 验收](./planning/acceptance-m5.md) · [M6 验收](./planning/acceptance-m6.md) · [M7 验收](./planning/acceptance-m7.md) |
+| `planning/` | 路线图、任务规划、资源规划、计划文档与验收报告（`plan-req-*.md` / `acceptance-*.md`） | [roadmap.md](./planning/roadmap.md) · [task-planning.md](./planning/task-planning.md) · [resource-plan.md](./planning/resource-plan.md) · [REQ-202610-0945 运维手册](./planning/plan-req-202610-0945-operations-runbook.md) · [M2 验收](./planning/acceptance-m2.md) · [M3 验收](./planning/acceptance-m3.md) · [M5 验收](./planning/acceptance-m5.md) · [M6 验收](./planning/acceptance-m6.md) · [M7 验收](./planning/acceptance-m7.md) · [REQ-202610-0973 快捷入口评估](./planning/plan-req-202610-0973-quick-entry-eval.md) |
 | `requirements/` | 需求规格、功能梳理、需求池、待确认问题 | [spec.md](./requirements/spec.md) · [backlog.md](./requirements/backlog.md) |
-| `architecture/` | 架构总览、数据模型 | [overview.md](./architecture/overview.md) |
+| `architecture/` | 架构总览、数据模型、专项评估 | [overview.md](./architecture/overview.md) · [快捷入口评估](./architecture/quick-entry-evaluation.md) |
 | `integration/` | 参考项目集成说明 | [reference-projects.md](./integration/reference-projects.md) |
-| `assets/` | 数据资产（D1 Schema 等） | [d1-schema.sql](./assets/d1-schema.sql) |
+| `assets/` | 数据资产（D1 Schema、API 契约等） | [d1-schema.sql](./assets/d1-schema.sql) · [快捷入口 API 契约](./assets/quick-entry-api-contract.json) |
 
 ## 维护约定
 
