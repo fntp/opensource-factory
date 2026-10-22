@@ -38,6 +38,13 @@ class Settings(BaseSettings):
 
     # 向量模型
     EMBEDDING_MODEL: str = "BAAI/bge-m3"
+    # 强制使用确定性 hash 兜底向量（CI / 2G 预算紧张 / 未安装重型依赖时）
+    EMBEDDING_FORCE_FALLBACK: bool = False
+
+    # 向量化管线
+    VECTORIZE_BATCH_SIZE: int = 32  # 每批编码 / 提交条数
+    VECTORIZE_MAX_PER_RUN: int = 1000  # 单次默认上限
+    VECTORIZE_AUTO: bool = True  # 同步 / 抓取完成后自动入队增量任务
 
     # Vectorize 索引同步（M3-03）
     # edge 地址与内部令牌：两者都配置后才能同步（VPS 不持有 Cloudflare 凭据）

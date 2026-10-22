@@ -65,7 +65,7 @@ admin「同步仓库」→ POST /api/sync（edge）→ POST {VPS}/api/tasks/sync
 
 ```
 Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trending_repositories
-→ 摘要/技术栈提取 → （M3）向量化 → 同步 Vectorize
+→ 摘要/技术栈提取 → 向量化（M3-02）→ 同步 Vectorize（M3-03）
 ```
 
 ### 3.4 推荐流（RAG）
@@ -75,7 +75,17 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 → 结果聚合排序 → 返回（含匹配度与理由）；每日推送任务见 M4
 ```
 
-### 3.5 向量索引同步流（M3-03）
+### 3.5 向量化流（M3-02）
+
+```
+同步 / 抓取完成 → 自动入队 vectorize_repositories（或 POST /api/tasks/vectorize）
+→ 按批读取 my_repositories / trending_repositories
+→ 文本哈希 + 模型 + 后端判断增量 → EmbeddingService（BGE-M3 / hash 降级）
+→ upsert repo_vectors（逐批提交 + 游标）→ 运行状态可查询 / 可断点续跑
+→ M3-03 批量同步 Cloudflare Vectorize
+```
+
+### 3.6 向量索引同步流（M3-03）
 
 ```
 Celery beat（每 30 分钟）或 POST /api/vector-index/sync
@@ -86,6 +96,7 @@ Celery beat（每 30 分钟）或 POST /api/vector-index/sync
 
 对账（kind=reconcile）：POST /api/internal/vectors/check 比对缺失 / 过期向量并修复；
 可选 list + delete 清理孤儿（默认关闭）。
+```
 ```
 
 ## 4. 接口边界
@@ -113,11 +124,15 @@ Celery beat（每 30 分钟）或 POST /api/vector-index/sync
 | `/api/tasks/crawl-trending` | POST | 入队热榜抓取 |
 | `/api/tasks/generate-recommendations` | POST | 入队推荐生成 |
 | `/api/tasks/daily-push` | POST | 入队每日推送 |
+| `/api/tasks/vectorize` | POST | 入队向量化（批量 / 增量 / 断点续跑） |
 | `/api/tasks/{taskId}` | GET | 任务状态 |
 | `/api/vector-index/sync` | POST | 入队 Vectorize 同步 / 对账（`kind` / `scope` / `force`） |
 | `/api/vector-index/status` | GET | 本地向量覆盖率与同步状态分布 |
 | `/api/vector-index/runs` | GET | 最近同步运行记录 |
 | `/api/vector-index/runs/{runId}` | GET | 单次运行详情 |
+| `/api/vectors/stats` | GET | 向量覆盖率与最近运行 |
+| `/api/vectors/runs/{runId}` | GET | 向量化运行详情 |
+| `/api/vectors/{source}/{repoId}` | GET | 单条仓库向量 |
 | `/healthz` | GET | 健康检查 |
 
 ### 4.3 vps → edge（Vectorize 内部接口，`X-Internal-Token`）
