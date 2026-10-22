@@ -31,7 +31,8 @@ edge/
 ├── wrangler.toml         # Worker 名称、D1 绑定、vars（机密不在此处）
 ├── migrations/
 │   ├── 0001_init.sql     # 初始 D1 schema（表 + 索引）
-│   └── 0010_notifications.sql  # 站内通知表 + 去重/列表索引
+│   ├── 0010_notifications.sql  # 站内通知表 + 去重/列表索引
+│   └── 0011_push_preferences.sql  # 推送偏好表（M4-06）
 └── src/
     ├── index.ts          # Hono 入口：CORS、日志、/healthz、路由挂载、404/500
     ├── types.ts          # Env 绑定 + 数据库行 + API 响应实体
@@ -147,6 +148,9 @@ npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FR
 | `POST /api/notifications/:id/read` | 单条标记已读（幂等；404 = 不存在或已忽略） |
 | `POST /api/notifications/read-all` | `{updated,unread:0}` |
 | `POST /api/notifications/:id/dismiss` | 忽略通知，并同步关联推荐状态为 `dismissed` |
+| `GET /api/push-preferences` | `{preferences,isDefault,availableChannels}`（未保存返回默认值；需登录） |
+| `PUT /api/push-preferences` | 保存推送偏好（时间 / 时区 / 阈值 / 通道开关；需登录） |
+| `GET /api/internal/push-preferences` | 全部推送偏好（`X-Internal-Token`；`?userId=` 查单个） |
 | `GET /api/categories` | `CategoriesPayload` |
 | `GET /api/dashboard/stats` | `DashboardStats` |
 | `POST /api/sync` | 202 `{"status":"queued"}`（已配置 VPS）或 `{"status":"accepted","note":"vps node not configured"}` |

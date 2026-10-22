@@ -146,7 +146,7 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | POST | `/api/tasks/crawl-trending` | 入队热榜抓取（`platform=github\|gitee\|all`，可选 `language`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/generate-recommendations` | 入队推荐生成（可选 `user_id`、`top_k`、`min_score`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/evaluate-recommendations` | 入队每日评估（可选 `user_id`、`match_threshold`、`quality_threshold`） | `202 {"taskId": "..."}` |
-| POST | `/api/tasks/daily-push` | 入队每日推送准备（仅将 `qualified` 推荐标记为 `pushed`） | `202 {"taskId": "..."}` |
+| POST | `/api/tasks/daily-push` | 入队每日推送准备（按用户偏好筛选 `qualified`；可选 `user_id` / `respect_schedule`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/vectorize` | 入队向量化（`scope=my\|trending\|all`，可选 `limit` / `batch_size` / `force` / `run_id`） | `202 {"taskId","runId"}` |
 | GET | `/api/tasks/{task_id}` | 查询任务状态（`pending/started/success/failure`） | `200 {"taskId","status","result"}` |
 | POST | `/api/vector-index/sync` | 入队 Vectorize 同步 / 对账（`kind=sync\|reconcile`、`scope=my\|trending\|all`、`force`、`limit`、`batchSize`） | `202 {"taskId": "..."}` |
@@ -202,7 +202,7 @@ curl -sS 'http://127.0.0.1:8000/api/vectors/runs/<runId>'
 
 ## 每日推荐生成（M3-05）
 
-Celery beat 每天 08:30（Asia/Shanghai）执行 `generate_recommendations`，早于 09:00 的每日推送准备：
+Celery beat 每天 08:30（Asia/Shanghai）执行 `generate_recommendations`，早于每日推送准备：
 
 1. **画像**：按 star 取收藏库前 1000 条，优先复用 `repo_vectors(source='my')`，缺失时现场编码并回写；对有效向量求平均并 L2 归一化；
 2. **候选**：热榜按 `stars_today` 降序取前 `RECOMMEND_CANDIDATE_LIMIT` 条，排除 `my_repositories` 已收藏的仓库；
@@ -244,6 +244,29 @@ curl -sS -X POST 'http://127.0.0.1:8000/api/tasks/evaluate-recommendations?user_
 # 查询运行记录 / 合格推荐
 curl -sS 'http://127.0.0.1:8000/api/recommend/evaluations?limit=10'
 curl -sS 'http://127.0.0.1:8000/api/recommend/qualified?user_id=default'
+```
+
+## 推送偏好（M4-06）
+
+推送偏好保存在 edge 的 D1 `push_preferences` 表，VPS 在推送时通过内部接口批量拉取；
+未保存偏好的用户使用默认值（启用、09:00、Asia/Shanghai、匹配度 0.35、质量分 0.55、仅站内通知）。
+
+- **调度**：Celery beat 每 10 分钟执行一次 `daily_push(respect_schedule=True)`，按用户时区判断是否落在
+  `time_of_day` 起 10 分钟窗口内（支持跨午夜）；手动触发默认 `respect_schedule=false`，立即推送；
+- **筛选**：逐用户检查总开关、至少一个通道、`min_score` / `min_quality_score` 阈值；
+  匹配度优先 `match_score`，缺失回退 `score`；质量分仅在 `>0` 时参与，避免历史数据误杀；
+- **降级**：edge 不可达或内部令牌未配置时回退默认偏好，不阻塞推送；
+- **返回**：`{status, pushed, skippedUsers, users:[{userId,pushed,filtered?,channels?,reason?}]}`，
+  跳过原因包括 `disabled` / `no_channel` / `not_due`。
+
+```bash
+# 手动触发（立即推送，忽略时间窗口）
+curl -sS -X POST 'http://127.0.0.1:8000/api/tasks/daily-push' \
+  -H 'X-Internal-Token: <token>'
+
+# 指定用户 / 按偏好时间窗口
+curl -sS -X POST 'http://127.0.0.1:8000/api/tasks/daily-push?user_id=default&respect_schedule=true' \
+  -H 'X-Internal-Token: <token>'
 ```
 
 ## 常用检查

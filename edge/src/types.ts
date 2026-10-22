@@ -113,6 +113,21 @@ export interface NotificationRow {
   read_at: string | null;
 }
 
+/** 推送偏好（M4-06） */
+export interface PushPreferenceRow {
+  user_id: string;
+  enabled: number;
+  time_of_day: string;
+  timezone: string;
+  min_score: number;
+  min_quality_score: number;
+  channel_inapp: number;
+  channel_bark: number;
+  channel_telegram: number;
+  channel_email: number;
+  updated_at: string | null;
+}
+
 export interface CategoryRow {
   id: string;
   name: string;

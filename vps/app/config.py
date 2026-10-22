@@ -80,6 +80,17 @@ class Settings(BaseSettings):
     EVAL_REPO_WEIGHT: float = 0.7
     EVAL_REASON_WEIGHT: float = 0.3
 
+    # 推送偏好（M4-06）
+    # 未保存过偏好的用户使用以下默认值；时间按用户时区解释。
+    PUSH_DEFAULT_TIME: str = "09:00"
+    PUSH_DEFAULT_TIMEZONE: str = "Asia/Shanghai"
+    PUSH_DEFAULT_MIN_SCORE: float = 0.35
+    PUSH_DEFAULT_MIN_QUALITY_SCORE: float = 0.55
+    # 定时任务每 10 分钟运行一次，推送窗口略大于调度间隔以避免漏推。
+    PUSH_TIME_WINDOW_MINUTES: int = 10
+    # 从 edge 拉取偏好的超时（秒）
+    PUSH_PREFERENCES_TIMEOUT_SECONDS: float = 10.0
+
     # 内部接口鉴权（设置后 /api/tasks/* 校验 X-Internal-Token）
     INTERNAL_TOKEN: str = ""
 

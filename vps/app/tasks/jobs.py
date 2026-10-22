@@ -8,10 +8,10 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import logging
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any, Coroutine, Optional
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from app.config import get_settings
 from app.db import SessionLocal
@@ -231,34 +231,145 @@ def evaluate_recommendations(
     return result
 
 
-@celery_app.task(name="app.tasks.jobs.daily_push")
-def daily_push(limit: int = 50) -> dict[str, Any]:
-    """每日推送准备：只把通过评估的 `qualified` 推荐标记为 `pushed`。
+def _resolve_push_now(value: Optional[str | datetime]) -> datetime:
+    """解析推送任务的时间参数；缺省取当前 UTC 时间。"""
+    if isinstance(value, datetime):
+        current = value
+    elif value:
+        try:
+            current = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError:
+            current = datetime.now(timezone.utc)
+    else:
+        current = datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    return current
 
-    真实下发由边缘侧（M4-02 站内通知中心及后续通道）负责；未通过评估的
-    `new` / `filtered` 记录不会被推送。
+
+@celery_app.task(name="app.tasks.jobs.daily_push")
+def daily_push(
+    limit: int = 50,
+    user_id: Optional[str] = None,
+    respect_schedule: bool = False,
+    now: Optional[str | datetime] = None,
+) -> dict[str, Any]:
+    """按用户推送偏好准备每日推送（M4-06）。
+
+    - 只处理通过评估的 `qualified` 推荐；
+    - 按用户偏好过滤：启用开关、至少一个通道、匹配度 / 质量分阈值；
+    - `respect_schedule=true`（Celery beat 使用）时还要求当前时间落在用户推送窗口内；
+      手动触发默认立即推送，便于调试与补推；
+    - 标记 `pushed` 后由 edge 站内通知中心惰性物化，Bark / Telegram / Email 通道
+      按 `channels` 结果下发（M4-03~05）。
     """
+    from app.services.push_preferences import (
+        default_preferences,
+        fetch_all_preferences,
+        filter_recommendations,
+        is_due,
+    )
+
     db = SessionLocal()
+    pushed = 0
+    skipped_users = 0
+    user_summaries: list[dict[str, Any]] = []
     try:
-        rows = (
-            db.execute(
-                select(Recommendation)
+        preferences = fetch_all_preferences()
+        current = _resolve_push_now(now)
+
+        if user_id:
+            targets: list[Optional[str]] = [user_id]
+        else:
+            rows = db.execute(
+                select(Recommendation.user_id)
                 .where(Recommendation.status == "qualified")
-                .order_by(Recommendation.quality_score.desc(), Recommendation.score.desc())
-                .limit(max(1, int(limit)))
+                .distinct()
+            ).all()
+            targets = [row[0] for row in rows if row[0]]
+            if not targets:
+                global_exists = db.execute(
+                    select(Recommendation.id)
+                    .where(
+                        Recommendation.status == "qualified",
+                        Recommendation.user_id.is_(None),
+                    )
+                    .limit(1)
+                ).first()
+                if global_exists:
+                    targets = [None]
+
+        for target in targets:
+            prefs = preferences.get(target or "") or default_preferences()
+            if not prefs.enabled:
+                skipped_users += 1
+                user_summaries.append(
+                    {"userId": target, "pushed": 0, "reason": "disabled"}
+                )
+                continue
+            if not prefs.channels.any_enabled():
+                skipped_users += 1
+                user_summaries.append(
+                    {"userId": target, "pushed": 0, "reason": "no_channel"}
+                )
+                continue
+            if respect_schedule and not is_due(prefs, now=current):
+                skipped_users += 1
+                user_summaries.append(
+                    {"userId": target, "pushed": 0, "reason": "not_due"}
+                )
+                continue
+
+            condition = (
+                Recommendation.user_id.is_(None)
+                if target is None
+                else or_(
+                    Recommendation.user_id == target,
+                    Recommendation.user_id.is_(None),
+                )
             )
-            .scalars()
-            .all()
-        )
-        for row in rows:
-            row.status = "pushed"
+            candidates = (
+                db.execute(
+                    select(Recommendation)
+                    .where(
+                        Recommendation.status == "qualified",
+                        condition,
+                    )
+                    .order_by(
+                        Recommendation.quality_score.desc(),
+                        Recommendation.score.desc(),
+                        Recommendation.id.desc(),
+                    )
+                    .limit(max(1, int(limit)))
+                )
+                .scalars()
+                .all()
+            )
+            eligible = filter_recommendations(candidates, prefs)
+            for row in eligible:
+                row.status = "pushed"
+            pushed += len(eligible)
+            user_summaries.append(
+                {
+                    "userId": target,
+                    "pushed": len(eligible),
+                    "filtered": len(candidates) - len(eligible),
+                    "channels": prefs.channels.enabled_keys(),
+                }
+            )
         db.commit()
-        pushed = len(rows)
     finally:
         db.close()
 
-    logger.info("每日推送准备完成: %d 条", pushed)
-    return {"status": "ok", "pushed": pushed}
+    logger.info(
+        "每日推送准备完成: %d 条（跳过用户 %d）", pushed, skipped_users
+    )
+    return {
+        "status": "ok",
+        "pushed": pushed,
+        "skippedUsers": skipped_users,
+        "users": user_summaries,
+    }
 
 
 @celery_app.task(bind=True, name="app.tasks.jobs.vectorize_repositories")

@@ -152,6 +152,8 @@ Celery beat（每 30 分钟）或 POST /api/vector-index/sync
 | `/api/notifications/:id/read` | POST | 单条标记已读（幂等） |
 | `/api/notifications/read-all` | POST | 全部标记已读 |
 | `/api/notifications/:id/dismiss` | POST | 忽略通知（同步推荐状态） |
+| `/api/push-preferences` | GET | 当前用户推送偏好（未保存时返回默认值） |
+| `/api/push-preferences` | PUT | 保存推送偏好（时间 / 时区 / 阈值 / 通道开关） |
 | `/api/sync` | POST | 触发同步任务（202） |
 
 ### 4.2 edge ↔ vps（内部 API，`X-Internal-Token`）
@@ -185,6 +187,7 @@ Celery beat（每 30 分钟）或 POST /api/vector-index/sync
 | `/api/internal/vectors/delete` | POST | 批量删除向量（≤1000 条/批） |
 | `/api/internal/vectors/stats` | GET | 索引统计 |
 | `/api/internal/vectors/list` | GET | 分页列出 ID（孤儿对账；不支持时返回 501） |
+| `/api/internal/push-preferences` | GET | 读取全部推送偏好（VPS 推送任务使用；`?userId=` 可查单个） |
 
 ## 5. 安全边界
 
