@@ -22,6 +22,7 @@
 - **所需**：账号 ID、D1 数据库 `database_id`、Vectorize 索引名与维度（BGE-M3 为 1024 维）、目标域名；
 - **现状**：`edge/wrangler.toml` 中为占位符 `REPLACE_WITH_D1_DATABASE_ID`；
 - **默认处理**：本地开发用 `--local` 模拟；正式部署前替换。
+- **补充（2026-10-22，REQ-202610-0894 执行）**：本地迁移已用 `wrangler --local` 验证通过（8 表 / 8 索引 / 幂等复跑）；已提供 `npm run db:bootstrap:remote`（自动创建/复用 D1、替换 `database_id`、应用并校验迁移）。**远程创建仍待维护者提供 Cloudflare 账号凭据（Q3）**。
 
 ## Q4. LLM 与 Embedding 的默认配置
 

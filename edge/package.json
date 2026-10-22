@@ -7,7 +7,12 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "db:migrate:local": "wrangler d1 migrations apply opensource-factory --local"
+    "db:migrate:local": "wrangler d1 migrations apply opensource-factory --local",
+    "db:bootstrap:local": "node scripts/d1-bootstrap.mjs local",
+    "db:bootstrap:remote": "node scripts/d1-bootstrap.mjs remote",
+    "db:check": "node scripts/d1-bootstrap.mjs check",
+    "db:check:remote": "node scripts/d1-bootstrap.mjs check --require-id",
+    "test:scripts": "node --test scripts/d1-bootstrap.test.mjs"
   },
   "dependencies": {
     "hono": "^4.6.0"

@@ -123,4 +123,5 @@ recommendations              （user_id 可空 = 全局推荐）
 
 - D1 为**主数据**；VPS 本地 SQLite 为算力镜像（允许重建）；
 - 表结构变更流程：修改 `edge/migrations/` 新增迁移文件 → 同步 `docs/assets/d1-schema.sql` → 更新本文件；
+- 迁移应用：本地 `cd edge && npm run db:bootstrap:local`；远程（需 Cloudflare 账号）`npm run db:bootstrap:remote`，脚本会创建/复用 D1、替换 `database_id` 并校验表与索引；
 - 字段命名一律 snake_case；时间统一 UTC 存储、展示时本地化。
