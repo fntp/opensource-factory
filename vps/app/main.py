@@ -83,11 +83,11 @@ app.add_middleware(
 )
 
 app.include_router(tasks.router)
+app.include_router(notifications.router)
 app.include_router(repos.router)
 app.include_router(trending.router)
 app.include_router(summaries.router)
 app.include_router(recommend.router)
-app.include_router(notifications.router)
 app.include_router(vectors.router)
 app.include_router(vector_index.router)
 app.include_router(search.router)

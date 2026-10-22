@@ -3,7 +3,8 @@
 - broker / backend：`REDIS_URL`（默认 `redis://localhost:6379/0`）；
 - `CELERY_TASK_ALWAYS_EAGER=1` 时任务同步执行（本地调试 / 测试）；
 - beat 计划：每日抓取热榜（全局页 + 多语言页）、每日 08:30 生成推荐、08:45 评估推荐、
-  09:00 推送准备、09:05 Bark 投递与 Telegram 摘要，以及每日向量索引同步与对账。
+  09:00 推送准备、09:05 Bark 投递与 Telegram 摘要、09:10 Email 每日精选，
+  以及每日向量索引同步与对账。
 """
 from __future__ import annotations
 
@@ -74,6 +75,12 @@ celery_app.conf.beat_schedule = {
     "send-telegram-digest-daily": {
         "task": "app.tasks.jobs.send_telegram_digest",
         "schedule": crontab(minute=5, hour=9),
+    },
+    # Email 每日精选（M4-05）：09:10 在推送准备后取 pushed 推荐发送摘要；
+    # 未启用 / 未配置 / 无数据时任务自动跳过
+    "send-email-digest-daily": {
+        "task": "app.tasks.jobs.send_email_digest",
+        "schedule": crontab(minute=10, hour=9),
     },
     # Vectorize 索引：每日增量同步 + 对账（M3-03）
     "vector-index-sync-daily": {

@@ -233,7 +233,7 @@ BARK_DRY_RUN=true → 只返回预览，不发送、不写标记；
 
 M4-02 站内通知中心与本通道消费同一批 `pushed` 推荐，彼此独立：站内通知失败不影响 Bark 投递，反之亦然。
 
-### 3.7 Telegram 推送流（M4-04）
+### 3.14 Telegram 推送流（M4-04）
 
 ```
 Celery beat 09:05（daily_push 之后）或 POST /api/tasks/send-telegram-digest
@@ -246,6 +246,19 @@ Celery beat 09:05（daily_push 之后）或 POST /api/tasks/send-telegram-digest
 
 未启用 / 未配置 / 无数据时任务返回结构化状态并直接跳过，不访问网络；Bot Token 仅存
 VPS 本机 `.env`，状态接口只返回脱敏 chat id。
+### 3.15 Email 推送流（M4-05）
+
+```
+Celery beat 09:10 或 POST /api/tasks/send-email-digest
+→ 读取 recommendations.status='pushed'（默认回溯 24h，按质量分 / 匹配度排序）
+→ 水合 trending_repositories（回退 my_repositories）→ 渲染中文摘要（plain + HTML）
+→ 校验 EMAIL_* 配置 / 收件人 → smtplib 投递（STARTTLS / SSL / AUTH，瞬时错误重试）
+→ 写 email_deliveries（sent / failed，收件人脱敏、Message-ID、错误脱敏）
+→ 同日同收件人已有 sent 记录时跳过（force 可补发）
+```
+
+未启用 / 未配置 / 无数据 / SMTP 失败分别返回 `disabled` / `not_configured` / `empty` / `failed`，
+不阻塞每日推送主流程；站内通知中心（M4-02）与本通道互不影响。
 
 ## 4. 接口边界
 
@@ -300,10 +313,13 @@ VPS 本机 `.env`，状态接口只返回脱敏 chat id。
 | `/api/tasks/evaluate-recommendations` | POST | 入队每日评估（质量分 + 匹配度阈值） |
 | `/api/tasks/daily-push` | POST | 入队每日推送（仅 `qualified`） |
 | `/api/tasks/send-telegram-digest` | POST | 入队 Telegram 每日摘要（M4-04，可选 `user_id` / `limit` / `force`） |
+| `/api/tasks/send-email-digest` | POST | 入队 Email 每日摘要（`user_id` / `limit` / `force`） |
 | `/api/recommend/query` | POST | 语义查询（返回 `reason` + `based_on`） |
 | `/api/recommend/list` | GET | 本地已生成推荐（`reason` + `based_on`） |
 | `/api/notifications/telegram/status` | GET | Telegram 通道状态（不返回 token，chat id 脱敏） |
 | `/api/notifications/telegram/test` | POST | 发送 Telegram 测试消息 |
+| `/api/notifications/email/status` | GET | Email 通道状态与最近送达（脱敏） |
+| `/api/notifications/email/test` | POST | 发送测试邮件（未启用 / 未配置 409） |
 | `/api/tasks/vectorize` | POST | 入队向量化（批量 / 增量 / 断点续跑） |
 | `/api/internal/notifications` | POST | 批量写入站内通知（`X-Internal-Token`，单批 ≤100） |
 | `/api/internal/notifications/sync-recommendations` | POST | 物化指定用户的 `pushed` 推荐为通知 |

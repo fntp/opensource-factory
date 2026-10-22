@@ -703,3 +703,50 @@ class DegradationStatusOut(BaseModel):
     llmDegraded: bool
     budgetMb: int
     checks: list[DegradationCheckOut]
+class EmailDeliveryOut(BaseModel):
+    """Email 送达记录输出（收件人已脱敏）。"""
+
+    id: str
+    recipientMasked: str = ""
+    kind: str  # digest | test
+    status: str  # sent | failed
+    itemCount: int = 0
+    subject: Optional[str] = None
+    messageId: Optional[str] = None
+    error: Optional[str] = None
+    createdAt: Optional[datetime] = None
+    finishedAt: Optional[datetime] = None
+
+
+class EmailStatusOut(BaseModel):
+    """Email 通道状态快照（不暴露 SMTP 凭据）。"""
+
+    enabled: bool
+    configured: bool
+    host: str = ""
+    port: int = 0
+    starttls: bool = True
+    ssl: bool = False
+    fromMasked: str = ""
+    toMasked: str = ""
+    lastDelivery: Optional[EmailDeliveryOut] = None
+
+
+class EmailTestRequest(BaseModel):
+    """测试邮件请求：全部字段可选，默认使用配置的 EMAIL_TO。"""
+
+    to: Optional[str] = Field(default=None, description="收件人，逗号 / 分号分隔")
+    subject: Optional[str] = Field(default=None, max_length=160)
+    body: Optional[str] = Field(default=None, max_length=2000)
+
+
+class EmailSendResponse(BaseModel):
+    """Email 发送 / 测试结果。"""
+
+    ok: bool
+    status: str  # disabled | not_configured | empty | skipped | sent | failed
+    deliveryId: Optional[str] = None
+    itemCount: int = 0
+    messageId: Optional[str] = None
+    error: Optional[str] = None
+    reason: Optional[str] = None

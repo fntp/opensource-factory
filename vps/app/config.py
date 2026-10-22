@@ -169,6 +169,27 @@ class Settings(BaseSettings):
     # 摘要只取最近 N 小时内进入 pushed 的推荐
     TELEGRAM_DIGEST_WINDOW_HOURS: int = 24
 
+    # Email 通道（M4-05）
+    # 总开关；关闭时任务与测试接口返回 disabled，不发起任何 SMTP 连接
+    EMAIL_ENABLED: bool = False
+    EMAIL_SMTP_HOST: str = ""
+    # 587 = STARTTLS（默认）；465 通常配合 EMAIL_SSL=true 且 EMAIL_STARTTLS=false
+    EMAIL_SMTP_PORT: int = 587
+    EMAIL_SMTP_USERNAME: str = ""
+    EMAIL_SMTP_PASSWORD: str = ""
+    EMAIL_FROM: str = ""
+    EMAIL_FROM_NAME: str = "OpenFactory"
+    # 默认收件人：逗号 / 分号分隔，最多 20 个
+    EMAIL_TO: str = ""
+    EMAIL_STARTTLS: bool = True
+    EMAIL_SSL: bool = False
+    EMAIL_TIMEOUT_SECONDS: float = 15.0
+    EMAIL_MAX_RETRIES: int = 2
+    EMAIL_RETRY_BASE_SECONDS: float = 0.5
+    # 单封摘要最多包含的推荐数 / 摘要回溯窗口
+    EMAIL_DAILY_LIMIT: int = 10
+    EMAIL_DIGEST_WINDOW_HOURS: int = 24
+
     # 内部接口鉴权（设置后 /api/tasks/*、/api/push/*、/api/vector-index/*、/api/search/* 校验 X-Internal-Token）
     INTERNAL_TOKEN: str = ""
 

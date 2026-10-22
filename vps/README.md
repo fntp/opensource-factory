@@ -45,6 +45,7 @@ vps/
 │   │   ├── recommendation_eval.py # 每日评估：质量分 / 匹配度门槛 / 运行记录（M4-01）
 │   │   ├── bark.py               # Bark 推送通道：消息构建 / 投递 / 状态（M4-03）
 │   │   ├── telegram.py           # Telegram 摘要：HTML / 分片 / 重试 / 送达记录（M4-04）
+│   │   ├── email_channel.py      # Email 摘要：SMTP 投递 / 幂等 / 送达记录（M4-05）
 │   │   ├── vector_index.py       # Vectorize 批量 upsert / 重试 / 对账 / 孤儿清理
 │   │   ├── query_understanding.py # 同义词 / 技术栈词表查询理解（离线、确定性）
 │   │   ├── semantic_search.py    # 查询向量化 + repo_vectors 余弦检索 + 结果水合
@@ -54,7 +55,7 @@ vps/
 │   │   ├── trending.py           # GET /api/trending、/snapshots、/dates、/history、/retention、POST /crawl、/retention/cleanup
 │   │   ├── recommend.py          # /api/recommend/*（查询 / 列表 / 生成 / 质量评估 / 每日评估 / 合格推荐）
 │   │   ├── push.py               # /api/push/bark/*（状态 / 测试 / 投递入队）
-│   │   ├── notifications.py      # /api/notifications/telegram/*（状态 / 测试消息，M4-04）
+│   │   ├── notifications.py      # /api/notifications/telegram/*、/api/notifications/email/*（状态 / 测试）
 │   │   ├── vector_index.py       # /api/vector-index/*（同步入队、对账、状态、运行记录）
 │   │   ├── vectors.py            # GET /api/vectors/stats、runs、单条向量
 │   │   ├── search.py             # /api/search/*（understand / embed / query / semantic / status）
@@ -192,11 +193,26 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | `TELEGRAM_RETRY_BASE_SECONDS` | `0.5` | 指数退避基数（429 优先用 `retry_after`） |
 | `TELEGRAM_DAILY_LIMIT` | `10` | 单条摘要最多包含的推荐数 |
 | `TELEGRAM_DIGEST_WINDOW_HOURS` | `24` | 摘要只取最近 N 小时进入 `pushed` 的推荐 |
+| `EMAIL_ENABLED` | `false` | Email 通道总开关；关闭时摘要任务与测试接口直接跳过 |
+| `EMAIL_SMTP_HOST` | 空 | SMTP 服务商地址（如 `smtp.example.com`） |
+| `EMAIL_SMTP_PORT` | `587` | SMTP 端口；465 通常配合 `EMAIL_SSL=true`、`EMAIL_STARTTLS=false` |
+| `EMAIL_SMTP_USERNAME` | 空 | SMTP 认证用户名；留空表示匿名中继 |
+| `EMAIL_SMTP_PASSWORD` | 空 | SMTP 密码（仅 `.env`，不落库 / 不回显） |
+| `EMAIL_FROM` | 空 | 发件人地址（需与服务商允许的 From 一致） |
+| `EMAIL_FROM_NAME` | `OpenFactory` | 发件人显示名 |
+| `EMAIL_TO` | 空 | 默认收件人，逗号 / 分号分隔，最多 20 个 |
+| `EMAIL_STARTTLS` | `true` | 是否对明文连接执行 STARTTLS（与 `EMAIL_SSL` 互斥） |
+| `EMAIL_SSL` | `false` | 是否使用隐式 SSL（通常配 465 端口） |
+| `EMAIL_TIMEOUT_SECONDS` | `15` | SMTP 连接 / 读写超时 |
+| `EMAIL_MAX_RETRIES` | `2` | 瞬时网络错误重试次数（认证 / 收件人拒绝不重试） |
+| `EMAIL_RETRY_BASE_SECONDS` | `0.5` | 重试指数退避基数 |
+| `EMAIL_DAILY_LIMIT` | `10` | 单封摘要最多包含的推荐数 |
+| `EMAIL_DIGEST_WINDOW_HOURS` | `24` | 摘要回溯窗口（小时） |
 | `EMBEDDING_FORCE_FALLBACK` | `0` | 置 `1` 强制使用确定性 hash 向量（CI / 2G 预算紧张时） |
 | `VECTORIZE_BATCH_SIZE` | `32` | 向量化每批编码 / 提交条数（1~256） |
 | `VECTORIZE_MAX_PER_RUN` | `1000` | 单次向量化默认上限 |
 | `VECTORIZE_AUTO` | `1` | 同步 / 热榜抓取完成后自动入队增量向量化 |
-| `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/vector-index/*`、`/api/search/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
+| `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/push/*`、`/api/notifications/*`、`/api/vector-index/*`、`/api/search/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
 | `CELERY_TASK_ALWAYS_EAGER` | `0` | 置 `1` 时任务同步执行（本地调试 / 测试用） |
 | `GITHUB_TOKEN` | 空 | GitHub PAT（仅需 read 权限）；为空时同步任务跳过 |
 | `TRENDING_LANGUAGES` | `python,javascript,typescript,go,rust,java,cpp,c,php,ruby,swift,kotlin` | 每日抓取的 Trending 语言页（逗号分隔；留空只抓全局页） |
@@ -280,8 +296,11 @@ cd vps
 | POST | `/api/tasks/evaluate-recommendations` | 入队每日评估（可选 `user_id`、`match_threshold`、`quality_threshold`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/daily-push` | 入队每日推送准备（仅将 `qualified` 推荐标记为 `pushed`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/send-telegram-digest` | 入队 Telegram 每日摘要（可选 `user_id` / `limit` / `force`） | `202 {"taskId": "..."}` |
+| POST | `/api/tasks/send-email-digest` | 入队 Email 每日摘要（可选 `user_id`、`limit`、`force`） | `202 {"taskId": "..."}` |
 | GET | `/api/notifications/telegram/status` | Telegram 通道开关 / 配置状态 / 最近送达（chat id 脱敏） | `200 {...}` |
 | POST | `/api/notifications/telegram/test` | 同步发送一条 Telegram 测试消息（`{"text": "..."}` 可选） | `200 {...}` / `409` / `502` |
+| GET | `/api/notifications/email/status` | Email 通道开关、配置完整性与最近送达（收件人脱敏） | `200 {...}` |
+| POST | `/api/notifications/email/test` | 发送测试邮件（`to` / `subject` / `body` 均可选） | `200 {...}`；未启用 / 未配置 `409` |
 | GET | `/api/tasks/{task_id}` | 查询任务状态（`pending/started/progress/success/failure`，PROGRESS 时带 `progress`） | `200 {"taskId","status","result","progress"}` |
 | POST | `/api/tasks/vectorize` | 入队向量化（`scope=my\|trending\|all`，可选 `limit` / `batch_size` / `force` / `run_id`） | `202 {"taskId","runId"}` |
 | GET | `/api/trending/{owner}/{repo}` | 热榜详情（摘要 + 元信息；摘要回退 readme_summary → description → tech_stack） | `200 TrendingRepoDetail` / `404` |
@@ -556,6 +575,35 @@ curl -sS -X POST 'http://127.0.0.1:8000/api/tasks/send-telegram-digest?force=tru
 
 > 单用户口径：`TELEGRAM_CHAT_ID` 为一个会话；多用户 / 多会话偏好由 M4-06 承接，
 > 去重与静默策略由 M4-07 承接，送达回执由 M4-08 承接。
+
+## Email 通道（M4-05）
+
+Celery beat 每天 09:10 执行 `send_email_digest`，在 09:00 推送准备之后读取
+`recommendations.status='pushed'` 的推荐（默认回溯 24 小时，最多 `EMAIL_DAILY_LIMIT` 条），
+渲染中文摘要并通过 SMTP 投递：
+
+1. **配置**：`.env` 设置 `EMAIL_ENABLED=true`、`EMAIL_SMTP_HOST`、`EMAIL_FROM`、`EMAIL_TO`；
+   587 端口用 STARTTLS（默认），465 端口配 `EMAIL_SSL=true` + `EMAIL_STARTTLS=false`；
+2. **幂等**：按「日期 + 收件人」生成 `dedupe_key`，同日已成功发送则跳过；`force=true` 可补发；
+3. **送达记录**：每次摘要 / 测试邮件写 `email_deliveries`（收件人、状态、条数、Message-ID、脱敏错误）；
+4. **降级**：未启用 → `disabled`，配置不全 → `not_configured`，无推荐 → `empty`，SMTP 失败 → `failed`；
+5. **安全**：SMTP 密码只从环境变量读取，错误信息与状态接口均不回显密码 / 完整收件人。
+
+```bash
+# 查看通道状态（收件人 / 发件人脱敏）
+curl -sS 'http://127.0.0.1:8000/api/notifications/email/status' \
+  -H 'X-Internal-Token: <token>'
+
+# 发送测试邮件（不填 to 时使用 EMAIL_TO）
+curl -sS -X POST 'http://127.0.0.1:8000/api/notifications/email/test' \
+  -H 'Content-Type: application/json' \
+  -H 'X-Internal-Token: <token>' \
+  -d '{"to":"you@example.com"}'
+
+# 手动触发摘要（force=true 忽略当日幂等）
+curl -sS -X POST 'http://127.0.0.1:8000/api/tasks/send-email-digest?force=true' \
+  -H 'X-Internal-Token: <token>'
+```
 
 ## 常用检查
 

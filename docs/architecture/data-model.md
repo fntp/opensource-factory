@@ -241,7 +241,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | error TEXT | 失败原因（截断） |
 | created_at / finished_at | 开始 / 结束时间 |
 
-### 3.6 `telegram_deliveries` Telegram 送达记录（M4-04，VPS 本地）
+### 3.10 `telegram_deliveries` Telegram 送达记录（M4-04，VPS 本地）
 
 | 字段 | 说明 |
 | --- | --- |
@@ -257,6 +257,21 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | created_at / finished_at | 开始 / 结束时间 |
 
 > 本表为 M4-04 的通道级记录；M4-08「推送记录与回执」落地后可扩展为全通道统一表。
+
+### 3.11 `email_deliveries` Email 送达记录（M4-05）
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | 送达记录 id（UUID hex） |
+| recipient TEXT | 收件人（多个逗号分隔；接口输出时脱敏） |
+| kind TEXT | `digest`（每日摘要）/ `test`（连通性测试） |
+| status TEXT | `sent` / `failed` |
+| item_count INTEGER | 摘要包含的推荐条数（测试邮件为 0） |
+| subject TEXT | 邮件主题 |
+| message_id TEXT | SMTP Message-ID |
+| dedupe_key TEXT | 幂等键：`email:digest:<日期>:<排序后的收件人>` |
+| error TEXT | 失败原因（已替换密码 / 用户名，截断 300 字符） |
+| created_at / finished_at | 创建 / 完成时间 |
 
 ## 4. 索引策略
 
@@ -274,6 +289,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | notifications | `(user_id, status, created_at DESC)` | 通知列表与未读数 |
 | notifications | `(user_id, recommendation_id)` UNIQUE、`(user_id, dedupe_key)` UNIQUE | 物化幂等 / 去重 |
 | telegram_deliveries | `(dedupe_key, status)`、`(dedupe_key)` | 当日幂等与送达记录查询 |
+| email_deliveries | `(dedupe_key, status)` | 每日摘要幂等校验 / 送达排查 |
 
 ## 5. 向量数据（M3）
 
