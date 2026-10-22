@@ -78,8 +78,9 @@ def _insert(
     db.execute(
         text(
             "INSERT OR REPLACE INTO repo_vectors "
-            "(source, repo_id, model, backend, dim, text_hash, vector) "
-            "VALUES (:source, :repo_id, :model, :backend, :dim, :text_hash, :vector)"
+            "(source, repo_id, model, backend, dim, text_hash, vector, created_at, updated_at) "
+            "VALUES (:source, :repo_id, :model, :backend, :dim, :text_hash, :vector, "
+            "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
         ),
         {
             "source": source,
@@ -141,8 +142,9 @@ def test_incremental_sync_only_upserts_changed(db, monkeypatch) -> None:
     db.execute(
         text(
             "INSERT INTO vector_sync_state "
-            "(source, repo_id, vector_id, text_hash, model, backend, dim, status, attempts, updated_at) "
-            "VALUES ('my', 'a/one', :vector_id, 'h1', 'BAAI/bge-m3', 'hash', 4, 'synced', 0, CURRENT_TIMESTAMP)"
+            "(source, repo_id, vector_id, text_hash, model, backend, dim, status, attempts, created_at, updated_at) "
+            "VALUES ('my', 'a/one', :vector_id, 'h1', 'BAAI/bge-m3', 'hash', 4, 'synced', 0, "
+            "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
         ),
         {"vector_id": vector_id_for("my", "a/one")},
     )
