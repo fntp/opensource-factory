@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     APP_NAME: str = "OpenFactory VPS Node"
     VERSION: str = "0.1.0"
     LOG_LEVEL: str = "INFO"
+    # 日志目录：留空时仅输出到 stdout（开发 / 测试）；生产指向运行目录 logs/
+    LOG_DIR: str = ""
 
     # 数据库与队列
     DATABASE_URL: str = "sqlite:///./data/opensource_factory.db"

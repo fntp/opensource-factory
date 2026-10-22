@@ -73,10 +73,26 @@ pytest -q
 
 > 未安装 `requirements-ml.txt` 时节点自动降级：向量走确定性 hash 兜底、摘要走截断降级，所有接口与任务仍可运行。
 
+## 生产运行（systemd 基线）
+
+本机部署不再手工 `nohup`，统一由 [`deploy/`](../deploy/README.md) 提供的基线托管：
+运行目录 `/opt/openfactory`（`.env` / `data` / `logs` / `backups`）、Redis 配置与
+`openfactory-api` / `-worker` / `-beat` / `-redis` 四个 systemd 单元。
+
+```bash
+deploy/scripts/bootstrap-runtime.sh          # 创建运行目录、渲染 .env 与 redis.conf
+deploy/scripts/bootstrap-runtime.sh --install-units   # 安装 systemd 单元（root）
+deploy/scripts/doctor.sh --services          # 基线自检
+```
+
+完整步骤与验收标准见 [docs/guides/deployment-baseline.md](../docs/guides/deployment-baseline.md)。
+
 ## 环境变量说明
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
+| `LOG_LEVEL` | `INFO` | 日志级别 |
+| `LOG_DIR` | 空 | 非空时 API 写滚动日志（10MB × 5）到该目录 |
 | `DATABASE_URL` | `sqlite:///./data/opensource_factory.db` | 本地镜像库（SQLite 起步，可换 PostgreSQL） |
 | `REDIS_URL` | `redis://localhost:6379/0` | Celery broker / result backend |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | 本地 Ollama 服务地址 |
