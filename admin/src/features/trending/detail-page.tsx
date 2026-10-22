@@ -7,6 +7,7 @@ import {
   ExternalLink,
   Flame,
   RefreshCw,
+  Sparkles,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -28,11 +29,13 @@ import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import {
   favoriteTrending,
+  fetchSimilarRepos,
   fetchTrendingDetail,
   unfavoriteTrending,
+  type SimilarRepoItem,
   type TrendingRepoDetail,
 } from './api'
-import { buildMetaItems, summarySourceLabel } from './detail'
+import { buildMetaItems, repoRouteParams, summarySourceLabel } from './detail'
 
 interface TrendingDetailProps {
   owner: string
@@ -54,6 +57,13 @@ export function TrendingDetail({ owner, name }: TrendingDetailProps) {
     queryKey: ['trending', owner, name],
     queryFn: () => fetchTrendingDetail(owner, name),
     retry: 1,
+  })
+
+  const similar = useQuery({
+    queryKey: ['trending', owner, name, 'similar'],
+    queryFn: () => fetchSimilarRepos('trending', `${owner}/${name}`, 6),
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
   })
 
   const favorite = useMutation({
@@ -201,6 +211,49 @@ export function TrendingDetail({ owner, name }: TrendingDetailProps) {
               </CardContent>
             </Card>
 
+            <Card>
+              <CardHeader>
+                <CardTitle className='flex items-center gap-2'>
+                  <Sparkles className='size-4 text-primary' />
+                  看了又看
+                </CardTitle>
+                <CardDescription>
+                  基于项目向量近邻推荐；向量不可用时回退同语言 / 技术栈匹配。
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {similar.isLoading && (
+                  <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
+                    {Array.from({ length: 3 }).map((_, index) => (
+                      <Skeleton key={index} className='h-28 w-full' />
+                    ))}
+                  </div>
+                )}
+                {similar.isError && (
+                  <p className='text-sm text-muted-foreground'>
+                    相似推荐加载失败，请稍后重试。
+                  </p>
+                )}
+                {!similar.isLoading &&
+                  !similar.isError &&
+                  (similar.data?.length ?? 0) === 0 && (
+                    <p className='text-sm text-muted-foreground'>
+                      暂无相似项目，向量索引可能尚未覆盖该项目。
+                    </p>
+                  )}
+                {similar.data && similar.data.length > 0 && (
+                  <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
+                    {similar.data.map((item) => (
+                      <SimilarRepoCard
+                        key={`${item.source}:${item.id}`}
+                        item={item}
+                      />
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             <div className='flex flex-wrap gap-2'>
               <Button
                 variant={data.isFavorited ? 'secondary' : 'default'}
@@ -221,6 +274,44 @@ export function TrendingDetail({ owner, name }: TrendingDetailProps) {
         )}
       </Main>
     </>
+  )
+}
+
+function SimilarRepoCard({ item }: { item: SimilarRepoItem }) {
+  const params = repoRouteParams(item.fullName)
+  const body = (
+    <div className='flex h-full flex-col gap-2 rounded-lg border p-3 transition-colors hover:bg-accent/50'>
+      <div className='flex items-start justify-between gap-2'>
+        <span className='text-sm font-medium break-all'>{item.fullName}</span>
+        <Badge variant='outline'>{Math.round(item.score * 100)}%</Badge>
+      </div>
+      <p className='line-clamp-2 text-xs text-muted-foreground'>
+        {item.description || '暂无简介'}
+      </p>
+      <p className='mt-auto text-xs text-muted-foreground'>{item.reason}</p>
+      <div className='flex items-center gap-2 text-xs text-muted-foreground'>
+        <span>{item.language || '未知语言'}</span>
+        <span>·</span>
+        <span>{item.stars.toLocaleString('zh-CN')} Star</span>
+      </div>
+    </div>
+  )
+
+  if (params) {
+    return (
+      <Link
+        to='/trending/$owner/$name'
+        params={params}
+        className='block h-full'
+      >
+        {body}
+      </Link>
+    )
+  }
+  return (
+    <a href={item.url} target='_blank' rel='noreferrer' className='block h-full'>
+      {body}
+    </a>
   )
 }
 

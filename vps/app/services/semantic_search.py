@@ -165,8 +165,13 @@ def search_local(
     }
 
 
-def _build_reason(score: float, language: str, description: str) -> str:
-    parts = [f"与查询语义相似度 {max(0.0, min(1.0, score)):.0%}。"]
+def _build_reason(
+    score: float,
+    language: str,
+    description: str,
+    prefix: str = "与查询语义相似度",
+) -> str:
+    parts = [f"{prefix} {max(0.0, min(1.0, score)):.0%}。"]
     if language:
         parts.append(f"主要使用 {language} 开发；")
     if description:
@@ -174,7 +179,12 @@ def _build_reason(score: float, language: str, description: str) -> str:
     return "".join(parts)
 
 
-def hydrate_hits(db: Session, hits: Iterable[SearchHit]) -> list[dict[str, Any]]:
+def hydrate_hits(
+    db: Session,
+    hits: Iterable[SearchHit],
+    *,
+    reason_prefix: str = "与查询语义相似度",
+) -> list[dict[str, Any]]:
     """把向量命中水合为完整项目信息；缺失行（已删除 / 无权限）自动跳过。"""
     items: list[dict[str, Any]] = []
     for hit in hits:
@@ -196,7 +206,7 @@ def hydrate_hits(db: Session, hits: Iterable[SearchHit]) -> list[dict[str, Any]]
                     "starsToday": 0,
                     "url": row.html_url,
                     "score": round(hit.score, 6),
-                    "reason": _build_reason(hit.score, language, description),
+                    "reason": _build_reason(hit.score, language, description, reason_prefix),
                 }
             )
         elif hit.source == "trending":
@@ -219,7 +229,7 @@ def hydrate_hits(db: Session, hits: Iterable[SearchHit]) -> list[dict[str, Any]]
                     "starsToday": int(row.stars_today or 0),
                     "url": row.html_url,
                     "score": round(hit.score, 6),
-                    "reason": _build_reason(hit.score, language, description),
+                    "reason": _build_reason(hit.score, language, description, reason_prefix),
                 }
             )
     return items

@@ -203,6 +203,23 @@ summarize() → Ollama（超预算则跳过请求）→ DeepSeek → 截断原�
 查询理解结果（`query` / `rewritten` / `techStack` / `concepts` / `terms` / `keywordTerms`）随搜索响应返回：
 admin 搜索页展示「查询理解」标签，edge 关键词兜底使用扩展词提升召回。
 
+### 3.12 相似项目推荐流（M6-02「看了又看」）
+
+```
+admin 热榜详情页 GET /api/similar?source=trending&repoId=owner/name&topK=6
+→ edge 校验参数并从 D1 读取种子仓库（source=my 时校验归属当前用户）
+→ edge 调 VPS POST /api/search/similar（X-Internal-Token）
+   ↳ 读取种子仓库 repo_vectors 向量 → 同 model / dim 向量余弦近邻 → topK
+→ edge 按 source 水合 D1（my 仅当前用户；trending 全局）→ 返回匹配度 + 中文理由
+
+降级：
+VPS 不可达 / 种子未向量化 / 0 命中 → edge D1 同语言 + 共享技术栈打分
+（mode=keyword，理由明确为语言 / 技术栈匹配，不冒充语义相似度）
+```
+
+纯向量近邻复用 M3 `repo_vectors`，不新增表；`scope` 控制候选来源（`my` / `trending` / `all`），
+`excludeSaved` 可排除收藏库；`minScore` 可过滤低分近邻。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -231,6 +248,7 @@ admin 搜索页展示「查询理解」标签，edge 关键词兜底使用扩展
 | `/api/dashboard/stats` | GET | 仪表盘统计 |
 | `/api/sync` | POST | 触发同步任务（202） |
 | `/api/search/semantic` | POST | 语义搜索（`query` / `topK` / `scope`；vectorize → local → keyword 三级降级） |
+| `/api/similar` | GET | 相似项目推荐（`source=my\|trending` / `repoId` / `topK` / `scope` / `minScore` / `excludeSaved`；local → keyword 降级） |
 
 ### 4.2 edge ↔ vps（内部 API，`X-Internal-Token`）
 
@@ -266,6 +284,7 @@ admin 搜索页展示「查询理解」标签，edge 关键词兜底使用扩展
 | `/api/search/embed` | POST | 查询向量化（供 edge 调用 Vectorize） |
 | `/api/search/query` | POST | 本地 `repo_vectors` 余弦检索（降级路径） |
 | `/api/search/semantic` | POST | 本地检索并水合完整项目信息 |
+| `/api/search/similar` | POST | 相似项目向量近邻（`source` / `repoId` / `topK` / `scope` / `minScore` / `excludeSaved`；返回未水合 hits） |
 | `/api/search/status` | GET | 向量覆盖率、模型分布与最近向量化运行 |
 | `/api/vectors/stats` | GET | 向量覆盖率与最近运行 |
 | `/api/vectors/runs/{runId}` | GET | 向量化运行详情 |

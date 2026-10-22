@@ -364,3 +364,85 @@ export async function unfavoriteTrending(
     method: 'DELETE',
   })
 }
+
+/** 相似项目推荐条目（GET /api/similar） */
+export interface SimilarRepoItem {
+  id: string
+  source: 'my' | 'trending'
+  fullName: string
+  name: string
+  description: string
+  language: string
+  stars: number
+  starsToday: number
+  url: string
+  score: number
+  reason: string
+}
+
+export interface SimilarResponse {
+  source: 'my' | 'trending'
+  repoId: string
+  mode: 'local' | 'keyword'
+  count: number
+  tookMs: number
+  items: SimilarRepoItem[]
+}
+
+/** 相似推荐路径：repoId 作为查询参数整体编码，避免斜杠被当成路径分隔符 */
+export function similarReposPath(
+  source: 'my' | 'trending',
+  repoId: string,
+  topK = 8
+): string {
+  const params = new URLSearchParams({
+    source,
+    repoId,
+    topK: String(topK),
+  })
+  return `/api/similar?${params.toString()}`
+}
+
+/** 演示模式：同语言优先，按今日 Star 降序，排除种子自身。 */
+export function buildSimilarFallback(
+  seedId: string,
+  topK = 8
+): SimilarRepoItem[] {
+  const sameRepo = (item: TrendingRepoDetail) =>
+    item.id === seedId || `${item.owner}/${item.name}` === seedId
+  const seed = MOCK_TRENDING_DETAILS.find(sameRepo)
+  const pool = MOCK_TRENDING_DETAILS.filter((item) => !sameRepo(item))
+  const ranked = [...pool].sort((a, b) => {
+    const aSame = seed && a.language === seed.language ? 1 : 0
+    const bSame = seed && b.language === seed.language ? 1 : 0
+    return bSame - aSame || b.starsToday - a.starsToday
+  })
+  return ranked.slice(0, topK).map((item, index) => ({
+    id: `${item.owner}/${item.name}`,
+    source: 'trending' as const,
+    fullName: `${item.owner}/${item.name}`,
+    name: item.name,
+    description: item.description,
+    language: item.language,
+    stars: item.stars,
+    starsToday: item.starsToday,
+    url: item.url,
+    score: Math.max(0.3, 0.55 - index * 0.03),
+    reason: seed
+      ? `与「${seed.name}」同属 ${item.language || '相近'} 技术方向。`
+      : '语言 / 技术栈相近。',
+  }))
+}
+
+export function fetchSimilarRepos(
+  source: 'my' | 'trending',
+  repoId: string,
+  topK = 8
+): Promise<SimilarRepoItem[]> {
+  const fallback = source === 'trending' ? buildSimilarFallback(repoId, topK) : []
+  if (DEMO_MODE) return Promise.resolve(fallback)
+  return fetchWithFallback<SimilarRepoItem[]>(
+    similarReposPath(source, repoId, topK),
+    fallback
+  ).then((items) => (Array.isArray(items) ? items : []))
+}

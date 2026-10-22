@@ -20,13 +20,13 @@ import type {
   Variables,
 } from '../types';
 import { all } from '../db';
+import { hydrateHits, toSearchItem } from '../search/items';
 
 const search = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 const DEFAULT_TOP_K = 10;
 const MAX_TOP_K = 30;
 const MAX_QUERY_LENGTH = 200;
-const HYDRATE_CHUNK = 50;
 const MAX_KEYWORD_TERMS = 8;
 
 type Scope = 'my' | 'trending' | 'all';
@@ -95,92 +95,6 @@ function metaString(metadata: Record<string, unknown> | undefined, key: string):
   return typeof value === 'string' ? value : '';
 }
 
-function chunk<T>(items: T[], size: number): T[][] {
-  const groups: T[][] = [];
-  for (let index = 0; index < items.length; index += size) {
-    groups.push(items.slice(index, index + size));
-  }
-  return groups;
-}
-
-function placeholders(count: number): string {
-  return Array.from({ length: count }, () => '?').join(', ');
-}
-
-function reasonFor(score: number, language: string, description: string, keyword = false): string {
-  const percent = Math.round(Math.max(0, Math.min(1, score)) * 100);
-  const prefix = keyword ? `关键词匹配度 ${percent}%。` : `与查询语义相似度 ${percent}%。`;
-  const parts = [prefix];
-  if (language) parts.push(`主要使用 ${language} 开发；`);
-  if (description) parts.push(`项目简介：${description.slice(0, 80)}。`);
-  return parts.join('');
-}
-
-function toItem(
-  row: RepoRow | TrendingRow,
-  source: 'my' | 'trending',
-  score: number,
-  keyword = false
-): SearchResultItem {
-  const description = row.description ?? ('readme_summary' in row ? row.readme_summary : null) ?? '';
-  const language = row.language ?? '';
-  const owner = row.owner ?? row.id.split('/')[0] ?? '';
-  return {
-    id: row.id,
-    source,
-    fullName: owner ? `${owner}/${row.name}` : row.id,
-    name: row.name,
-    description,
-    language,
-    stars: row.stars ?? 0,
-    starsToday: 'stars_today' in row ? (row.stars_today ?? 0) : 0,
-    url: row.html_url,
-    score: Math.round(score * 10000) / 10000,
-    reason: reasonFor(score, language, description, keyword),
-  };
-}
-
-/** 按 id 批量取行；`my` 额外按 user_id 过滤，避免跨用户泄漏。 */
-async function hydrate(
-  env: Env,
-  userId: string,
-  hits: Hit[],
-  limit: number
-): Promise<SearchResultItem[]> {
-  const wanted = hits.slice(0, Math.max(limit * 4, limit));
-  const myIds = [...new Set(wanted.filter((h) => h.source === 'my').map((h) => h.repoId))];
-  const trendingIds = [
-    ...new Set(wanted.filter((h) => h.source === 'trending').map((h) => h.repoId)),
-  ];
-
-  const rows = new Map<string, { row: RepoRow | TrendingRow; source: 'my' | 'trending' }>();
-  for (const group of chunk(myIds, HYDRATE_CHUNK)) {
-    const found = await all<RepoRow>(
-      env.DB,
-      `SELECT * FROM my_repositories WHERE id IN (${placeholders(group.length)}) AND user_id = ?`,
-      [...group, userId]
-    );
-    for (const row of found) rows.set(`my:${row.id}`, { row, source: 'my' });
-  }
-  for (const group of chunk(trendingIds, HYDRATE_CHUNK)) {
-    const found = await all<TrendingRow>(
-      env.DB,
-      `SELECT * FROM trending_repositories WHERE id IN (${placeholders(group.length)})`,
-      group
-    );
-    for (const row of found) rows.set(`trending:${row.id}`, { row, source: 'trending' });
-  }
-
-  const items: SearchResultItem[] = [];
-  for (const hit of wanted) {
-    if (items.length >= limit) break;
-    const entry = rows.get(`${hit.source}:${hit.repoId}`);
-    if (!entry) continue;
-    items.push(toItem(entry.row, entry.source, hit.score));
-  }
-  return items;
-}
-
 /** 关键词词表：原查询 + 查询理解扩展词，去重后限 8 个。 */
 function keywordTerms(query: string, understanding?: SearchUnderstanding): string[] {
   const values = [query, ...(understanding?.keywordTerms ?? [])]
@@ -222,7 +136,7 @@ async function keywordSearch(
     );
     for (const row of rows) {
       const hit = row.name.toLowerCase().includes(query.toLowerCase()) ? 0.6 : 0.4;
-      items.push(toItem(row, 'my', hit, true));
+      items.push(toSearchItem(row, 'my', hit, true));
     }
   }
   if (scope === 'trending' || scope === 'all') {
@@ -236,7 +150,7 @@ async function keywordSearch(
     );
     for (const row of rows) {
       const hit = row.name.toLowerCase().includes(query.toLowerCase()) ? 0.6 : 0.4;
-      items.push(toItem(row, 'trending', hit, true));
+      items.push(toSearchItem(row, 'trending', hit, true));
     }
   }
   return items.slice(0, limit);
@@ -283,7 +197,7 @@ search.post('/semantic', async (c) => {
             hits.push({ source, repoId, score: match.score ?? 0 });
           }
         }
-        const items = await hydrate(c.env, user.id, hits, topK);
+        const items = await hydrateHits(c.env, user.id, hits, topK);
         if (items.length > 0) {
           return c.json({
             ...base,
@@ -319,7 +233,7 @@ search.post('/semantic', async (c) => {
           typeof item.score === 'number'
       )
       .map((item) => ({ source: item.source, repoId: item.repoId, score: item.score }));
-    const items = await hydrate(c.env, user.id, hits, topK);
+    const items = await hydrateHits(c.env, user.id, hits, topK);
     if (items.length > 0) {
       return c.json({
         ...base,
