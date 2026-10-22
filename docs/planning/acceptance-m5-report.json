@@ -1,0 +1,214 @@
+{
+  "meta": {
+    "branch": "feat/req-202610-0947-m5-acceptance",
+    "commit": "787c24c",
+    "finishedAt": "2026-10-22T10:19:21+0000",
+    "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3"
+  },
+  "results": [
+    {
+      "id": "M5-A01",
+      "title": "部署脚本齐全且可执行",
+      "status": "PASS",
+      "detail": "19 个部署脚本齐全且可执行",
+      "durationMs": 0.9
+    },
+    {
+      "id": "M5-A02",
+      "title": "部署脚本语法检查",
+      "status": "PASS",
+      "detail": "19 个脚本 bash -n 通过",
+      "durationMs": 70.6
+    },
+    {
+      "id": "M5-A03",
+      "title": "systemd 单元资源与安全基线",
+      "status": "PASS",
+      "detail": "4 个 systemd 单元基线齐全（MemoryMax / NoNewPrivileges / 环境文件）",
+      "durationMs": 1.3
+    },
+    {
+      "id": "M5-A04",
+      "title": "部署模板占位符与安全约束",
+      "status": "PASS",
+      "detail": "wrangler / Caddy 模板占位符与安全约束齐全",
+      "durationMs": 0.8
+    },
+    {
+      "id": "M5-A05",
+      "title": "配置渲染（wrangler / Caddy）",
+      "status": "PASS",
+      "detail": "wrangler + Caddy 渲染无残留占位符，产物权限 600",
+      "durationMs": 40.5
+    },
+    {
+      "id": "M5-A06",
+      "title": "preflight / smoke-test dry-run",
+      "status": "PASS",
+      "detail": "preflight / smoke-test dry-run 通过",
+      "durationMs": 75.3
+    },
+    {
+      "id": "M5-A07",
+      "title": "部署工作流门禁",
+      "status": "PASS",
+      "detail": "部署工作流受 DEPLOY_ENABLED 门禁保护且串行",
+      "durationMs": 0.2
+    },
+    {
+      "id": "M5-G01",
+      "title": "运维手册与指南齐全",
+      "status": "PASS",
+      "detail": "7 份运维指南齐全，runbook 关键章节完整",
+      "durationMs": 0.7
+    },
+    {
+      "id": "M5-G02",
+      "title": "运维脚本帮助可用",
+      "status": "PASS",
+      "detail": "ops-diagnose / resource-budget / local-allinone 帮助可用",
+      "durationMs": 157.4
+    },
+    {
+      "id": "M5-I01",
+      "title": "三端版本号 1.0.0",
+      "status": "PASS",
+      "detail": "admin / edge / vps / 两份环境模板均为 1.0.0",
+      "durationMs": 1.1
+    },
+    {
+      "id": "M5-I02",
+      "title": "v1.0 发布说明",
+      "status": "PASS",
+      "detail": "发布说明包含版本、已知限制与回滚说明",
+      "durationMs": 0.1
+    },
+    {
+      "id": "M5-B01",
+      "title": "默认模式关闭本机接口",
+      "status": "PASS",
+      "detail": "LOCAL_MODE=0 时 /local/api/* 全部 404",
+      "durationMs": 13.6
+    },
+    {
+      "id": "M5-C01",
+      "title": "健康检查 / 就绪探针",
+      "status": "PASS",
+      "detail": "healthz + ready 均 200",
+      "durationMs": 7.1
+    },
+    {
+      "id": "M5-C02",
+      "title": "监控实时状态",
+      "status": "PASS",
+      "detail": "status=ok，5 项健康检查",
+      "durationMs": 49.7
+    },
+    {
+      "id": "M5-C03",
+      "title": "监控检查与历史落库",
+      "status": "PASS",
+      "detail": "检查 48d65acf 落库，历史 1 条",
+      "durationMs": 35.6
+    },
+    {
+      "id": "M5-C04",
+      "title": "告警列表与确认",
+      "status": "PASS",
+      "detail": "告警 accept-b1bda4784589 确认成功",
+      "durationMs": 40.7
+    },
+    {
+      "id": "M5-C05",
+      "title": "日志状态与保留清理",
+      "status": "PASS",
+      "detail": "日志目录 1 个文件 / 0.0 MB",
+      "durationMs": 9.4
+    },
+    {
+      "id": "M5-D01",
+      "title": "SQLite 快照创建与预算",
+      "status": "PASS",
+      "detail": "快照 sqlite-20261022T101917Z.sqlite3.gz（6184 bytes）",
+      "durationMs": 25.9
+    },
+    {
+      "id": "M5-D02",
+      "title": "快照完整性校验",
+      "status": "PASS",
+      "detail": "5 项校验通过，21 张表",
+      "durationMs": 11.8
+    },
+    {
+      "id": "M5-D03",
+      "title": "恢复演练",
+      "status": "PASS",
+      "detail": "恢复到临时库成功，21 张表行数一致",
+      "durationMs": 24.9
+    },
+    {
+      "id": "M5-D04",
+      "title": "备份产物列表",
+      "status": "PASS",
+      "detail": "1 份 SQLite 备份",
+      "durationMs": 4.3
+    },
+    {
+      "id": "M5-E01",
+      "title": "安全加固状态",
+      "status": "PASS",
+      "detail": "双令牌轮换状态正确，限流参数可见，无明文泄露",
+      "durationMs": 3.5
+    },
+    {
+      "id": "M5-E02",
+      "title": "内部令牌双令牌与 401",
+      "status": "PASS",
+      "detail": "旧令牌可用，错误令牌 401",
+      "durationMs": 8.7
+    },
+    {
+      "id": "M5-E03",
+      "title": "接口限流 429",
+      "status": "PASS",
+      "detail": "限流触发 429，Retry-After=60",
+      "durationMs": 18.5
+    },
+    {
+      "id": "M5-E04",
+      "title": "安全响应头",
+      "status": "PASS",
+      "detail": "安全响应头基线齐全",
+      "durationMs": 2.2
+    },
+    {
+      "id": "M5-B02",
+      "title": "本机静态托管与 SPA 回退",
+      "status": "PASS",
+      "detail": "首页与 SPA 回退均命中 admin 构建产物",
+      "durationMs": 32.7
+    },
+    {
+      "id": "M5-B03",
+      "title": "本机只读 API 契约",
+      "status": "PASS",
+      "detail": "用户 m5-local / 仓库 1 个 / 版本 1.0.0",
+      "durationMs": 71.5
+    },
+    {
+      "id": "M5-F01",
+      "title": "资源预算 4G / 15G 判定",
+      "status": "PASS",
+      "detail": "PASS：内存 43.7 / 4096 MB，磁盘 593.4 / 15360 MB",
+      "durationMs": 457.8
+    },
+    {
+      "id": "M5-H01",
+      "title": "安全审计无 critical / high",
+      "status": "PASS",
+      "detail": "status=WARN，medium=2，checks=7",
+      "durationMs": 870.3
+    }
+  ]
+}
