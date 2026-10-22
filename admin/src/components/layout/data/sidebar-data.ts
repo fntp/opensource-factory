@@ -4,6 +4,7 @@ import {
   Bell,
   BellRing,
   Boxes,
+  Cpu,
   FileText,
   Flame,
   FolderGit2,
@@ -64,6 +65,7 @@ export const sidebarData: SidebarData = {
       title: '系统',
       items: [
         { title: '系统监控', url: '/monitoring', icon: Activity },
+        { title: '模型路由', url: '/model-routing', icon: Cpu },
         {
           title: '设置',
           icon: Settings,

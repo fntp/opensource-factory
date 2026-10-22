@@ -40,6 +40,7 @@ import internalVectorsRoutes from './routes/internal-vectors';
 import internalRecommendationsRoutes from './routes/internal-recommendations';
 import internalSecurityRoutes from './routes/internal-security';
 import monitoringRoutes, { internalAnalytics } from './routes/monitoring';
+import modelRoutes from './routes/model-routes';
 import reportsRoutes, { internalReports, generateReportsForAllUsers } from './routes/reports';
 import repoUpdatesRoutes, { internalRepoUpdates } from './routes/repo-updates';
 import {
@@ -189,6 +190,7 @@ app.route('/api/internal/vectors', internalVectorsRoutes);
 app.route('/api/internal/recommendations', internalRecommendationsRoutes);
 app.route('/api/internal/security', internalSecurityRoutes);
 app.route('/api/monitoring', monitoringRoutes);
+app.route('/api/model-routes', modelRoutes);
 app.route('/api/internal/analytics', internalAnalytics);
 app.route('/api/licenses', licensesRoutes);
 app.route('/api/internal/licenses', internalLicensesRoutes);

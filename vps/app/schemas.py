@@ -1688,3 +1688,152 @@ class CategorySuggestionGenerateResponse(BaseModel):
     suggested: int
     skipped: int
     items: list[CategorySuggestionRepoOut] = Field(default_factory=list)
+class ModelRouteModelOut(BaseModel):
+    """模型目录项。"""
+
+    id: str
+    name: str
+    provider: str
+    kind: str
+    quality: int
+    costPer1k: float
+    latencyMs: int
+    residentMb: int
+    quantization: str = ""
+    dimension: Optional[int] = None
+    contextTokens: int = 8192
+    note: str = ""
+    withinBudget: bool = True
+
+
+class ModelRouteUpgradeOut(BaseModel):
+    """升级建议。"""
+
+    modelId: str
+    modelName: str
+    provider: str
+    quality: int
+    residentMb: int
+    costPer1k: float
+    latencyMs: int
+    eligible: bool
+    reason: str
+
+
+class ModelRouteTaskOut(BaseModel):
+    """单个任务的路由状态。"""
+
+    task: str
+    label: str
+    description: str
+    strategy: str
+    modelId: str
+    modelName: str
+    provider: str
+    kind: str
+    quality: int
+    costPer1k: float
+    latencyMs: int
+    residentMb: int
+    quantization: str = ""
+    dimension: Optional[int] = None
+    budgetMb: int
+    withinBudget: bool
+    reason: str
+    fallbackModels: list[str] = Field(default_factory=list)
+    candidates: list[ModelRouteModelOut] = Field(default_factory=list)
+    upgrades: list[ModelRouteUpgradeOut] = Field(default_factory=list)
+    updatedBy: str = ""
+    updatedAt: Optional[str] = None
+
+
+class ModelRouteListOut(BaseModel):
+    """模型路由总览。"""
+
+    budgetMb: int
+    peakResidentMb: int
+    budgetPercent: int
+    withinBudget: bool
+    taskCount: int
+    localModelCount: int
+    cloudModelCount: int
+    ruleModelCount: int
+    updatedAt: Optional[str] = None
+    tasks: list[ModelRouteTaskOut] = Field(default_factory=list)
+    models: list[ModelRouteModelOut] = Field(default_factory=list)
+
+
+class ModelRouteUpdateIn(BaseModel):
+    """更新任务路由配置。"""
+
+    strategy: Literal["budget", "balanced", "quality", "manual"]
+    modelId: Optional[str] = Field(default=None, max_length=64)
+    updatedBy: Optional[str] = Field(default=None, max_length=64)
+
+
+class ModelRouteUpgradeIn(BaseModel):
+    """应用任务的最佳可用升级。"""
+
+    task: str = Field(min_length=1, max_length=32)
+
+
+class ModelRouteActionOut(BaseModel):
+    """单个任务的路由操作结果。"""
+
+    ok: bool
+    task: str
+    modelId: str = ""
+    message: str = ""
+    route: Optional[ModelRouteTaskOut] = None
+
+
+class ModelRouteResetOut(BaseModel):
+    """恢复默认结果。"""
+
+    ok: bool
+    deleted: int = 0
+    message: str = ""
+
+
+class ModelRouteHealthModelOut(BaseModel):
+    """Ollama 已加载模型。"""
+
+    name: str
+    sizeMb: int
+    sizeVramMb: int
+    withinBudget: bool
+
+
+class ModelRouteHealthOllamaOut(BaseModel):
+    """Ollama 通道状态。"""
+
+    configured: bool
+    reachable: bool
+    models: list[ModelRouteHealthModelOut] = Field(default_factory=list)
+    peakResidentMb: int = 0
+    budgetOk: bool = False
+    error: str = ""
+
+
+class ModelRouteHealthDeepseekOut(BaseModel):
+    """DeepSeek 通道状态（不暴露密钥）。"""
+
+    configured: bool
+    model: str
+    baseUrl: str
+
+
+class ModelRouteHealthRulesOut(BaseModel):
+    """规则引擎状态。"""
+
+    available: bool
+
+
+class ModelRouteHealthOut(BaseModel):
+    """模型路由健康检查。"""
+
+    ollama: ModelRouteHealthOllamaOut
+    deepseek: ModelRouteHealthDeepseekOut
+    rules: ModelRouteHealthRulesOut
+    budgetMb: int
+    checkedAt: str

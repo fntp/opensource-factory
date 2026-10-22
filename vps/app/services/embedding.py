@@ -14,6 +14,7 @@ from typing import Optional, Sequence
 
 from app.config import get_settings
 from app.services.model_budget import DEFAULT_BUDGET_MB, resolve_embedding_spec
+from app.services.model_router import RouteDecision, get_route_decision
 
 logger = logging.getLogger(__name__)
 
@@ -49,13 +50,29 @@ class EmbeddingService:
         budget_mb: int | None = None,
     ) -> None:
         settings = get_settings()
-        self.model_name: str = model_name or settings.EMBEDDING_MODEL
-        self.quantization: str = (settings.EMBEDDING_QUANTIZATION or "none").strip().lower()
+        route: RouteDecision | None = None
+        if model_name is None:
+            try:
+                route = get_route_decision("embedding", budget_mb=budget_mb)
+            except Exception as exc:  # noqa: BLE001 - 路由不可用时回退进程配置
+                logger.debug("读取 embedding 路由失败，使用进程级模型配置：%s", exc)
+        self.model_name: str = (
+            model_name
+            or (
+                route.model_name
+                if route is not None and route.provider == "ollama"
+                else settings.EMBEDDING_MODEL
+            )
+        )
+        self.quantization: str = (
+            (route.quantization if route is not None else settings.EMBEDDING_QUANTIZATION)
+            or "none"
+        ).strip().lower()
         self.device: str = (settings.EMBEDDING_DEVICE or "cpu").strip().lower()
         self.budget_mb: int = int(
             budget_mb
             if budget_mb is not None
-            else (settings.MODEL_BUDGET_MB or DEFAULT_BUDGET_MB)
+            else (route.budget_mb if route is not None else (settings.MODEL_BUDGET_MB or DEFAULT_BUDGET_MB))
         )
         self.force_fallback: bool = force_fallback
         self._backend: Optional[str] = None  # 'sentence-transformers' | 'flagembedding' | 'hash'

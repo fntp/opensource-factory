@@ -153,6 +153,25 @@ Celery beat 08:30 → 收藏库平均向量（复用 repo_vectors）→ 热榜�
 - `vps/app/services/model_budget.py` 维护选型表与预算报告，CLI `python -m app.model_budget check` 可离线复跑；
 - 部署自检 `deploy/scripts/doctor.sh` 包含 `model_budget` 检查项；模型不可用时仍走 hash 向量 / 截断摘要降级。
 
+### 3.5.1 模型路由与升级（M7-06）
+
+```
+admin /model-routing
+  → edge GET/PUT/DELETE /api/model-routes（登录态代理）
+    → VPS /api/model-routes（X-Internal-Token）
+       ├─ MODEL_ROUTING_CATALOG：任务 → 候选模型（质量 / 成本 / 延迟 / 驻留）
+       ├─ route_task()：budget | balanced | quality | manual
+       ├─ model_route_configs（SQLite）：任务级覆盖，缺省走内置默认
+       └─ 升级建议：预算内可升级 / 需提高预算
+摘要 / 向量化任务 → get_route_decision(task) → 选中模型 / 量化口径 → Ollama / BGE-M3 / 降级链
+```
+
+- 任务：`summary` / `embedding` / `tagging` / `classification` / `chat` / `rerank`；
+- 策略：`budget`（本地优先、驻留→成本→质量）、`balanced`（质量减延迟 / 成本惩罚）、`quality`（质量最高）、`manual`（人工指定候选）；
+- 硬约束：任何路由结果都必须满足 `resident_mb ≤ MODEL_BUDGET_MB`，超预算模型只出现在升级阻塞提示中；
+- 默认行为不变：摘要 `qwen2.5:1.5b-instruct-q4_K_M`，向量 `BAAI/bge-m3` int8；配置持久化在 VPS SQLite，不镜像 D1；
+- 打标 / 分类 / 精排当前为规则引擎，路由层先登记候选，后续接入 LLM 时复用同一决策函数。
+
 ### 3.6 向量化流（M3-02）
 
 ```
@@ -762,6 +781,11 @@ admin /star-trends → GET /api/star-trends?days=30&scope=trending|my&language=�
 | `/api/search/understand` | POST | 查询理解：同义词 / 技术栈词表扩展（`query` / `expand`） |
 | `/api/recommend/eval` | POST | 推荐质量评估与阈值 / 权重调参建议（抽样评估集） |
 | `/api/degradation/status` | GET | 降级路径自检（模型缺失 / 超预算） |
+| `/api/model-routes` | GET | 任务级模型路由总览（策略 / 候选 / 预算 / 升级建议） |
+| `/api/model-routes/{task}` | PUT / DELETE | 更新 / 恢复单个任务路由（校验候选与预算） |
+| `/api/model-routes/reset` | POST | 恢复全部任务默认路由 |
+| `/api/model-routes/upgrade` | POST | 应用任务的最佳可用升级 |
+| `/api/model-routes/health` | GET | Ollama / DeepSeek / 规则引擎可用性 |
 | `/api/push/bark/status` | GET | Bark 通道状态与待投递 / 已投递 / 失败计数 |
 | `/api/push/bark/test` | POST | 同步发送 Bark 测试通知 |
 | `/api/push/bark/dispatch` | POST | 入队 Bark 投递（`user_id` / `limit` 可选） |
