@@ -87,6 +87,7 @@
 | IT-0050 | M6-07 | 依赖分析（清单解析 / 依赖入库 / 技术栈关联，edge 代理 + admin 依赖分析页） | IT-0047 | ✅ 已完成（2026-10-22） |
 | IT-0051 | M6-08 | 知识库导出（Markdown / JSON / Obsidian；只读聚合 + `openfactory.knowledge.v1`） | M9-04（格式基线先行） | ✅ 已完成（2026-10-22） |
 | IT-0052 | M6-12 | M6 验收与回顾（集成 M6-01~08 + 跨分支验收脚本 + 缺口登记） | IT-0044~0051 | ✅ 已完成（2026-10-22） |
+| IT-0045 | M7-01 | 自动打标建议（摘要规则提取 + 人工确认 + tags / repo_tags 落库） | IT-0027（M2-04） | ✅ 已完成（2026-10-22） |
 
 > 说明：IT-0004 / IT-0005 在人工资源（Cloudflare 账号、OAuth App）就绪前，可先以 `wrangler --local` + 本地回调完成开发与验证；其余按需求池顺序滚动排期。
 
@@ -124,6 +125,7 @@
 | 2026-10-22 | 交付 | IT-0041 / M5-07 运维手册（REQ-202610-0945）：新增 `guides/operations-runbook.md`（部署 / 升级 / 回滚 / 故障处理 / 备份恢复 / 密钥轮换 SOP）与只读诊断脚本 `deploy/scripts/ops-diagnose.sh`，配套完整性测试；见 `planning/plan-req-202610-0945-operations-runbook.md` |
 | 2026-10-22 | 交付 | IT-0042 / M5-08 安全审计（REQ-202610-0946）：新增只读审计 CLI `vps/app/security_audit.py` + `deploy/scripts/security-audit.sh`（密钥 / 依赖 / 配置 / 响应头 / 隐私 11 项检查，支持 `--online` 与 `--strict` 门禁）；整改 Vitest dev 依赖漏洞、edge / VPS 安全响应头、CORS 安全默认；隐私边界清单与遗留风险见 `docs/guides/security-audit.md`；计划见 `plan-req-202610-0946-security-audit.md` |
 | 2026-10-22 | 验收 | IT-0043 / M5-09 完成（REQ-202610-0947）：集成 M5-01~08 八个分支，M5 验收 29/29 PASS，三端检查全绿（vps 421 / edge 61 / admin 117），发布 `v1.0.0`；报告见 `acceptance-m5.md` / `acceptance-m5-report.md` |
+| 2026-10-22 | 交付 | IT-0045 / M7-01 自动打标建议（REQ-202610-0960）：VPS 规则词表 + `POST /api/tag-suggestions/generate`，edge 建议表 / 列表 / 生成 / 采纳 / 忽略路由与 D1 迁移 `0013`，admin `/tag-suggestions` 分组确认页；计划见 `plan-req-202610-0960-auto-tagging.md` |
 | 2026-10-22 | 交付 | IT-0028 / M6-01 全文检索（REQ-202610-0948）：VPS `repo_readmes` 全文镜像 + FTS5 trigram 触发器同步、全文 / 状态 / 重建 API、每日补索引任务；edge 全文代理与用户过滤、admin 全文 / 语义切换与命中片段；计划见 `plan-req-202610-0948-fulltext-search.md` |
 | 2026-10-22 | 交付 | IT-0045 / M6-02 完成（REQ-202610-0949）：相似项目向量近邻接口 + edge local→keyword 降级 + admin 详情页「看了又看」；计划见 `plan-req-202610-0949-similar-recommendations.md` |
 | 2026-10-22 | 交付 | IT-0046 / M6-03 完成（REQ-202610-0950）：VPS 重复检测（地址 / 名称 / 简介 / 向量复核 + 合并建议）、edge 扫描与按用户忽略（migration 0013）、admin 重复检测页；计划见 `plan-req-202610-0950-duplicate-detection.md` |

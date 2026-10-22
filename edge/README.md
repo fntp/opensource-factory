@@ -43,6 +43,7 @@ edge/
 │   ├── 0013_duplicate_dismissals.sql  # 重复检测按用户忽略（M6-03）
 │   ├── 0014_repo_health.sql  # 仓库健康度字段（M6-05）
 │   └── 0015_license_compliance.sql  # License 识别字段（M6-06）
+│   └── 0013_tag_suggestions.sql  # 自动打标建议表 + 幂等/列表索引（M7-01）
 └── src/
     ├── index.ts          # Hono 入口：CORS、日志、/healthz、路由挂载、404/500
     ├── types.ts          # Env 绑定 + 数据库行 + API 响应实体
@@ -63,6 +64,7 @@ edge/
         ├── internal-trending.ts # /api/internal/trending/*（VPS 快照回写 / 保留清理）
         ├── recommend.ts  # /api/recommendations
         ├── categories.ts # /api/categories
+        ├── tag-suggestions.ts # /api/tag-suggestions（列表 / 生成 / 采纳 / 忽略）
         ├── dashboard.ts  # /api/dashboard/stats
         ├── notifications.ts  # /api/notifications + /api/internal/notifications
         ├── push-preferences.ts # /api/push-preferences + /api/internal/push-preferences
@@ -195,6 +197,10 @@ npm run test:m2 -- --strict \
 | `POST /api/repos/health/refresh` | 202 `{status:"queued",taskId}`；转发 VPS 刷新健康度，VPS 未配置时 `{status:"accepted",note}` |
 | `GET /api/licenses/catalog` | `{categories, licenses}`（公开的 License 目录与分级口径，M6-06） |
 | `GET /api/licenses/summary?scope=my` | `{total, known, unknown, riskCounts, licenses, checked, unchecked}`（当前用户收藏库的 License / 风险分布） |
+| `GET /api/tag-suggestions` | 打标建议列表（登录态；`status=pending\|accepted\|dismissed\|all`、`repoId`、`limit`、`offset`；返回 `summary` 汇总） |
+| `POST /api/tag-suggestions/generate` | 基于摘要生成建议（登录态；`repoIds?` / `limit?` / `perRepo?`；VPS 优先，本地规则兜底，返回 `source` / `saved`） |
+| `POST /api/tag-suggestions/accept` | 采纳建议（`ids` 或 `repoId + tags`；写 `tags` / `repo_tags`，已存在标签不重复计数） |
+| `POST /api/tag-suggestions/dismiss` | 忽略建议（`ids`；重复生成不覆盖 dismissed / accepted 状态） |
 | `GET /api/trending?date=&language=&limit=20` | `TrendingRepo[]`（公开；优先读按日快照，按 `rank` 升序，默认最近一天，可按日期 / 语言筛选；返回 `rank` / `rankChange` / `trend`，无快照时回退最新状态表，含 `summary`） |
 | `GET /api/trending/dates?limit=30` | `[{date, count}]`（可用快照日期，倒序） |
 | `GET /api/trending/languages?date=` | `{date, languages: [{language, count}]}`（指定日期的语言分布） |

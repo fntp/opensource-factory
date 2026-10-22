@@ -451,6 +451,7 @@ Celery beat 每日 04:37 自动增量同步、05:17 自动对账；06:12 自动�
 | POST | `/api/analysis/dependencies/refresh` | 扫描仓库依赖清单并入库（`repoIds` / `force` / `limit`） | `200 {...}` |
 | POST | `/api/recommend/eval` | 推荐质量评估与调参（`sampleSize` / `topK` / `holdoutRatio` / `negativesPerPositive` / `seed` / `userId`） | `200 {status,metrics,thresholds,weights,recommended,...}` |
 | POST | `/api/tasks/sync-readmes` | 入队 README 全文索引补录（`source` / `repoId` / `limit` / `force`） | `202 {"taskId"}` |
+| POST | `/api/tag-suggestions/generate` | 基于摘要生成标签建议（只读；`repoIds` / `limit` / `perRepo`） | `200 {generatedAt,scanned,suggested,skipped,items}` |
 
 Vectorize 索引维护接口（同样使用 `X-Internal-Token`）：
 
@@ -501,6 +502,14 @@ Celery beat 每 30 分钟（`7,37` 分）自动执行一次向量索引增量同
 | POST | `/api/summaries/quality/samples/{id}/review` | 人工复核：`{"result":"passed\|failed","reviewer":"...","note":"..."}` |
 | GET | `/api/summaries/quality/stats` | 总量 / 待复核 / 通过率 / 平均分 / 来源分布 / 最近批次 |
 | POST | `/api/summaries/quality/sample-existing` | 存量摘要补抽样：`{"source":"my\|trending\|all","limit":200,"rate":0.1}` |
+
+### 自动打标建议（M7-01）
+
+- 输入：`my_repositories.readme_summary`（M2-04 产物），只处理摘要非空的仓库；
+- 规则：语言字段优先；框架 / 业务域 / 工程属性按内置词表匹配，英文别名使用词边界（避免 `react` 命中 `reactive`），中文关键词做包含匹配；
+- 打分：`0.45 + 规则权重 + 多次命中加成`，低于 `0.55` 丢弃；排除仓库已有标签（大小写不敏感），每仓库默认 6 条（1~10）；
+- 输出：每条建议带 `name / category / score / reason / evidence`，只读不落库，由 edge 侧做用户隔离与持久化；
+- 接口：`POST /api/tag-suggestions/generate`（`X-Internal-Token`），请求 `{repoIds?, limit?, perRepo?}`。
 
 ## 热榜每日抓取
 

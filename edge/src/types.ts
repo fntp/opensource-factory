@@ -52,6 +52,25 @@ export interface SessionRow {
   expires_at: string;
 }
 
+export interface TagSuggestionRow {
+  id: string;
+  user_id: string;
+  repo_id: string;
+  tag_name: string;
+  normalized_name: string;
+  category: string;
+  score: number;
+  reason: string | null;
+  evidence: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  /** JOIN my_repositories 得到的展示字段（可选） */
+  repo_name?: string | null;
+  repo_url?: string | null;
+  readme_summary?: string | null;
+}
+
 export interface RepoRow {
   id: string;
   platform: string;

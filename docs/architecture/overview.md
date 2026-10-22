@@ -512,6 +512,30 @@ admin /export → GET /api/export/knowledge/summary（登录态）→ 统计卡
 
 只读聚合，不新增表、不写 D1；格式规范（JSON Schema、Markdown 结构、Obsidian 目录与
 frontmatter）见 `docs/guides/knowledge-export.md`，并作为 M9-04 全量归档的格式基线。
+### 3.22 自动打标建议流（M7-01）
+
+```
+admin /tag-suggestions「生成建议」
+→ POST /api/tag-suggestions/generate（登录态）
+→ edge 取当前用户 readme_summary 非空的仓库（最多 200 条）
+→ POST {vps}/api/tag-suggestions/generate（X-Internal-Token）
+     ├─ language 字段命中 → 语言标签
+     ├─ 摘要英文别名（词边界）+ 中文关键词 → 框架 / 业务域 / 工程属性
+     ├─ 打分：0.45 + 规则权重 + 多次命中加成（0.55 以下丢弃）
+     └─ 排除已有标签，每仓库最多 6 条（可调 1~10）
+→ VPS 不可达 → edge 本地规则兜底（language + 摘要关键词，source=local）
+→ 建议 upsert 到 D1 tag_suggestions（user_id + repo_id + normalized_name 唯一）
+→ 用户采纳 → 写 tags / repo_tags（已存在的标签不重复计数）→ 建议标记 accepted
+→ 用户忽略 → 建议标记 dismissed；重复生成不覆盖 accepted / dismissed
+```
+
+设计要点：
+
+- **建议与执行分离**：生成只写 `tag_suggestions`，不直接改 `tags` / `repo_tags`；
+- **可解释**：每条建议带 `score`、`reason`（命中理由）与 `evidence`（摘要片段 / language 字段）；
+- **账号隔离**：edge 所有查询带 `user_id`，采纳时再次校验仓库归属；
+- **幂等**：唯一索引 + upsert，重复生成只更新 pending 建议的分数与理由；
+- **降级**：VPS 不可用时本地规则仍能产出建议，页面不空白。
 
 ## 4. 接口边界
 
@@ -566,6 +590,10 @@ frontmatter）见 `docs/guides/knowledge-export.md`，并作为 M9-04 全量归�
 | `/api/analysis/dependencies/refresh` | POST | 扫描当前用户仓库依赖清单（VPS 不可达返回 `status=unavailable`） |
 | `/api/export/knowledge/summary` | GET | 知识库导出统计（登录态；项目 / 摘要 / 分类 / 标签 / Star） |
 | `/api/export/knowledge` | GET | 生成知识库附件（`format` / `includeSummary` / `groupBy`，登录态） |
+| `/api/tag-suggestions` | GET | 打标建议列表（`status=pending\|accepted\|dismissed\|all`、`repoId`、`limit`、`offset`；返回汇总） |
+| `/api/tag-suggestions/generate` | POST | 基于摘要生成建议（`repoIds?` / `limit?` / `perRepo?`；VPS 优先、本地规则兜底） |
+| `/api/tag-suggestions/accept` | POST | 采纳建议（`ids` 或 `repoId + tags`；写 `tags` / `repo_tags`） |
+| `/api/tag-suggestions/dismiss` | POST | 忽略建议（`ids`；重复生成不覆盖忽略状态） |
 
 ### 4.2 edge ↔ vps（内部 API，`X-Internal-Token`）
 
@@ -584,6 +612,7 @@ frontmatter）见 `docs/guides/knowledge-export.md`，并作为 M9-04 全量归�
 | `/api/summaries/quality/samples/{id}/review` | POST | 人工复核样本（`passed` / `failed`） |
 | `/api/summaries/quality/stats` | GET | 抽检质量统计（通过率 / 均分 / 来源分布） |
 | `/api/summaries/quality/sample-existing` | POST | 对存量摘要补抽样 |
+| `/api/tag-suggestions/generate` | POST | 基于摘要生成标签建议（只读；`repoIds` / `limit` / `perRepo`） |
 | `/api/tasks/crawl-trending` | POST | 入队热榜抓取 |
 | `/api/tasks/sync-readmes` | POST | 入队 README 全文索引补录（`source` / `repoIds` / `limit` / `force`） |
 | `/api/tasks/generate-recommendations` | POST | 入队推荐生成 |

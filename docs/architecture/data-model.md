@@ -499,6 +499,25 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | dependency_count | 本次解析的依赖行数 |
 | error | 拉取 / 解析错误摘要（失败时保留旧依赖） |
 | scanned_at | 最近扫描时间 |
+### 3.19 `tag_suggestions` 自动打标建议（D1，迁移 `0013`）
+
+> 建议与执行分离：生成只写本表，用户采纳后才写 `tags` / `repo_tags`。
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | 用户 + 仓库 + 归一化标签的稳定哈希（FNV-1a） |
+| user_id TEXT | 所属用户 |
+| repo_id TEXT | 仓库 `owner/repo` |
+| tag_name TEXT | 标签展示名（如 `AI/LLM`） |
+| normalized_name TEXT | 归一化名称（小写 / 去 `#` / 压缩空白），唯一键的一部分 |
+| category TEXT | `language` / `framework` / `domain` / `quality` |
+| score REAL | 置信度 0~1（0.55 以下不落库） |
+| reason / evidence TEXT | 命中理由与摘要证据片段 |
+| status TEXT | `pending` / `accepted` / `dismissed` |
+| created_at / updated_at TEXT | 创建 / 更新时间 |
+
+唯一索引 `(user_id, repo_id, normalized_name)` 保证重复生成幂等；列表索引
+`(user_id, status, updated_at DESC)`；仓库筛选索引 `(user_id, repo_id, status)`。
 
 ## 4. 索引策略
 
@@ -529,6 +548,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | duplicate_dismissals | `(user_id, cluster_key)` UNIQUE、`(user_id, created_at DESC)` | 重复检测忽略幂等 / 列表 |
 | repo_dependencies | `(repo_id)`、`(ecosystem)`、`(name)`、`(repo_id, ecosystem)` | 依赖覆盖统计 / 仓库明细 |
 | repo_dependency_scans | `(repo_id)` 主键 | 扫描状态与增量跳过 |
+| tag_suggestions | `(user_id, repo_id, normalized_name)` UNIQUE、`(user_id, status, updated_at DESC)`、`(user_id, repo_id, status)` | 建议幂等 / 列表筛选 |
 
 ## 5. 向量数据（M3）
 

@@ -1600,3 +1600,38 @@ class DependencyAnalysisResponse(BaseModel):
     dependencies: list[dict[str, Any]]
     links: list[dict[str, Any]]
     repos: list[dict[str, Any]]
+
+
+class TagSuggestionGenerateIn(BaseModel):
+    """自动打标建议生成请求（REQ-202610-0960 / M7-01）。"""
+
+    repoIds: list[str] = Field(default_factory=list)
+    limit: int = Field(default=200, ge=1, le=500)
+    perRepo: int = Field(default=6, ge=1, le=10)
+
+
+class TagSuggestionItem(BaseModel):
+    """单条标签建议。"""
+
+    name: str
+    category: str
+    score: float
+    reason: str
+    evidence: str
+
+
+class RepoTagSuggestions(BaseModel):
+    """单个仓库的建议集合。"""
+
+    repoId: str
+    tags: list[TagSuggestionItem]
+
+
+class TagSuggestionGenerateOut(BaseModel):
+    """批量生成结果。"""
+
+    generatedAt: str
+    scanned: int
+    suggested: int
+    skipped: int
+    items: list[RepoTagSuggestions]

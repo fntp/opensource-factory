@@ -15,6 +15,7 @@ import {
   Search,
   Settings,
   Sparkles,
+  Tags,
   User,
 } from 'lucide-react'
 import type { SidebarData } from '../types'
@@ -49,6 +50,7 @@ export const sidebarData: SidebarData = {
         { title: '技术栈图谱', url: '/tech-stack', icon: Network },
         { title: '依赖分析', url: '/dependencies', icon: Boxes },
         { title: '知识库导出', url: '/export', icon: Archive },
+        { title: '打标建议', url: '/tag-suggestions', icon: Tags },
       ],
     },
     {
