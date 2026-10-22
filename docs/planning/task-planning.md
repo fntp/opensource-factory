@@ -85,6 +85,7 @@
 | IT-0048 | M6-05 | 项目健康度追踪（最后提交 / issue 活跃 / 归档标记） | IT-0044；M1-07 | ✅ 已完成（2026-10-22） |
 | IT-0049 | M7-03 | 每周 / 月度精选报告（D1 聚合 + Cron 自动生成 + admin 报告归档页） | M4-01 | ✅ 已完成（2026-10-22） |
 | IT-0050 | M7-04 | 收藏项目更新提醒（VPS Release/Tag 扫描 + 重大变更判定 + D1 `repo_updates` + admin 更新提醒页） | M1-07 | ✅ 已完成（2026-10-22） |
+| IT-0051 | M7-08 | 个人数据微调评估（LoRA 可行性：数据 / 预算 / 效果 / 部署四维评估 + 可复跑工具） | M7-06 | ✅ 已完成（2026-10-22） |
 
 > 说明：IT-0004 / IT-0005 在人工资源（Cloudflare 账号、OAuth App）就绪前，可先以 `wrangler --local` + 本地回调完成开发与验证；其余按需求池顺序滚动排期。
 
@@ -129,3 +130,4 @@
 | 2026-10-22 | 交付 | IT-0048 / M6-05 项目健康度（REQ-202610-0952）：VPS 拉取 pushed_at / issue / 归档字段并计算健康度，每日任务 + 手动刷新回写 D1；edge 本地兜底计算与健康度接口；admin 仓库页汇总、筛选、徽章与刷新按钮；计划见 `planning/plan-req-202610-0952-repo-health-tracking.md` |
 | 2026-10-22 | 交付 | IT-0049 / M7-03 精选报告（REQ-202610-0962）：新增 D1 `curated_reports`（migration 0014）、edge 纯函数报告生成 + 登录态 / 内部接口 + Cron 周报月报、admin `/reports` 归档与 Markdown 下载；计划见 `planning/plan-req-202610-0962-weekly-monthly-report.md` |
 | 2026-10-22 | 交付 | IT-0050 / M7-04 收藏项目更新提醒（REQ-202610-0963）：VPS 每日扫描 GitHub Release / Tag（首次记基线、主版本跃迁与 breaking 关键词判定重大变更），回写 D1 `repo_updates`（migration 0015）并写入通知中心；admin `/updates` 支持统计、筛选、已读 / 忽略与立即扫描；计划见 `planning/plan-req-202610-0963-repo-update-reminders.md` |
+| 2026-10-22 | 交付 | IT-0051 / M7-08 个人数据微调评估（REQ-202610-0967）：新增 `app.lora_eval` 离线评估工具（数据画像 / QLoRA 成本矩阵 / 本机部署判定 / 配对评分显著性检验）与评估报告；结论为本机训练不可行、1.5B 可本机部署、当前数据不足应先补数据，详见 `architecture/lora-finetuning-evaluation.md`；计划见 `planning/plan-req-202610-0967-lora-evaluation.md` |

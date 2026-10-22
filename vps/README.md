@@ -39,6 +39,7 @@ vps/
 │   │   ├── embedding.py          # BGE-M3（懒加载）与确定性 hash 降级向量
 │   │   ├── vector_pipeline.py    # 收藏库 / 热榜向量化：批量、增量、断点续跑
 │   │   ├── summarizer.py         # Ollama → DeepSeek → 截断降级 的摘要生成
+│   │   ├── lora_eval.py          # 个人数据 LoRA 微调预算 / 效果评估 CLI（python -m app.lora_eval report）
 │   │   ├── recommender.py        # 余弦排序 + 综合打分
 │   │   ├── recommend_reason.py   # 中文推荐理由 + based_on 依据字段（纯规则）
 │   │   ├── recommendation_service.py # 每日推荐：画像 / 去重已收藏 / 阈值 / 落库
@@ -331,6 +332,21 @@ cd vps
 
 预算内退出码 0；超预算或未收录模型退出码 1。`deploy/scripts/doctor.sh` 也会执行同一项检查。
 int8 量化在 `sentence-transformers` 后端下对 Linear 层做动态量化；生产更推荐预量化的 ONNX int8 权重。
+
+## 个人数据微调评估（M7-08）
+
+`app.lora_eval` 是纯标准库的离线评估工具，不加载模型、不依赖 GPU，用于回答「个人数据够不够、训练要多少钱、效果怎么证明、本机能不能部署」：
+
+```bash
+cd vps
+.venv/bin/python -m app.lora_eval report
+.venv/bin/python -m app.lora_eval report --db data/opensource_factory.db --feedback 20
+.venv/bin/python -m app.lora_eval report --repos 120 --summaries 80 --feedback 20 --json
+.venv/bin/python -m app.lora_eval compare --baseline eval/baseline.json --tuned eval/tuned.json
+```
+
+默认结论：本机无 GPU、2G 预算只够推理，训练不可行；1.5B QLoRA 云端单次约 ¥1，1.5B q4 可在本机部署；当前数据量不足时应先补数据。完整评估见
+[docs/architecture/lora-finetuning-evaluation.md](../docs/architecture/lora-finetuning-evaluation.md)。
 
 ## 资源预算实测（M5-06）
 

@@ -497,6 +497,21 @@ Celery beat 每日 06:37（REPO_UPDATES_HOUR/MINUTE）或 admin「立即扫描�
 - `repo_updates` 唯一索引 `(user_id, repo_id, version)` 与通知 `dedupe_key` 双重幂等；
 - 未配置 `GITHUB_TOKEN` 时任务返回 `skipped`，不产生空扫描。
 
+### 3.16.2 个人数据微调评估（M7-08）
+
+```
+离线评估（不训练、不加载模型）：
+python -m app.lora_eval report [--repos/--summaries/--feedback]
+→ 数据画像（可用样本 = 摘要 + 反馈偏好对，最低 500 / 推荐 2000）
+→ QLoRA 成本矩阵（本机 CPU / 云端 4090 / A100 × 1.5B / 3B / 7B）
+→ 本机部署判定（q4 驻留 ≤ 2048MB 才可注册到模型路由）
+→ 效果对比（配对评分 + 精确二项符号检验，α=0.05）
+```
+
+- 本机无 GPU，训练不可行；1.5B q4 约 1.3G 可本机推理，3B / 7B 超出 2G 预算；
+- 微调产物按任务注册到 M7-06 路由（如 `summary_style_lora`），失败自动回退默认模型；
+- 结论与预算明细见 [lora-finetuning-evaluation.md](./lora-finetuning-evaluation.md)。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
