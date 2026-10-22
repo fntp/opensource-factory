@@ -498,6 +498,20 @@ admin「依赖分析」页 GET /api/analysis/dependencies（登录态）
 依赖明细只落 VPS 本地 SQLite，不复制到 D1；扫描按 `DEPENDENCY_SCAN_TTL_HOURS`
 跳过最近成功仓库，单仓库失败保留旧依赖并标记 `failed`；每日 06:23 由 Celery beat 增量补扫。
 
+### 3.18 知识库导出流（M6-08）
+
+```
+admin /export → GET /api/export/knowledge/summary（登录态）→ 统计卡
+→ 选择格式 / 是否含摘要 / 分组方式
+→ GET /api/export/knowledge?format=markdown|json|obsidian&includeSummary=1|0&groupBy=category|none
+→ edge 按 user_id 只读查询 my_repositories + categories + tags / repo_tags
+→ 纯函数构建：JSON（openfactory.knowledge.v1）/ Markdown（单文件）/ Obsidian（ZIP Vault）
+→ Content-Disposition 附件下载（Cache-Control: no-store）
+```
+
+只读聚合，不新增表、不写 D1；格式规范（JSON Schema、Markdown 结构、Obsidian 目录与
+frontmatter）见 `docs/guides/knowledge-export.md`，并作为 M9-04 全量归档的格式基线。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -549,6 +563,8 @@ admin「依赖分析」页 GET /api/analysis/dependencies（登录态）
 | `/api/licenses/summary` | GET | License 分布与风险统计（`?scope=my\|trending\|all`；`my` / `all` 需登录） |
 | `/api/analysis/dependencies` | GET | 依赖分析聚合（`?top=`；当前用户仓库 → VPS；VPS 不可达回退 D1 语言概览） |
 | `/api/analysis/dependencies/refresh` | POST | 扫描当前用户仓库依赖清单（VPS 不可达返回 `status=unavailable`） |
+| `/api/export/knowledge/summary` | GET | 知识库导出统计（登录态；项目 / 摘要 / 分类 / 标签 / Star） |
+| `/api/export/knowledge` | GET | 生成知识库附件（`format` / `includeSummary` / `groupBy`，登录态） |
 
 ### 4.2 edge ↔ vps（内部 API，`X-Internal-Token`）
 

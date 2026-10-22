@@ -41,7 +41,7 @@ admin 仓库页
 - **刷新异步化**：GitHub 调用走 Celery，HTTP 请求只负责入队；回写 D1 失败不影响 VPS 本地结果；
 - **可配置阈值**：`REPO_HEALTH_ACTIVE_DAYS` / `REPO_HEALTH_ATTENTION_DAYS` /
   `REPO_HEALTH_STALE_DAYS` / `REPO_HEALTH_MAX_PER_RUN` / 每日刷新时间；
-- **幂等补列**：VPS `init_db()` 与 D1 migration `0010_repo_health.sql` 都为既有库补列，不重建表。
+- **幂等补列**：VPS `init_db()` 与 D1 migration `0014_repo_health.sql` 都为既有库补列，不重建表。
 
 ## 3. 数据模型
 
@@ -89,7 +89,7 @@ admin 仓库页
 | `vps/app/models.py`、`db.py` | 新增列与幂等补列 |
 | `vps/app/services/github_service.py` | `normalize_repo` 补齐 GitHub 字段 |
 | `vps/app/config.py`、`runtime.py`、两份 env 模板 | `REPO_HEALTH_*` 配置 |
-| `edge/migrations/0010_repo_health.sql` | D1 补列 |
+| `edge/migrations/0014_repo_health.sql` | D1 补列 |
 | `edge/src/repos/health.ts` | edge 侧健康度降级计算与汇总 |
 | `edge/src/routes/repos.ts` | 健康度接口与 `RepoItem.health` |
 | `admin/src/features/repos/health.ts`、`api.ts`、`index.tsx` | 健康度列、汇总与刷新按钮 |

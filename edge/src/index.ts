@@ -3,7 +3,7 @@
  * 中间件：CORS（精确回显 ALLOWED_ORIGIN，允许 credentials）+ 请求日志
  * 路由：/api/auth、/api/repos、/api/trending、/api/recommendations、
  *       /api/dashboard、/api/sync、/api/internal/trending、/api/search、/api/similar、
- *       /api/tech-stack、/api/licenses、/api/internal/licenses、/api/analysis
+ *       /api/tech-stack、/api/licenses、/api/internal/licenses、/api/analysis、/api/export
  */
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -30,6 +30,7 @@ import similarRoutes from './routes/similar';
 import duplicatesRoutes from './routes/duplicates';
 import techStackRoutes from './routes/tech-stack';
 import analysisRoutes from './routes/analysis';
+import exportRoutes from './routes/export';
 import internalVectorsRoutes from './routes/internal-vectors';
 import internalRecommendationsRoutes from './routes/internal-recommendations';
 import internalSecurityRoutes from './routes/internal-security';
@@ -63,6 +64,7 @@ app.use('*', async (c, next) => {
     credentials: true,
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
+    exposeHeaders: ['Content-Disposition'],
     maxAge: 86400,
   })(c, next);
 });
@@ -172,6 +174,7 @@ app.route('/api/similar', similarRoutes);
 app.route('/api/duplicates', duplicatesRoutes);
 app.route('/api/tech-stack', techStackRoutes);
 app.route('/api/analysis', analysisRoutes);
+app.route('/api/export', exportRoutes);
 app.route('/api/internal/vectors', internalVectorsRoutes);
 app.route('/api/internal/recommendations', internalRecommendationsRoutes);
 app.route('/api/internal/security', internalSecurityRoutes);

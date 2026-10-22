@@ -24,7 +24,7 @@ VPS
   app/api/licenses.py             catalog / summary / 单仓库合规查询
   app/api/tasks.py                POST /api/tasks/enrich-licenses
 
-D1（edge/migrations/0010_license_compliance.sql）
+D1（edge/migrations/0015_license_compliance.sql）
   my_repositories / trending_repositories 增加
   license_spdx / license_name / license_source / license_checked_at
 
@@ -75,7 +75,7 @@ admin
 | `vps/app/tasks/jobs.py` / `celery_app.py` | 同步落库、`enrich_licenses` 任务、每日 beat |
 | `vps/app/api/licenses.py` / `tasks.py` / `main.py` | License 查询与补全入队接口 |
 | `vps/tests/test_license.py` | 识别、分级、API 与任务测试 |
-| `edge/migrations/0010_license_compliance.sql` | D1 License 列与索引 |
+| `edge/migrations/0015_license_compliance.sql` | D1 License 列与索引 |
 | `edge/src/license/compliance.ts` | 合规目录 / 分级纯函数 |
 | `edge/src/routes/licenses.ts` / `internal-licenses.ts` | 合规目录、分布统计、内部回写 |
 | `edge/src/routes/repos.ts` / `trending.ts` | DTO 增加 license 与筛选 |
@@ -118,7 +118,7 @@ admin
 - **分级与提示**：VPS 与 edge 各维护一份同构目录（16 种常见 SPDX），覆盖宽松 / 弱著佐权 / 强著佐权 /
   网络著佐权 / 公共领域 / 未知六类，输出 `riskLevel`、`obligations`、`warnings`；未知许可证给出
   「无许可证不等于可以自由使用」提示。分类在读取时派生，不落库。
-- **D1**：`0010_license_compliance.sql` 为 `my_repositories` / `trending_repositories` 增加四列与
+- **D1**：`0015_license_compliance.sql` 为 `my_repositories` / `trending_repositories` 增加四列与
   `license_spdx` 索引；热榜快照查询 LEFT JOIN 最新状态表补齐 License；收藏热榜时复制 License 字段。
 - **接口**：edge `GET /api/licenses/catalog`、`GET /api/licenses/summary`，内部回写
   `POST /api/internal/licenses`；VPS `GET /api/licenses/catalog|summary`、`GET /api/repos/{id}/license`。

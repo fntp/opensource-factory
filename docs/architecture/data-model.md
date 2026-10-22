@@ -59,7 +59,10 @@ duplicate_dismissals         （重复检测：按用户忽略的簇）
 
 > 计算口径：≤90 天 `active`、≤180 天 `attention`、≤365 天 `stale`、更久 `stale`（20 分）；
 > issue/Star ≥50% 扣 20 分、≥20% 扣 10 分，无 issue 加 5 分，分数不影响天数分档状态。
-> D1 迁移见 `edge/migrations/0010_repo_health.sql`；VPS SQLite 在 `init_db()` 中幂等补列。
+> D1 迁移见 `edge/migrations/0014_repo_health.sql`；VPS SQLite 在 `init_db()` 中幂等补列。
+>
+> 知识库导出（M6-08）只读聚合 `my_repositories` + `categories` + `tags` / `repo_tags`，
+> 不新增表、不写 D1；导出格式见 `docs/guides/knowledge-export.md`。
 
 ### 2.2 `trending_repositories` 热榜项目
 
