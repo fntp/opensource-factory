@@ -114,10 +114,20 @@ recommendations              （user_id 可空 = 全局推荐）
 | 项 | 值 |
 | --- | --- |
 | 模型 | BGE-M3（本地推理） |
-| 维度 | 1024 |
+| 维度 | 1024（`VECTORIZE_INDEX_DIM` 可配，0 表示不校验） |
 | 指标 | cosine |
-| 元数据 | `repo_id`、`source`（`my` / `trending`）、`language` |
-| 同步方向 | VPS 生成 → edge 写入 Vectorize（批量 upsert） |
+| 向量 ID | `v1_` + `sha256("{source}:{repo_id}")[:32]`，固定 35 字符、跨运行稳定 |
+| 元数据 | `repo_id`、`source`（`my` / `trending`）、`text_hash`、`model`、`dim`、`language` |
+| 同步方向 | VPS 生成 → edge 内部接口 → Vectorize（批量 upsert） |
+
+同步状态保存在 VPS 本地库（不镜像到 D1）：
+
+| 表 | 关键字段 | 用途 |
+| --- | --- | --- |
+| `vector_index_state` | `(source, repo_id)` 主键、`vector_id`、`text_hash`、`model`、`backend`、`dim`、`status`、`attempts`、`last_error`、`synced_at`、`checked_at` | 增量判断与失败重试依据 |
+| `vector_index_runs` | `id`、`mode`、`scope`、`status`、`total/processed/upserted/deleted/skipped/failed/dim_skipped/checked/missing/stale/repaired`、`batches`、`cursor_source`、`cursor_repo_id`、`error` | 每次同步 / 对账的可观测记录与断点续跑游标 |
+
+增量判定：`text_hash + model + backend + dim` 任一变化或上次状态非 `synced` 时重新 upsert；`full` 模式忽略状态全量重传。
 
 ## 6. 一致性约定
 

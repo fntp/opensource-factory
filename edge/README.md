@@ -43,7 +43,8 @@ edge/
         ├── recommend.ts  # /api/recommendations
         ├── categories.ts # /api/categories
         ├── dashboard.ts  # /api/dashboard/stats
-        └── sync.ts       # /api/sync
+        ├── sync.ts       # /api/sync
+        └── internal-vectors.ts # /api/internal/vectors/*（VPS → Vectorize）
 ```
 
 ## 本地开发
@@ -102,6 +103,7 @@ npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FR
 | 名称 | 类型 | 说明 |
 | --- | --- | --- |
 | `DB` | D1 绑定 | 主数据库，绑定名 `DB` |
+| `VECTORIZE` | Vectorize 绑定 | 向量索引，绑定名 `VECTORIZE`；未绑定时内部向量接口返回 503 |
 | `ALLOWED_ORIGIN` | vars | 允许的前端 origin，CORS 精确回显（带 `Access-Control-Allow-Credentials: true`） |
 | `GITHUB_CLIENT_ID` | vars | GitHub OAuth App Client ID；留空时 `/api/auth/github/login` 返回 501 |
 | `VPS_NODE_URL` | vars | VPS 节点地址；留空时 `/api/sync` 返回 202 accepted 而不转发 |
@@ -145,6 +147,17 @@ Recommendation  { id, owner, name, description, language, stars, score, reason, 
 CategoriesPayload { categories: [{id, name, count, description}], tags: [{name, count}] }
 DashboardStats  { totalRepos, trendingToday, pendingRecommendations, categoryCount }
 ```
+
+### 内部向量接口（VPS → Vectorize）
+
+仅接受携带 `X-Internal-Token` 的内部调用；`INTERNAL_TOKEN` 未配置时一律 503，避免裸奔。单次批量上限：upsert / delete 1000 条、check 100 条；对 Vectorize 瞬时错误自动重试 3 次（约 200ms / 400ms 退避）。
+
+| 方法/路径 | 说明 |
+| --- | --- |
+| `POST /api/internal/vectors/upsert` | `{items:[{id,values,metadata}]}` → `{total,upserted,skipped,mutationId}`；非法向量跳过，同批维度必须一致 |
+| `POST /api/internal/vectors/check` | `{ids:[...]}` → `{total,found,missing}`（`getByIds`） |
+| `POST /api/internal/vectors/delete` | `{ids:[...]}` → `{total,deleted,mutationId}`（`deleteByIds`） |
+| `GET /api/internal/vectors/stats` | `{vectorCount,dimensions,processedUpToDatetime,processedUpToMutation}`（`describe`） |
 
 ### 与 VPS 节点的约定
 

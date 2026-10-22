@@ -52,6 +52,8 @@ jobs:
         run: npm ci
       - name: Typecheck
         run: npm run typecheck
+      - name: Test (internal vector routes)
+        run: npm run test:vectorize
 
   vps:
     name: vps · pytest
