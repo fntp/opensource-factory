@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import (
     backup,
     degradation,
+    local,
     notifications,
     push,
     push_policy,
@@ -31,6 +32,7 @@ from app.api import (
 )
 from app.config import get_settings
 from app.db import init_db
+from app.local_ui import mount_local_ui
 from app.middleware.rate_limit import install_rate_limit_middleware
 
 settings = get_settings()
@@ -101,6 +103,9 @@ app.include_router(push.router)
 app.include_router(backup.router)
 app.include_router(security.router)
 
+# 本机一体化只读 API：/local/api/*（LOCAL_MODE=false 时统一 404）
+app.include_router(local.router, prefix="/local")
+
 # 接口限流（M5-05）：进程内滑动窗口，默认开启
 install_rate_limit_middleware(app)
 
@@ -108,3 +113,7 @@ install_rate_limit_middleware(app)
 @app.get("/healthz", tags=["health"], summary="健康检查")
 async def healthz() -> dict[str, str]:
     return {"status": "ok", "service": "opensource-factory-vps", "version": settings.VERSION}
+
+
+# admin 静态托管（仅 LOCAL_MODE=true；必须最后注册，避免覆盖 API 路由）
+mount_local_ui(app)

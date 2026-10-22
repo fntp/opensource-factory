@@ -718,6 +718,19 @@ curl -sS -X POST 'http://127.0.0.1:8000/api/push/receipts' \
 - Bark / Telegram 官方 API 没有逐条送达回执，默认只有发送结果；需要精确送达时由服务商适配器或人工补记；
 - 历史 `telegram_deliveries` / `email_deliveries` 不回填，统一记录从本版本起生效。
 
+## 本机一体化模式（M5-02 / REQ-202610-0940）
+
+`LOCAL_MODE=1` 时，`openfactory-api` 额外提供：
+
+- `GET /`：admin 构建产物（`LOCAL_ADMIN_DIR`，SPA 回退）；
+- `GET /local/api/*`：edge 兼容只读接口（`auth/me`、`repos`、`trending` 列表 / 日期 /
+  语言 / 详情、`recommendations` 列表 / 统计、`categories`、`dashboard/stats`、
+  `local/status`）。
+
+默认 `LOCAL_MODE=0`，上述路由不注册（404），混合架构行为不变。构建与开关命令见
+`deploy/scripts/local-allinone.sh`，完整说明见
+[docs/guides/local-allinone-deployment.md](../docs/guides/local-allinone-deployment.md)。
+
 ## 常用检查
 
 ```bash

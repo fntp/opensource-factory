@@ -1036,3 +1036,155 @@ class BackupActionIn(BaseModel):
     label: str = ""
     keep: Optional[int] = Field(default=None, ge=1, le=365)
     maxTotalMb: Optional[int] = Field(default=None, ge=0)
+
+
+# ── 本机一体化只读 API（M5-02 / REQ-202610-0940）────────────────────────
+# 字段名与 edge Worker 的前端契约保持一致（camelCase），便于 admin 同源切换。
+
+
+class LocalAuthUser(BaseModel):
+    """本机单用户身份（不经过 GitHub OAuth）。"""
+
+    id: str
+    login: str
+    name: str
+    email: Optional[str] = None
+    avatarUrl: Optional[str] = None
+
+
+class LocalRepoItem(BaseModel):
+    """`GET /local/api/repos` 列表项（与 edge RepoItem 对齐）。"""
+
+    id: str
+    fullName: str
+    description: Optional[str] = None
+    summary: Optional[str] = None
+    language: Optional[str] = None
+    stars: int = 0
+    forks: int = 0
+    category: Optional[str] = None
+    tags: list[str] = Field(default_factory=list)
+    updatedAt: Optional[str] = None
+    url: str = ""
+
+
+class LocalTrendingRepo(BaseModel):
+    """`GET /local/api/trending` 列表项（与 edge TrendingRepo 对齐）。"""
+
+    id: str
+    owner: str
+    name: str
+    description: Optional[str] = None
+    language: Optional[str] = None
+    stars: int = 0
+    starsToday: int = 0
+    url: str = ""
+    # 快照字段：无快照时给安全默认值，保证 admin 页面可直接渲染
+    snapshotDate: Optional[str] = None
+    rank: int = 0
+    rankChange: Optional[int] = None
+    trend: str = "same"
+
+
+class LocalTrendingDetail(LocalTrendingRepo):
+    """`GET /local/api/trending/{owner}/{name}` 详情。"""
+
+    platform: str = "github"
+    techStack: list[str] = Field(default_factory=list)
+    summary: Optional[str] = None
+    summarySource: str = "empty"
+    crawledAt: Optional[str] = None
+    isFavorited: bool = False
+
+
+class LocalTrendingDates(BaseModel):
+    """`GET /local/api/trending/dates` 可用快照日期。"""
+
+    dates: list[str] = Field(default_factory=list)
+    latest: Optional[str] = None
+
+
+class LocalTrendingLanguageItem(BaseModel):
+    """热榜语言分布项。"""
+
+    language: str
+    count: int = 0
+
+
+class LocalTrendingLanguages(BaseModel):
+    """`GET /local/api/trending/languages` 响应。"""
+
+    date: Optional[str] = None
+    languages: list[LocalTrendingLanguageItem] = Field(default_factory=list)
+
+
+class LocalRecommendation(BaseModel):
+    """`GET /local/api/recommendations` 列表项（与 edge Recommendation 对齐）。"""
+
+    id: str
+    repoId: str = ""
+    owner: Optional[str] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    language: Optional[str] = None
+    stars: int = 0
+    score: float = 0.0
+    reason: Optional[str] = None
+    basedOn: list[str] = Field(default_factory=list)
+    url: Optional[str] = None
+    status: str = "new"
+    createdAt: Optional[str] = None
+
+
+class LocalRecommendationStats(BaseModel):
+    """`GET /local/api/recommendations/stats` 各状态数量。"""
+
+    new: int = 0
+    saved: int = 0
+    dismissed: int = 0
+    pushed: int = 0
+    clicked: int = 0
+
+
+class LocalCategoryItem(BaseModel):
+    """分类项（含仓库计数）。"""
+
+    id: str
+    name: str
+    count: int = 0
+    description: Optional[str] = None
+
+
+class LocalTagItem(BaseModel):
+    """标签计数项（本机镜像暂未落标签表时为空）。"""
+
+    name: str
+    count: int = 0
+
+
+class LocalCategoriesPayload(BaseModel):
+    """`GET /local/api/categories` 响应。"""
+
+    categories: list[LocalCategoryItem] = Field(default_factory=list)
+    tags: list[LocalTagItem] = Field(default_factory=list)
+
+
+class LocalDashboardStats(BaseModel):
+    """`GET /local/api/dashboard/stats` 响应。"""
+
+    totalRepos: int = 0
+    trendingToday: int = 0
+    pendingRecommendations: int = 0
+    categoryCount: int = 0
+
+
+class LocalStatus(BaseModel):
+    """`GET /local/api/local/status` 本机模式状态。"""
+
+    mode: str = "local"
+    version: str
+    readOnly: bool = True
+    userId: str
+    adminDir: str
+    adminReady: bool
+    database: str

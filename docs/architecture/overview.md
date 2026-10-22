@@ -35,6 +35,28 @@
                                     └──────────────────────────────┘
 ```
 
+### 1.1 本机一体化模式（可选，REQ-202610-0940 / M5-02）
+
+默认架构为上面的混合模式（Q9 选项 A）。开启 `LOCAL_MODE=1` 后，`openfactory-api`
+在同一进程内额外提供 admin 静态托管与 edge 兼容的只读 API，可完全脱离 Cloudflare 运行：
+
+```
+浏览器 → http://127.0.0.1:8000/
+         ├── GET /                 admin/dist（SPA 回退）
+         ├── GET /local/api/*      edge 兼容只读 API（本机单用户）
+         └── GET /api/*            既有 VPS 内部任务 API（X-Internal-Token）
+                     │
+                     ▼
+         /opt/openfactory/data/*.db（SQLite 镜像）
+```
+
+边界约定：
+
+- `/local/api/*` 仅在 `LOCAL_MODE=1` 时注册，默认 404；只读，不做 GitHub OAuth；
+- 静态托管只服务 `LOCAL_ADMIN_DIR` 内的文件，未知路径回退 `index.html`，并做路径穿越防护；
+- 写操作、通知、OAuth 等仍由 edge 承担；本机模式首版只覆盖仪表盘 / 仓库 / 热榜 / 推荐 / 分类；
+- 部署、资源与安全细则见 [local-allinone-deployment.md](../guides/local-allinone-deployment.md)。
+
 ## 2. 组件职责
 
 | 组件 | 目录 | 职责 | 不该做的事 |
