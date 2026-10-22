@@ -19,6 +19,7 @@ import notificationRoutes, {
 import categoriesRoutes from './routes/categories';
 import dashboardRoutes from './routes/dashboard';
 import syncRoutes from './routes/sync';
+import internalVectorsRoutes from './routes/internal-vectors';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -56,6 +57,7 @@ app.route('/api/internal/notifications', internalNotifications);
 app.route('/api/categories', categoriesRoutes);
 app.route('/api/dashboard', dashboardRoutes);
 app.route('/api/sync', syncRoutes);
+app.route('/api/internal/vectors', internalVectorsRoutes);
 
 // 404
 app.notFound((c) =>

@@ -16,3 +16,5 @@ os.environ["GITHUB_TOKEN"] = ""
 os.environ["INTERNAL_TOKEN"] = ""
 os.environ["OLLAMA_BASE_URL"] = ""
 os.environ["DEEPSEEK_API_KEY"] = ""
+os.environ["EMBEDDING_FORCE_FALLBACK"] = "1"
+os.environ["VECTORIZE_AUTO"] = "0"  # 测试中不自动入队，避免任务互相干扰

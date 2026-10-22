@@ -96,13 +96,30 @@ notifications                （站内通知，按用户隔离）
 | id TEXT PK | 推荐 id |
 | user_id | 目标用户（NULL = 全局） |
 | owner / name / description / language / stars / url | 推荐项目快照 |
-| score REAL | 匹配度 0~1 |
+| score REAL | 综合得分 0~1（相似度 × 0.8 + 热榜热度 × 0.2） |
+| match_score REAL | 原始余弦相似度（M4-01 匹配度硬门槛；历史数据缺失时回退到 `score`） |
+| quality_score REAL | 每日评估质量分 0~1（仓库质量 × 0.7 + 理由质量 × 0.3） |
+| quality_detail TEXT | 评估明细 JSON（各分量、阈值、是否通过） |
+| evaluation_run_id TEXT | 最近一次评估运行 id |
+| evaluated_at DATETIME | 最近评估时间 |
 | reason TEXT | 推荐理由（中文） |
 | based_on TEXT | 依据（JSON 数组，如 `["AI/LLM","Python"]`） |
 | status TEXT | `new` / `qualified` / `filtered` / `pushed` / `saved` / `dismissed` / `expired` |
 | created_at | 生成时间 |
 
-### 3.5 `notifications` 站内通知
+### 3.5 `recommendation_evaluation_runs` 评估运行（M4-01）
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | 运行 id |
+| user_id | 目标用户（NULL = 全量评估） |
+| status TEXT | `running` / `completed` / `failed` |
+| match_threshold / quality_threshold REAL | 本次运行使用的门槛 |
+| total / qualified / filtered / skipped / failed INTEGER | 运行计数 |
+| error TEXT | 失败原因（截断） |
+| created_at / finished_at | 开始 / 结束时间 |
+
+### 3.6 `notifications` 站内通知
 
 | 字段 | 说明 |
 | --- | --- |
@@ -120,6 +137,21 @@ notifications                （站内通知，按用户隔离）
 
 **生成规则**：`GET /api/notifications` 与 `/unread-count` 触发惰性物化——把当前用户（含全局）`recommendations.status = 'pushed'` 且尚未通知的记录写入 `notifications`，由唯一索引 `(user_id, recommendation_id)` / `(user_id, dedupe_key)` 保证幂等。通知忽略时同步把关联推荐置为 `dismissed`。
 
+### 3.7 `push_preferences` 推送偏好（M4-06）
+
+| 字段 | 说明 |
+| --- | --- |
+| user_id TEXT PK | 用户 id |
+| enabled INTEGER | 是否启用每日推送（0 / 1） |
+| time_of_day TEXT | 推送时间 `HH:MM`（用户本地时区） |
+| timezone TEXT | IANA 时区，默认 `Asia/Shanghai` |
+| min_score REAL | 匹配度阈值（0~1，默认 0.35） |
+| min_quality_score REAL | 质量分阈值（0~1，默认 0.55） |
+| channel_inapp / channel_bark / channel_telegram / channel_email INTEGER | 通道开关（0 / 1） |
+| updated_at TEXT | 最近保存时间（ISO 8601） |
+
+**默认值**：未保存过偏好的用户按默认值处理（启用、09:00、Asia/Shanghai、匹配度 0.35、质量分 0.55、仅站内通知开启）。VPS 推送任务通过内部接口读取偏好，读取失败时回退默认值，不阻塞推送。
+
 ## 4. 索引策略
 
 | 表 | 索引 | 用途 |
@@ -128,19 +160,63 @@ notifications                （站内通知，按用户隔离）
 | trending_repositories | `(stars_today DESC)`、`(crawled_at)` | 榜单查询 |
 | sessions | `(user_id)`、`(expires_at)` | 会话校验与清理 |
 | repo_tags | `(repo_id)`、`(tag_id)` | 反查 |
-| recommendations | `(user_id, score DESC)` | 推荐列表 |
+| recommendations | `(user_id, score DESC)`、`(evaluation_run_id)` | 推荐列表 / 评估批次查询 |
 | notifications | `(user_id, status, created_at DESC)` | 通知列表与未读数 |
 | notifications | `(user_id, recommendation_id)` UNIQUE、`(user_id, dedupe_key)` UNIQUE | 物化幂等 / 去重 |
 
-## 5. 向量数据（Vectorize，M3）
+## 5. 向量数据（M3）
+
+### 5.1 本地向量表（VPS SQLite）
+
+向量由 VPS 生成并持久化在本地，D1 不存向量；M3-03 负责把本地向量同步到 Cloudflare Vectorize。
+
+`repo_vectors`（联合主键 `source + repo_id`）：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| source | TEXT PK | `my`（收藏库）/ `trending`（热榜） |
+| repo_id | TEXT PK | 仓库 id（`owner/repo`） |
+| model | TEXT | 编码模型名（`EMBEDDING_MODEL`） |
+| backend | TEXT | `sentence-transformers` / `flagembedding` / `hash` |
+| dim | INTEGER | 向量维度（hash 兜底 256，BGE-M3 1024） |
+| text_hash | TEXT | 参与编码文本的 SHA-256（增量判断） |
+| vector | TEXT | JSON 数组（保留 6 位小数） |
+| created_at / updated_at | DATETIME | 生成 / 更新时间 |
+
+`vectorization_runs`（运行记录，支持断点续跑）：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| id | TEXT PK | 运行 id（UUID hex） |
+| scope | TEXT | `my` / `trending` / `all` |
+| status | TEXT | `running` / `completed` / `failed` |
+| model / backend / dim | — | 本次运行使用的编码配置 |
+| force / limit / batch_size | — | 运行参数 |
+| total / processed / vectorized / skipped / failed | INTEGER | 计数 |
+| cursor_source / cursor_repo_id | TEXT | 已提交批次的游标 |
+| error | TEXT | 失败原因 |
+| created_at / updated_at / finished_at | DATETIME | 时间 |
+
+### 5.2 Vectorize 目标索引（M3-03）
 
 | 项 | 值 |
 | --- | --- |
-| 模型 | BGE-M3（本地推理） |
-| 维度 | 1024 |
+| 模型 | BGE-M3（本地推理；M3-01 完成后可能切换量化模型） |
+| 维度 | 1024（以实际 `EMBEDDING_MODEL` 输出为准，与 `VECTORIZE_INDEX_DIM` 对齐） |
 | 指标 | cosine |
-| 元数据 | `repo_id`、`source`（`my` / `trending`）、`language` |
-| 同步方向 | VPS 生成 → edge 写入 Vectorize（批量 upsert） |
+| 向量 ID | `v1_ + sha256("{source}:{repo_id}")[:32]`（固定 35 字符） |
+| 元数据 | `source`（`my` / `trending`）、`repo_id`、`text_hash`、`model`、`dim` |
+| 同步方向 | VPS `repo_vectors` → edge 写入 Vectorize（批量 upsert / 重试 / 对账） |
+| 增量依据 | `repo_vectors.text_hash` 与 `vector_sync_state.text_hash` 比对 |
+
+### 5.3 同步状态表（VPS SQLite）
+
+| 表 | 关键字段 | 说明 |
+| --- | --- | --- |
+| `vector_sync_state` | `source, repo_id, vector_id, text_hash, status, attempts, last_error, synced_at, checked_at` | 逐条同步状态；`status` 为 `pending/synced/failed/dim_mismatch` |
+| `vector_sync_runs` | `id, kind, scope, status, total, processed, synced, skipped, failed, deleted, checked, missing, repaired, orphan_scan` | 每次同步 / 对账运行统计与游标 |
+
+`vector_sync_runs.status`：`running/completed/partial/failed`；`kind`：`sync/reconcile`。
 
 ## 6. 一致性约定
 
