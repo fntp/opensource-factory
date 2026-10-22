@@ -36,7 +36,8 @@ vps/
 │   │   ├── embedding.py          # BGE-M3（懒加载）与确定性 hash 降级向量
 │   │   ├── vector_pipeline.py    # 收藏库 / 热榜向量化：批量、增量、断点续跑
 │   │   ├── summarizer.py         # Ollama → DeepSeek → 截断降级 的摘要生成
-│   │   ├── recommender.py        # 余弦排序 + 综合打分 + 中文推荐理由模板
+│   │   ├── recommender.py        # 余弦排序 + 综合打分
+│   │   ├── recommend_reason.py   # 中文推荐理由 + based_on 依据字段（纯规则）
 │   │   ├── recommendation_service.py # 每日推荐：画像 / 去重已收藏 / 阈值 / 落库
 │   │   ├── vector_index.py       # Vectorize 批量 upsert / 重试 / 对账 / 孤儿清理
 │   │   └── semantic_search.py    # 查询向量化 + repo_vectors 余弦检索 + 结果水合
@@ -207,6 +208,7 @@ int8 量化在 `sentence-transformers` 后端下对 Linear 层做动态量化；
 | POST | `/api/trending/summarize` | 入队热榜摘要生成（等价 `source=trending`，可选 `repo_id`、`limit`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/crawl-trending` | 入队热榜抓取（`platform=github\|gitee\|all`；可选 `language` 单页、`languages` 多页 CSV、`since=daily\|weekly\|monthly`、`with_summary`、`summary_limit`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/generate-recommendations` | 入队推荐生成（可选 `user_id`、`top_k`、`min_score`） | `202 {"taskId": "..."}` |
+| POST | `/api/tasks/regenerate-recommendation-reasons` | 入队重算存量推荐理由与 `based_on`（可选 `user_id`、`limit`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/daily-push` | 入队每日推送准备（将 `new` 推荐标记为 `pushed`） | `202 {"taskId": "..."}` |
 | GET | `/api/tasks/{task_id}` | 查询任务状态（`pending/started/progress/success/failure`，PROGRESS 时带 `progress`） | `200 {"taskId","status","result","progress"}` |
 | POST | `/api/tasks/vectorize` | 入队向量化（`scope=my\|trending\|all`，可选 `limit` / `batch_size` / `force` / `run_id`） | `202 {"taskId","runId"}` |
@@ -244,6 +246,7 @@ Vectorize 索引维护接口（同样使用 `X-Internal-Token`）：
 - **鉴权**：当服务端设置 `INTERNAL_TOKEN` 时，请求必须携带请求头 `X-Internal-Token: <token>`，否则返回 `401`；
 - **异步语义**：任务接口一律 `202` + `{"taskId": ...}`（camelCase），由边缘侧轮询 `GET /api/tasks/{task_id}` 获取结果；
 - **直接查询接口**（供边缘回源或调试）：`GET /api/repos`、`GET /api/trending?date=&language=&limit=`、`GET /api/trending/{owner}/{repo}`、`GET /api/trending/snapshots`、`GET /api/trending/dates`、`GET /api/trending/languages?date=`、`GET /api/trending/history`、`POST /api/recommend/query`；
+- **推荐理由**：`reason` 为中文可读文案，`based_on` 为 JSON 数组字符串（如 `["相似度 87%","语言 Python","技术栈 FastAPI"]`），由 `services/recommend_reason.py` 基于用户画像与候选字段生成，不调用 LLM；存量数据可调用 `POST /api/tasks/regenerate-recommendation-reasons` 批量回填；
 - **抓取告警**：`GET /api/trending/alerts?status=open|acknowledged|all`、`POST /api/trending/alerts/{id}/ack`；
 - **热榜快照**：抓取任务同时写入 `trending_repositories`（最新状态）与 `trending_snapshots`（按日，主键 `(snapshot_date, repo_id)`）；快照含 `rank` / `language_rank` / `star_delta` / `rank_delta` / `appearances` / `is_new` / `trend`，趋势基线最多回看 7 天；
 - **数据契约**：本地表结构与 D1 Schema 保持一致（`my_repositories` / `trending_repositories` / `trending_snapshots` / `categories` 字段名与语义镜像），边缘侧按 `id`（`owner/repo`）对齐；

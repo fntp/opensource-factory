@@ -45,22 +45,28 @@ def _ensure_sqlite_columns() -> None:
     if not settings.DATABASE_URL.startswith("sqlite"):
         return
     inspector = inspect(engine)
-    if "trending_repositories" not in inspector.get_table_names():
-        return
-    existing = {column["name"] for column in inspector.get_columns("trending_repositories")}
-    additions = {
-        "readme_summary": "TEXT",
-        "owner": "TEXT",
-        "language": "TEXT",
-        "stars": "INTEGER NOT NULL DEFAULT 0",
-    }
-    missing = {name: ddl for name, ddl in additions.items() if name not in existing}
-    if not missing:
-        return
-    with engine.begin() as connection:
-        for name, ddl in missing.items():
-            connection.execute(text(f"ALTER TABLE trending_repositories ADD COLUMN {name} {ddl}"))
-    logger.info("trending_repositories 已补齐列: %s", ", ".join(sorted(missing)))
+    if "trending_repositories" in inspector.get_table_names():
+        existing = {column["name"] for column in inspector.get_columns("trending_repositories")}
+        additions = {
+            "readme_summary": "TEXT",
+            "owner": "TEXT",
+            "language": "TEXT",
+            "stars": "INTEGER NOT NULL DEFAULT 0",
+        }
+        missing = {name: ddl for name, ddl in additions.items() if name not in existing}
+        if missing:
+            with engine.begin() as connection:
+                for name, ddl in missing.items():
+                    connection.execute(text(f"ALTER TABLE trending_repositories ADD COLUMN {name} {ddl}"))
+            logger.info("trending_repositories 已补齐列: %s", ", ".join(sorted(missing)))
+
+    with engine.begin() as conn:
+        rows = conn.exec_driver_sql("PRAGMA table_info(recommendations)").fetchall()
+        if rows:
+            columns = {row[1] for row in rows}
+            if "based_on" not in columns:
+                conn.exec_driver_sql("ALTER TABLE recommendations ADD COLUMN based_on TEXT")
+                logger.info("已为 recommendations 补充 based_on 列")
 
 
 def init_db() -> None:

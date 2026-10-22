@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
 from app.services.embedding import EmbeddingService
+from app.services.recommend_reason import build_reason as _build_reason
 
 
 @dataclass(frozen=True)

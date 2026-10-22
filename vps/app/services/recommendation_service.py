@@ -22,12 +22,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
-from app.models import MyRepository, Recommendation, RepoVector, TrendingRepository, User
+from app.models import Category, MyRepository, Recommendation, RepoVector, TrendingRepository, User
 from app.services.embedding import EmbeddingService, get_embedding_service
+from app.services.recommend_reason import build_reason_detail, build_user_profile
 from app.services.recommender import (
     Candidate,
     build_profile_vector,
-    build_reason,
     rank_candidates,
 )
 from app.services.vector_pipeline import build_repo_text, text_digest
@@ -266,6 +266,11 @@ def generate_for_user(
             min_score=effective_min_score,
         )
 
+    category_names = {
+        row.id: row.name for row in db.execute(select(Category)).scalars().all()
+    }
+    interest_profile = build_user_profile(profile_rows, category_names)
+
     profile_vectors = ensure_repo_vectors(
         db,
         "my",
@@ -349,7 +354,7 @@ def generate_for_user(
         repo = by_id.get(item.repo_id)
         if repo is None:
             continue
-        reason = build_reason(repo, item.score, similarity=item.similarity)
+        detail = build_reason_detail(repo, item.score, interest_profile)
         existing = existing_by_repo.get(item.repo_id)
         if existing is None:
             db.add(
@@ -358,7 +363,8 @@ def generate_for_user(
                     user_id=user_id,
                     repo_id=item.repo_id,
                     score=round(float(item.score), 6),
-                    reason=reason,
+                    reason=detail.reason,
+                    based_on=detail.based_on_json,
                     status="new",
                     created_at=now,
                 )
@@ -367,7 +373,8 @@ def generate_for_user(
             continue
 
         existing.score = round(float(item.score), 6)
-        existing.reason = reason
+        existing.reason = detail.reason
+        existing.based_on = detail.based_on_json
         # 只有 new / expired 可以被重新激活；saved / dismissed / pushed 保留用户反馈。
         if existing.status in ("new", "expired"):
             existing.status = "new"

@@ -15,7 +15,7 @@ from sqlalchemy import select
 
 from app.config import get_settings
 from app.db import SessionLocal
-from app.models import MyRepository, Recommendation, TrendingRepository
+from app.models import Category, MyRepository, Recommendation, TrendingRepository
 from app.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -484,6 +484,61 @@ def generate_recommendations(
         result.get("expired", 0),
     )
     return result
+
+
+@celery_app.task(name="app.tasks.jobs.regenerate_recommendation_reasons")
+def regenerate_recommendation_reasons(
+    user_id: Optional[str] = None, limit: int = 500
+) -> dict[str, Any]:
+    """按当前模板重算存量推荐的中文理由与依据字段（模板升级 / 画像变化后使用）。"""
+    from app.services.recommend_reason import build_reason_detail, build_user_profile
+
+    db = SessionLocal()
+    try:
+        my_repos = db.execute(select(MyRepository).limit(1000)).scalars().all()
+        category_names = {
+            row.id: row.name for row in db.execute(select(Category)).scalars().all()
+        }
+        interest_profile = build_user_profile(my_repos, category_names)
+
+        stmt = select(Recommendation).order_by(Recommendation.score.desc()).limit(max(1, int(limit)))
+        if user_id:
+            stmt = stmt.where(Recommendation.user_id == user_id)
+        rows = list(db.execute(stmt).scalars().all())
+        if not rows:
+            return {"status": "skipped", "reason": "没有可回填的推荐", "updated": 0}
+
+        repo_ids = {row.repo_id for row in rows}
+        trending = {
+            item.id: item
+            for item in db.execute(
+                select(TrendingRepository).where(TrendingRepository.id.in_(repo_ids))
+            ).scalars().all()
+        }
+        mine = {
+            item.id: item
+            for item in db.execute(
+                select(MyRepository).where(MyRepository.id.in_(repo_ids))
+            ).scalars().all()
+        }
+
+        updated = 0
+        for row in rows:
+            source = trending.get(row.repo_id) or mine.get(row.repo_id)
+            detail = build_reason_detail(
+                source if source is not None else {"id": row.repo_id, "name": row.repo_id},
+                float(row.score or 0),
+                interest_profile,
+            )
+            row.reason = detail.reason
+            row.based_on = detail.based_on_json
+            updated += 1
+        db.commit()
+    finally:
+        db.close()
+
+    logger.info("推荐理由回填完成: %d 条", updated)
+    return {"status": "ok", "updated": updated}
 
 
 @celery_app.task(name="app.tasks.jobs.daily_push")

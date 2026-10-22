@@ -151,7 +151,17 @@ admin 搜索页 POST /api/search/semantic（登录态）
 降级链：
 Vectorize 未绑定 / 查询失败 / 水合 0 条 → VPS POST /api/search/query（本地 repo_vectors 余弦）
 → VPS 不可达 → edge D1 关键词 LIKE 检索（mode=keyword，页面仍可用）
+### 3.9 推荐理由生成流（M3-06）
+
 ```
+generate_recommendations / POST /api/recommend/query
+→ build_user_profile（收藏库语言 / 技术栈 / 分类）
+→ build_reason_detail（相似度分档 + 共同语言 / 技术栈 / 分类 / 今日热度 / 简介）
+→ reason（中文）+ based_on（JSON 数组）
+→ 写 recommendations.reason / based_on；存量可 POST /api/tasks/regenerate-recommendation-reasons 回填
+```
+
+纯规则、不调用 LLM；收藏库为空时退化为候选字段 + 相似度，不虚构用户偏好。
 
 ## 4. 接口边界
 
@@ -193,7 +203,10 @@ Vectorize 未绑定 / 查询失败 / 水合 0 条 → VPS POST /api/search/query
 | `/api/summaries/quality/sample-existing` | POST | 对存量摘要补抽样 |
 | `/api/tasks/crawl-trending` | POST | 入队热榜抓取 |
 | `/api/tasks/generate-recommendations` | POST | 入队推荐生成 |
+| `/api/tasks/regenerate-recommendation-reasons` | POST | 入队重算存量推荐理由与依据字段 |
 | `/api/tasks/daily-push` | POST | 入队每日推送 |
+| `/api/recommend/query` | POST | 语义查询（返回 `reason` + `based_on`） |
+| `/api/recommend/list` | GET | 本地已生成推荐（`reason` + `based_on`） |
 | `/api/tasks/vectorize` | POST | 入队向量化（批量 / 增量 / 断点续跑） |
 | `/api/tasks/{taskId}` | GET | 任务状态 |
 | `/api/trending/retention` | GET | 热榜保留策略状态（窗口 / 过期数 / 库与归档占用） |

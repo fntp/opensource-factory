@@ -152,7 +152,11 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | status TEXT | `new` / `saved` / `dismissed` / `pushed` / `expired`（VPS 每日任务未入选或已收藏） |
 | created_at | 生成时间 |
 
-### 3.5 `crawl_alerts` / `crawl_page_stats` 抓取告警（VPS 本地表）
+> 本地 VPS 镜像同样保留 `reason` / `based_on`：`based_on` 为 JSON 数组字符串
+> （如 `["相似度 87%","语言 Python","技术栈 FastAPI"]`），旧 SQLite 库由 `init_db()` 幂等补列；
+> 生成逻辑见 `vps/app/services/recommend_reason.py`（纯规则，不调用 LLM）。
+
+### 3.6 `crawl_alerts` / `crawl_page_stats` 抓取告警（VPS 本地表）
 
 > 仅存在于 VPS 本地镜像库，不进入 D1；用于热榜抓取的容错基线与值班告警。
 
