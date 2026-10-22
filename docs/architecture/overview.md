@@ -371,6 +371,21 @@ VPS 端点同时提供 `GET /healthz/ready`（数据库 + 运行目录就绪探�
 `/api/monitoring/{status,check,history,alerts,logs}`（全部要求 `X-Internal-Token`）；
 edge 侧 `/api/monitoring/overview` 需登录，`/api/internal/analytics` 供内部工具读取 Workers 聚合。
 
+### 3.22 技术栈图谱流（M6-04）
+
+```
+admin /tech-stack → GET /api/tech-stack（登录态）
+  → edge 读取 D1 my_repositories + repo_tags / tags（均按 user_id 隔离）
+  → 语言归一（language 字段）+ 框架启发式识别（标签精确命中 → 简介 / 摘要关键词）
+  → 聚合语言榜、框架榜、语言 × 框架连线（Top 8 语言 × Top 16 框架）
+  → admin 渲染 KPI、径向关系图、语言条形榜、框架排行与组合洞察
+```
+
+- 只读聚合，不新增表、不依赖 VPS；数据口径为当前账号收藏的全部仓库；
+- 框架别名表在 `edge/src/tech-stack/catalog.ts`，聚合逻辑 `aggregate.ts` 为纯函数；
+- `share` 以全部收藏仓库数为分母；覆盖率 = 语言或框架至少识别其一的仓库占比；
+- 图谱只保留 Top N 节点与两端均在图中的连线，长尾仍可在框架排行表中查看。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -406,6 +421,7 @@ edge 侧 `/api/monitoring/overview` 需登录，`/api/internal/analytics` 供内
 | `/api/push-preferences` | PUT | 保存推送偏好（时间 / 时区 / 阈值 / 通道开关） |
 | `/api/sync` | POST | 触发同步任务（202） |
 | `/api/search/semantic` | POST | 语义搜索（`query` / `topK` / `scope`；vectorize → local → keyword 三级降级） |
+| `/api/tech-stack` | GET | 技术栈图谱（登录态；语言 / 框架聚合 + 语言 × 框架关系图，Top 8 × 16） |
 | `/api/monitoring/overview` | GET | 监控总览（登录态；合并 VPS 状态与 Workers 指标，`?days=1..30`） |
 | `/api/monitoring/check` | POST | 触发一次 VPS 监控检查（登录态代理） |
 | `/api/monitoring/alerts/:id/ack` | POST | 确认监控告警（登录态代理） |

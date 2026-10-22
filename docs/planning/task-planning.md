@@ -77,6 +77,7 @@
 | IT-0040 | M5-06 | 资源预算实测验证（4G / 15G 红线；超限优化） | IT-0037；M5-01~03 | ✅ 已完成（2026-10-22） |
 | IT-0041 | M5-07 | 运维手册（部署 / 升级 / 回滚 / 故障处理 SOP） | IT-0035；M5-01 | ✅ 已完成（2026-10-22） |
 | IT-0042 | M5-08 | 安全审计（依赖漏洞扫描 / 配置检查 / 隐私边界复核） | IT-0035；M5-01 | ✅ 已完成（2026-10-22） |
+| IT-0043 | M6-04 | 技术栈图谱视图（语言 / 框架聚合） | IT-0010；M1-11 | ✅ 已完成（2026-10-22） |
 
 > 说明：IT-0004 / IT-0005 在人工资源（Cloudflare 账号、OAuth App）就绪前，可先以 `wrangler --local` + 本地回调完成开发与验证；其余按需求池顺序滚动排期。
 
@@ -113,3 +114,4 @@
 | 2026-10-22 | 交付 | IT-0040 / M5-06 资源预算实测（REQ-202610-0944）：新增 `app.resource_budget` CLI 与 `deploy/scripts/resource-budget.sh`，按 4G / 15G 红线采集 systemd RSS、模型峰值与磁盘分项；发现运行配置残留 `qwen2.5:7b`（4700 MB）并切换至 1.5B 量化模型，复测内存 1359.2 / 4096 MB、磁盘 106.2 / 15360 MB PASS；见 `guides/resource-budget-verification.md` |
 | 2026-10-22 | 交付 | IT-0041 / M5-07 运维手册（REQ-202610-0945）：新增 `guides/operations-runbook.md`（部署 / 升级 / 回滚 / 故障处理 / 备份恢复 / 密钥轮换 SOP）与只读诊断脚本 `deploy/scripts/ops-diagnose.sh`，配套完整性测试；见 `planning/plan-req-202610-0945-operations-runbook.md` |
 | 2026-10-22 | 交付 | IT-0042 / M5-08 安全审计（REQ-202610-0946）：新增只读审计 CLI `vps/app/security_audit.py` + `deploy/scripts/security-audit.sh`（密钥 / 依赖 / 配置 / 响应头 / 隐私 11 项检查，支持 `--online` 与 `--strict` 门禁）；整改 Vitest dev 依赖漏洞、edge / VPS 安全响应头、CORS 安全默认；隐私边界清单与遗留风险见 `docs/guides/security-audit.md`；计划见 `plan-req-202610-0946-security-audit.md` |
+| 2026-10-22 | 交付 | IT-0043 / M6-04 技术栈图谱（REQ-202610-0951）：新增 edge `GET /api/tech-stack`（D1 只读聚合，语言归一 + 标签 / 简介启发式框架识别）与 admin `/tech-stack` 页面（KPI、SVG 径向关系图、语言条形榜、框架排行、组合洞察、空状态）；计划见 `planning/plan-req-202610-0951-tech-stack-graph.md` |
