@@ -66,5 +66,5 @@ cd vps && .venv/bin/pytest -q
 
 - `admin/src/routeTree.gen.ts` 为自动生成文件，**不要手改**；新增路由后运行 `npx vite build` 重新生成；
 - admin 测试为浏览器模式（Vitest + Playwright），服务器环境已配置 `headless: true`；新环境需 `npx playwright install chromium`；
-- `edge/wrangler.toml` 中的 `database_id` 为占位符，部署前需替换为真实 D1 数据库 id；
+- `edge/wrangler.toml` 中的 `database_id` 为占位符：本地用 `npm run db:bootstrap:local` 验证；有 Cloudflare 账号后运行 `npm run db:bootstrap:remote` 自动创建数据库、替换 id 并应用迁移；
 - 所有 `.env.example` 中的值均为占位符，真实值由维护者配置。

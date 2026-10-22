@@ -58,8 +58,12 @@ curl http://localhost:8787/healthz   # → {"status":"ok"}
 ### D1 迁移（本地）
 
 ```bash
-npm run db:migrate:local
+npm run db:bootstrap:local   # 应用迁移 + 校验 8 表 / 8 索引 + 幂等复跑
+npm run db:check             # 校验 wrangler.toml 与 schema 副本（占位符仅告警）
 ```
+
+`db:bootstrap:local` 使用 `wrangler --local`（数据落在 `.wrangler/state`，不访问远程），
+无需 Cloudflare 账号即可完成验证。只应用迁移可继续使用 `npm run db:migrate:local`。
 
 如需在本地插入调试数据：
 
@@ -69,20 +73,18 @@ npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FR
 
 ## 部署步骤
 
-1. 创建 D1 数据库并记下 `database_id`：
+1. 准备 Cloudflare 凭据（二选一，均不落盘）：环境变量 `CLOUDFLARE_API_TOKEN`
+   （需 `D1:Edit` 权限）+ `CLOUDFLARE_ACCOUNT_ID`，或本机执行 `npx wrangler login`。
+2. 一条命令完成「创建/复用 D1 → 替换 `database_id` → 应用远程迁移 → 校验 schema」：
 
    ```bash
-   npx wrangler d1 create opensource-factory
+   npm run db:bootstrap:remote
    ```
 
-2. 将 `wrangler.toml` 中 `database_id = "REPLACE_WITH_D1_DATABASE_ID"` 替换为真实 id。
-3. 应用远端迁移：
-
-   ```bash
-   npx wrangler d1 migrations apply opensource-factory --remote
-   ```
-
-4. 设置机密（不要写进 wrangler.toml / 代码 / 提交）：
+   脚本按 `database_name = "opensource-factory"` 查找数据库，不存在时创建，并原子改写
+   `wrangler.toml` 的 `database_id`；迁移与校验均针对远程库执行。部署前可用
+   `npm run db:check:remote` 做门禁（占位符会直接失败）。
+3. 设置机密（不要写进 wrangler.toml / 代码 / 提交）：
 
    ```bash
    npx wrangler secret put GITHUB_CLIENT_SECRET   # GitHub OAuth App 的 Client Secret
