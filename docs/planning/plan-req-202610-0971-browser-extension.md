@@ -48,7 +48,7 @@ admin /settings/extension：生成令牌、复制安装步骤、撤销令牌
 
 ## 3. 数据模型
 
-`extension_tokens`（D1 迁移 `0016_extension_tokens.sql`）：
+`extension_tokens`（D1 迁移 `0022_extension_tokens.sql`）：
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |

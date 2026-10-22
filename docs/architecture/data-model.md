@@ -609,7 +609,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 `my_repositories` 同步保存 `latest_release_tag` / `latest_release_name` / `latest_release_url` /
 `latest_release_at` / `latest_release_checked_at` 作为增量扫描基线（首次扫描只记基线，不提醒历史版本）。
 
-### 3.21 `extension_tokens` 浏览器扩展令牌（D1，迁移 `0016`）
+### 3.25 `extension_tokens` 浏览器扩展令牌（D1，迁移 `0022`）
 
 > 只存令牌的 SHA-256 摘要，明文仅在创建响应中返回一次；扩展以
 > `Authorization: Bearer ofx_…` 调用 `/api/extension/*`。
@@ -629,7 +629,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 `my_repositories` 仍以 `owner/repo` 为主键，同一实例内一个仓库只能归属一个用户，
 跨用户重复收藏由 `POST /api/extension/bookmark` 返回 `409 repo_owned_by_other_user`。
 
-### 3.25 `telegram_links` / `telegram_link_codes` Telegram Bot 查询入口（D1，迁移 `0021`）
+### 3.26 `telegram_links` / `telegram_link_codes` Telegram Bot 查询入口（D1，迁移 `0021`）
 
 > M8-03：edge 接收 Telegram webhook，按 `chat_id` 映射到 `users.id` 后查询该用户的收藏、推荐与热榜。
 

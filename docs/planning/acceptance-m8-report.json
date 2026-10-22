@@ -1,0 +1,123 @@
+{
+  "meta": {
+    "branch": "feat/req-202610-0977-m8-acceptance",
+    "commit": "0641ef5",
+    "finishedAt": "2026-10-22T13:45:37+0000",
+    "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3"
+  },
+  "results": [
+    {
+      "id": "M8-A01",
+      "title": "M8-01 PWA manifest 与图标",
+      "status": "PASS",
+      "detail": "icons=['192x192', '512x512'] shortcuts=3",
+      "durationMs": 0.3
+    },
+    {
+      "id": "M8-A02",
+      "title": "M8-01 Service Worker 与离线兜底",
+      "status": "PASS",
+      "detail": "App Shell 预缓存 / 离线兜底 / /api 排除 / manifest 引用",
+      "durationMs": 0.2
+    },
+    {
+      "id": "M8-A03",
+      "title": "M8-01 安装引导与移动端导航",
+      "status": "PASS",
+      "detail": "安装引导 / 离线横幅 / 底部导航 / 安全区 / SW 注册",
+      "durationMs": 0.3
+    },
+    {
+      "id": "M8-B01",
+      "title": "M8-02 MV3 manifest",
+      "status": "PASS",
+      "detail": "MV3 permissions=['activeTab', 'scripting', 'storage']",
+      "durationMs": 0.4
+    },
+    {
+      "id": "M8-B02",
+      "title": "M8-02 扩展核心与单测",
+      "status": "PASS",
+      "detail": "仓库解析 / 页面元数据提取 / node:test 用例",
+      "durationMs": 0.2
+    },
+    {
+      "id": "M8-B03",
+      "title": "M8-02 edge 令牌接口与迁移",
+      "status": "PASS",
+      "detail": "迁移 0022 / 6 个接口 / CORS / admin 令牌页",
+      "durationMs": 0.6
+    },
+    {
+      "id": "M8-C01",
+      "title": "M8-03 Bot 命令纯函数",
+      "status": "PASS",
+      "detail": "命令解析 / HTML 转义 / 3800 分片 / 六类消息",
+      "durationMs": 0.2
+    },
+    {
+      "id": "M8-C02",
+      "title": "M8-03 webhook 路由与迁移",
+      "status": "PASS",
+      "detail": "迁移 0021 / 4 个接口 / webhook 免限流 / admin 面板",
+      "durationMs": 0.5
+    },
+    {
+      "id": "M8-D01",
+      "title": "M8-04 评估工具实跑",
+      "status": "PASS",
+      "detail": "raycast=4.1 shortcuts=3.95 api=0/16",
+      "durationMs": 36.4
+    },
+    {
+      "id": "M8-D02",
+      "title": "M8-04 报告与契约资产",
+      "status": "PASS",
+      "detail": "报告 / 契约 / CLI / 测试齐全",
+      "durationMs": 0.9
+    },
+    {
+      "id": "M8-S01",
+      "title": "edge / admin 路由集成",
+      "status": "PASS",
+      "detail": "edge 路由挂载 + admin 路由树完整",
+      "durationMs": 0.3
+    },
+    {
+      "id": "M8-S02",
+      "title": "M8 迁移编号与 D1 schema",
+      "status": "PASS",
+      "detail": "M8 迁移 0021/0022 编号唯一，D1 schema 同步",
+      "durationMs": 0.7
+    },
+    {
+      "id": "M8-S03",
+      "title": "需求与验收文档状态",
+      "status": "PASS",
+      "detail": "backlog 状态正确，验收结论与计划文档齐全",
+      "durationMs": 1.7
+    },
+    {
+      "id": "M8-05-GAP",
+      "title": "开放 API（个人令牌）（平台 pending）",
+      "status": "GAP",
+      "detail": "feat/req-202610-0974-open-api 未合并，需该需求交付后补充验收",
+      "durationMs": 0.0
+    },
+    {
+      "id": "M8-06-GAP",
+      "title": "CLI 工具（命令行查询 / 收藏）（平台 pending）",
+      "status": "GAP",
+      "detail": "feat/req-202610-0975-cli-tool 未合并，需该需求交付后补充验收",
+      "durationMs": 0.0
+    },
+    {
+      "id": "M8-07-GAP",
+      "title": "离线可用（PWA 缓存 + 本地数据）（平台 pending）",
+      "status": "GAP",
+      "detail": "feat/req-202610-0976-offline-pwa-local-data 未合并，需该需求交付后补充验收",
+      "durationMs": 0.0
+    }
+  ]
+}

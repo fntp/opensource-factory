@@ -23,12 +23,16 @@
 | `/star-trends` | Star 趋势 | 每日快照 KPI、SVG 净增面积图、Top Movers、语言贡献、新上榜与确定性洞察（M7-05） |
 | `/model-routing` | 模型路由 | 6 个任务的路由策略 / 模型切换、预算占用、升级建议、Ollama / DeepSeek 健康状态（M7-06） |
 | `/settings/*` | 设置 | 账号、外观、推送偏好（时间 / 阈值 / 通道开关）、Telegram 查询 Bot 绑定 |
+| `/settings/extension` | 扩展令牌 | 浏览器扩展个人令牌的创建 / 列表 / 撤销（仅显示一次明文，M8-02） |
 | `/search` | 项目搜索 | 语义检索 / README 全文检索切换，展示命中片段（M6-01） |
 | `/duplicates` | 重复检测 | 重复 / 相似项目扫描、保留项与字段合并建议、按用户忽略（M6-03） |
 | `/dependencies` | 依赖分析 | 技术栈分布、热门依赖、生态构成与仓库覆盖（M6-07） |
 | `/tag-suggestions` | 打标建议 | 基于摘要的标签建议，按仓库分组，支持单条 / 整仓采纳与忽略（M7-01） |
 | `/category-suggestions` | 分类建议 | 按业务线自动生成可解释的分类建议，支持采纳写回分类 / 忽略（M7-02） |
 | `/sign-in` | 登录 | 仅 GitHub 授权登录（+ 演示模式） |
+
+PWA / 移动端（M8-01）：生产构建注册 Service Worker，`public/manifest.webmanifest` 支持安装到主屏幕；
+`public/offline.html` 提供断网兜底；`< md` 断点显示底部主导航并适配安全区。
 
 ## 技术栈
 

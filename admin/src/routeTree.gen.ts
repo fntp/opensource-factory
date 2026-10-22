@@ -37,6 +37,7 @@ import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_authenticated/settings/account'
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
 import { Route as AuthenticatedSettingsDisplayRouteImport } from './routes/_authenticated/settings/display'
+import { Route as AuthenticatedSettingsExtensionRouteImport } from './routes/_authenticated/settings/extension'
 import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings/notifications'
 import { Route as AuthenticatedStarTrendsIndexRouteImport } from './routes/_authenticated/star-trends/index'
 import { Route as AuthenticatedTagSuggestionsIndexRouteImport } from './routes/_authenticated/tag-suggestions/index'
@@ -203,6 +204,12 @@ const AuthenticatedSettingsDisplayRoute =
     path: '/display',
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
+const AuthenticatedSettingsExtensionRoute =
+  AuthenticatedSettingsExtensionRouteImport.update({
+    id: '/extension',
+    path: '/extension',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
 const AuthenticatedSettingsNotificationsRoute =
   AuthenticatedSettingsNotificationsRouteImport.update({
     id: '/notifications',
@@ -259,6 +266,7 @@ export interface FileRoutesByFullPath {
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
+  '/settings/extension': typeof AuthenticatedSettingsExtensionRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/categories/': typeof AuthenticatedCategoriesIndexRoute
   '/category-suggestions/': typeof AuthenticatedCategorySuggestionsIndexRoute
@@ -294,6 +302,7 @@ export interface FileRoutesByTo {
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
+  '/settings/extension': typeof AuthenticatedSettingsExtensionRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/categories': typeof AuthenticatedCategoriesIndexRoute
   '/category-suggestions': typeof AuthenticatedCategorySuggestionsIndexRoute
@@ -332,6 +341,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/_authenticated/settings/display': typeof AuthenticatedSettingsDisplayRoute
+  '/_authenticated/settings/extension': typeof AuthenticatedSettingsExtensionRoute
   '/_authenticated/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/_authenticated/categories/': typeof AuthenticatedCategoriesIndexRoute
   '/_authenticated/category-suggestions/': typeof AuthenticatedCategorySuggestionsIndexRoute
@@ -370,6 +380,7 @@ export interface FileRouteTypes {
     | '/settings/account'
     | '/settings/appearance'
     | '/settings/display'
+    | '/settings/extension'
     | '/settings/notifications'
     | '/categories/'
     | '/category-suggestions/'
@@ -405,6 +416,7 @@ export interface FileRouteTypes {
     | '/settings/account'
     | '/settings/appearance'
     | '/settings/display'
+    | '/settings/extension'
     | '/settings/notifications'
     | '/categories'
     | '/category-suggestions'
@@ -442,6 +454,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/account'
     | '/_authenticated/settings/appearance'
     | '/_authenticated/settings/display'
+    | '/_authenticated/settings/extension'
     | '/_authenticated/settings/notifications'
     | '/_authenticated/categories/'
     | '/_authenticated/category-suggestions/'
@@ -674,6 +687,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsDisplayRouteImport
       parentRoute: typeof AuthenticatedSettingsRouteRoute
     }
+    '/_authenticated/settings/extension': {
+      id: '/_authenticated/settings/extension'
+      path: '/extension'
+      fullPath: '/settings/extension'
+      preLoaderRoute: typeof AuthenticatedSettingsExtensionRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
     '/_authenticated/settings/notifications': {
       id: '/_authenticated/settings/notifications'
       path: '/notifications'
@@ -730,6 +750,7 @@ interface AuthenticatedSettingsRouteRouteChildren {
   AuthenticatedSettingsAccountRoute: typeof AuthenticatedSettingsAccountRoute
   AuthenticatedSettingsAppearanceRoute: typeof AuthenticatedSettingsAppearanceRoute
   AuthenticatedSettingsDisplayRoute: typeof AuthenticatedSettingsDisplayRoute
+  AuthenticatedSettingsExtensionRoute: typeof AuthenticatedSettingsExtensionRoute
   AuthenticatedSettingsNotificationsRoute: typeof AuthenticatedSettingsNotificationsRoute
   AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
 }
@@ -739,6 +760,7 @@ const AuthenticatedSettingsRouteRouteChildren: AuthenticatedSettingsRouteRouteCh
     AuthenticatedSettingsAccountRoute: AuthenticatedSettingsAccountRoute,
     AuthenticatedSettingsAppearanceRoute: AuthenticatedSettingsAppearanceRoute,
     AuthenticatedSettingsDisplayRoute: AuthenticatedSettingsDisplayRoute,
+    AuthenticatedSettingsExtensionRoute: AuthenticatedSettingsExtensionRoute,
     AuthenticatedSettingsNotificationsRoute:
       AuthenticatedSettingsNotificationsRoute,
     AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,

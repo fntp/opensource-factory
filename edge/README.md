@@ -49,7 +49,8 @@ edge/
 │   ├── 0018_curated_reports.sql  # 每周 / 月度精选报告（M7-03）
 │   ├── 0019_repo_updates.sql  # 收藏项目更新提醒（M7-04）
 │   ├── 0020_rerank.sql  # 精排分 / 名次 / 明细字段（M7-07）
-│   └── 0021_telegram_bot.sql  # Telegram 会话绑定 + 一次性绑定码（M8-03）
+│   ├── 0021_telegram_bot.sql  # Telegram 会话绑定 + 一次性绑定码（M8-03）
+│   └── 0022_extension_tokens.sql  # 浏览器扩展令牌（M8-02；由 0016 顺延避免重号）
 └── src/
     ├── index.ts          # Hono 入口：CORS、日志、/healthz、路由挂载、Cron scheduled handler
     ├── types.ts          # Env 绑定 + 数据库行 + API 响应实体

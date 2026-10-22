@@ -699,6 +699,24 @@ admin 设置 → 通知设置 → Telegram 查询 Bot
 - 所有查询 SQL 都带 `user_id`，未绑定会话不会读到任何用户数据；
 - 绑定码一次性使用，绑定成功 / 过期后即删除；重新绑定会替换该用户旧会话。
 
+### 3.35 快捷入口评估（M8-04）
+
+M8-04 不引入运行时服务，产出可复跑的离线评估工具与契约基线：
+
+```
+python -m app.quick_entry_eval report
+→ app/services/quick_entry_eval.py 按 8 维权重（用户覆盖 / 认证安全 / 交互效率 /
+  开发成本 / 维护发布 / 安装门槛 / 离线降级 / 生态扩展）对 6 个候选平台打分
+→ 输出排名：Raycast 4.10（A）首选、Apple 快捷指令 3.95（A-）次选、
+  浏览器地址栏 3.85、VS Code / Alfred / uTools 暂缓
+→ 同步输出 M8-05 开放 API 的 16 项前置能力（当前 0/16 就绪）
+→ 归档 docs/architecture/quick-entry-evaluation.md 与
+  docs/assets/quick-entry-api-contract.json（openfactory.quick-entry.v1，10 个端点）
+```
+
+结论：M8-05 个人令牌与 `/api/v1/*` 落地前，所有快捷入口均被阻塞；
+本评估只定义契约与优先级，不替代 M8-05/06 的实现与验收。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
