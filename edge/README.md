@@ -1,6 +1,6 @@
 # OpenFactory Edge API
 
-「开源项目工厂 / OpenFactory」的边缘 API 层，运行在 **Cloudflare Workers** 上，为管理后台（admin 前端）提供：GitHub OAuth 登录、用户会话、以及仓库 / 趋势 / 推荐 / 分类 / 仪表盘等只读接口。
+「开源项目工厂 / OpenFactory」的边缘 API 层，运行在 **Cloudflare Workers** 上，为管理后台（admin 前端）提供：GitHub OAuth 登录、用户会话，以及仓库 / 趋势 / 推荐 / 分类 / 标签 / 仪表盘等接口。
 
 ## 定位
 
@@ -30,18 +30,21 @@ edge/
 ├── tsconfig.json         # strict TypeScript 配置（@cloudflare/workers-types）
 ├── wrangler.toml         # Worker 名称、D1 绑定、vars（机密不在此处）
 ├── migrations/
-│   └── 0001_init.sql     # 初始 D1 schema（表 + 索引）
+│   ├── 0001_init.sql              # 初始 D1 schema（表 + 索引）
+│   └── 0003_tag_count_triggers.sql # 标签引用计数触发器（REQ-202610-0902）
 └── src/
     ├── index.ts          # Hono 入口：CORS、日志、/healthz、路由挂载、404/500
     ├── types.ts          # Env 绑定 + 数据库行 + API 响应实体
     ├── db.ts             # D1 查询辅助（first / all / run / count）
     ├── auth.ts           # 会话与 GitHub OAuth 辅助、cookie、redirect 校验
+    ├── tags/logic.ts     # 标签名称归一化 / 校验 / 查询参数（纯逻辑）
     └── routes/
         ├── auth.ts       # /api/auth/*（login / callback / me / logout）
         ├── repos.ts      # /api/repos
         ├── trending.ts   # /api/trending
         ├── recommend.ts  # /api/recommendations
         ├── categories.ts # /api/categories
+        ├── tags.ts       # /api/tags（列表 / 新建 / 重命名 / 合并 / 删除 / 重算）
         ├── dashboard.ts  # /api/dashboard/stats
         └── sync.ts       # /api/sync
 ```
@@ -132,6 +135,12 @@ npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FR
 | `GET /api/trending?limit=20` | `TrendingRepo[]`（公开；按 `stars_today` 降序，limit 上限 100） |
 | `GET /api/recommendations` | `Recommendation[]`（用户私有 + 全局，按 `score` 降序；需登录） |
 | `GET /api/categories` | `CategoriesPayload` |
+| `GET /api/tags?q=&sort=count\|name&order=desc\|asc` | `{items: TagItem[], total}`（需登录；实时引用计数） |
+| `POST /api/tags` | 201 `TagItem`；body `{name}`，重名 409 `tag_name_exists` |
+| `PATCH /api/tags/:id` | 200 `TagItem`；body `{name}`，重名 409 |
+| `DELETE /api/tags/:id` | `{deleted, id, detached}`，同时解除仓库关联 |
+| `POST /api/tags/:id/merge` | `{sourceId, target, moved, deduplicated}`，迁移关联后删除源标签 |
+| `POST /api/tags/recount` | `{total, mismatched}`，全量重算 `tags.count` |
 | `GET /api/dashboard/stats` | `DashboardStats` |
 | `POST /api/sync` | 202 `{"status":"queued"}`（已配置 VPS）或 `{"status":"accepted","note":"vps node not configured"}` |
 | `GET /healthz` | `{"status":"ok"}` |
@@ -143,6 +152,8 @@ RepoItem        { id, fullName, description, language, stars, forks, category, t
 TrendingRepo    { id, owner, name, description, language, stars, starsToday, url }
 Recommendation  { id, owner, name, description, language, stars, score, reason, basedOn: string[], url }
 CategoriesPayload { categories: [{id, name, count, description}], tags: [{name, count}] }
+TagItem         { id, name, count }
+TagListPayload  { items: TagItem[], total }
 DashboardStats  { totalRepos, trendingToday, pendingRecommendations, categoryCount }
 ```
 

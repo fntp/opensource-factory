@@ -89,6 +89,10 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 | `/api/trending` | GET | 热榜（`?limit=`） |
 | `/api/recommendations` | GET | 推荐列表 |
 | `/api/categories` | GET | 分类 + 标签 |
+| `/api/tags` | GET / POST | 标签列表（`?q=&sort=&order=`）/ 新建标签 |
+| `/api/tags/:id` | PATCH / DELETE | 重命名 / 删除标签（删除时解除仓库关联） |
+| `/api/tags/:id/merge` | POST | 合并到目标标签（迁移关联后删除源标签） |
+| `/api/tags/recount` | POST | 全量重算标签引用计数 |
 | `/api/dashboard/stats` | GET | 仪表盘统计 |
 | `/api/sync` | POST | 触发同步任务（202） |
 

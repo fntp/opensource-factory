@@ -2,7 +2,7 @@
  * OpenFactory 边缘 API — Hono 应用入口
  * 中间件：CORS（精确回显 ALLOWED_ORIGIN，允许 credentials）+ 请求日志
  * 路由：/api/auth、/api/repos、/api/trending、/api/recommendations、
- *       /api/categories、/api/dashboard、/api/sync
+ *       /api/categories、/api/tags、/api/dashboard、/api/sync
  */
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -14,6 +14,7 @@ import reposRoutes from './routes/repos';
 import trendingRoutes from './routes/trending';
 import recommendRoutes from './routes/recommend';
 import categoriesRoutes from './routes/categories';
+import tagsRoutes from './routes/tags';
 import dashboardRoutes from './routes/dashboard';
 import syncRoutes from './routes/sync';
 
@@ -28,7 +29,7 @@ app.use('*', async (c, next) => {
   return cors({
     origin,
     credentials: true,
-    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
     maxAge: 86400,
   })(c, next);
@@ -49,6 +50,7 @@ app.route('/api/repos', reposRoutes);
 app.route('/api/trending', trendingRoutes);
 app.route('/api/recommendations', recommendRoutes);
 app.route('/api/categories', categoriesRoutes);
+app.route('/api/tags', tagsRoutes);
 app.route('/api/dashboard', dashboardRoutes);
 app.route('/api/sync', syncRoutes);
 

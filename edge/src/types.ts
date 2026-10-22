@@ -107,6 +107,12 @@ export interface TagCountRow {
   count: number;
 }
 
+export interface TagRow {
+  id: number;
+  name: string;
+  count: number;
+}
+
 // ── API 响应实体（前端契约）─────────────────────────────────────
 
 /** GET /api/auth/me */
@@ -162,6 +168,13 @@ export interface Recommendation {
 export interface CategoriesPayload {
   categories: Array<{ id: string; name: string; count: number; description: string | null }>;
   tags: Array<{ name: string; count: number }>;
+}
+
+/** GET /api/tags 列表项 */
+export interface TagItem {
+  id: number;
+  name: string;
+  count: number;
 }
 
 /** GET /api/dashboard/stats */
