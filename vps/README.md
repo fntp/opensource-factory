@@ -182,6 +182,19 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | `TRENDING_ARCHIVE_DIR` | `./data/archives` | 归档目录（相对路径按 `vps/` 解析） |
 | `TRENDING_ARCHIVE_KEEP_DAYS` | `365` | 归档文件保留天数；`0` = 永久保留 |
 | `TRENDING_RETENTION_HOUR` / `TRENDING_RETENTION_MINUTE` | `4` / `17` | 每日清理时刻（Asia/Shanghai） |
+| `MONITOR_ENABLED` | `true` | 监控检查总开关；关闭后 beat 任务直接跳过 |
+| `MONITOR_INTERVAL_MINUTES` | `5` | 自动检查间隔（分钟），对应 Celery beat 周期 |
+| `MONITOR_HOME` | 空 | 运行目录；留空依次回退 `OPENFACTORY_HOME`、`/opt/openfactory`、项目根 |
+| `MONITOR_MEMORY_BUDGET_MB` / `MONITOR_MEMORY_WARN_MB` / `MONITOR_MEMORY_CRITICAL_MB` | `4096` / `3584` / `4096` | 内存预算与 3.5G 预警 / 4G 严重红线（MB） |
+| `MONITOR_DISK_BUDGET_MB` / `MONITOR_DISK_WARN_MB` / `MONITOR_DISK_CRITICAL_MB` | `15360` / `13312` / `15360` | 磁盘预算与 13G 预警 / 15G 严重红线（MB） |
+| `MONITOR_LOG_BUDGET_MB` | `512` | 日志目录占用预算（MB） |
+| `MONITOR_LOG_RETENTION_DAYS` | `14` | 日志文件保留天数 |
+| `MONITOR_HISTORY_RETENTION_DAYS` | `7` | `monitoring_check_runs` 检查历史保留天数 |
+| `MONITOR_ALERT_COOLDOWN_MINUTES` | `60` | 同 `dedupe_key` 告警去重 / 累计窗口（分钟） |
+| `MONITOR_ALERT_WEBHOOK_URL` | 空 | 可选告警 webhook；留空只落库 + 日志 |
+| `MONITOR_EDGE_TIMEOUT_SECONDS` | `5` | 探测 edge `/healthz` 的超时（秒） |
+| `MONITOR_REDIS_TIMEOUT_SECONDS` | `2` | Redis TCP 探测超时（秒） |
+| `MONITOR_PROCESS_PATTERNS` | `uvicorn,celery,redis-server` | 进程 RSS 回退采集时的进程名匹配（逗号分隔） |
 
 完整清单见 `.env.example`。所有真实密钥只存在于本地 `.env`（git 忽略）或平台密钥托管，**不得提交**。
 
@@ -419,6 +432,37 @@ curl -sS -X POST 'http://127.0.0.1:8000/api/tasks/generate-recommendations?user_
 ```
 
 任务返回 `created / updated / expired / selected / candidates / excludedCollected / belowThreshold` 等计数，便于 M3-08 调参。
+
+## 监控与告警（M5-03）
+
+Celery beat 每 `MONITOR_INTERVAL_MINUTES`（默认 5）分钟执行 `monitor_system_health`：
+
+1. **资源采集**：内存优先读 systemd cgroup（`openfactory-*.service/memory.current`），
+   回退进程 RSS 汇总，再回退 `/proc/meminfo`；磁盘统计运行目录；日志统计 `LOG_DIR`；
+2. **健康检查**：数据库（`SELECT 1`）、运行目录可写、Redis TCP、edge `/healthz`、模型预算；
+3. **阈值告警**：内存 3.5G 预警 / 4G 严重、磁盘 13G / 15G、日志超预算、检查失败；
+   同一 `dedupe_key` 复用未关闭告警，条件消失自动 `resolved`；
+4. **历史留存**：每次结果写入 `monitoring_check_runs`，默认保留 7 天；
+5. **日志治理**：每日 04:23 清理超过 `MONITOR_LOG_RETENTION_DAYS` 的日志与过期检查历史。
+
+```bash
+# 实时快照（不落库）
+curl -sS 'http://127.0.0.1:8000/api/monitoring/status' -H 'X-Internal-Token: <token>'
+
+# 手动执行一次检查（落库 + 告警判定）
+curl -sS -X POST 'http://127.0.0.1:8000/api/monitoring/check' -H 'X-Internal-Token: <token>'
+
+# 告警列表 / 确认
+curl -sS 'http://127.0.0.1:8000/api/monitoring/alerts?status=open' -H 'X-Internal-Token: <token>'
+curl -sS -X POST 'http://127.0.0.1:8000/api/monitoring/alerts/<id>/ack' -H 'X-Internal-Token: <token>'
+
+# 日志统计 / 清理（dryRun 只统计）
+curl -sS 'http://127.0.0.1:8000/api/monitoring/logs' -H 'X-Internal-Token: <token>'
+curl -sS -X POST 'http://127.0.0.1:8000/api/monitoring/logs/cleanup?dry_run=true' -H 'X-Internal-Token: <token>'
+```
+
+就绪探针 `GET /healthz/ready` 检查数据库与运行目录，正常返回 200，异常返回 503
+（响应体 `status=degraded` + 失败项），可直接接入负载均衡 / systemd 自检。
 
 ## 常用检查
 

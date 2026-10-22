@@ -1,4 +1,5 @@
 import {
+  Activity,
   Bell,
   Flame,
   FolderGit2,
@@ -43,6 +44,7 @@ export const sidebarData: SidebarData = {
     {
       title: '系统',
       items: [
+        { title: '系统监控', url: '/monitoring', icon: Activity },
         {
           title: '设置',
           icon: Settings,

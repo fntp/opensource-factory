@@ -40,8 +40,8 @@
 | 组件 | 目录 | 职责 | 不该做的事 |
 | --- | --- | --- | --- |
 | 前端控制台 | `admin/` | 展示、交互、调用 edge API | 不存密钥、不做业务计算 |
-| 边缘 API | `edge/` | 鉴权、调度、D1 读写、Vectorize 检索 | 不跑长任务、不跑模型 |
-| 算力节点 | `vps/` | 爬虫、清洗、摘要、向量化、推荐、推送 | 不对外暴露（仅内网/内部 token） |
+| 边缘 API | `edge/` | 鉴权、调度、D1 读写、Vectorize 检索、Workers 请求指标聚合 | 不跑长任务、不跑模型 |
+| 算力节点 | `vps/` | 爬虫、清洗、摘要、向量化、推荐、推送、健康检查与资源监控 | 不对外暴露（仅内网/内部 token） |
 | 数据资产 | `docs/assets/` | Schema、样例数据 | — |
 
 ## 3. 关键数据流
@@ -212,6 +212,25 @@ VPS 每日评估 → recommendations.status = 'pushed'
 
 通知正文与推荐快照同表存储，前端无需二次请求推荐接口；同一 `(user_id, recommendation_id)` 只生成一条通知。
 
+### 3.13 监控与告警流（M5-03）
+
+```
+Celery beat（每 5 分钟）→ VPS monitoring.run_monitoring_check
+  ├── 采集：cgroup / 进程 RSS 内存、/proc/loadavg、运行目录磁盘、日志目录
+  ├── 健康检查：数据库 / 运行目录 / Redis(TCP) / edge /healthz / 模型预算
+  ├── 阈值判定：内存 3.5G 预警 / 4G 严重、磁盘 13G / 15G、日志预算、失败检查
+  ├── 告警：monitoring_alerts 按 dedupe_key 去重（冷却窗口累计次数，恢复自动 resolved）
+  └── 历史：monitoring_check_runs 保存最近检查快照（默认保留 7 天）
+        ↓
+edge 中间件按 日期/路由/方法/状态类 UPSERT worker_metrics（D1，迁移 0012）
+        ↓
+admin /monitoring → GET /api/monitoring/overview（edge 合并 VPS 状态 + Workers 指标）
+```
+
+VPS 端点同时提供 `GET /healthz/ready`（数据库 + 运行目录就绪探针）与
+`/api/monitoring/{status,check,history,alerts,logs}`（全部要求 `X-Internal-Token`）；
+edge 侧 `/api/monitoring/overview` 需登录，`/api/internal/analytics` 供内部工具读取 Workers 聚合。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -245,6 +264,9 @@ VPS 每日评估 → recommendations.status = 'pushed'
 | `/api/notifications/:id/dismiss` | POST | 忽略通知（同步推荐状态） |
 | `/api/sync` | POST | 触发同步任务（202） |
 | `/api/search/semantic` | POST | 语义搜索（`query` / `topK` / `scope`；vectorize → local → keyword 三级降级） |
+| `/api/monitoring/overview` | GET | 监控总览（登录态；合并 VPS 状态与 Workers 指标，`?days=1..30`） |
+| `/api/monitoring/check` | POST | 触发一次 VPS 监控检查（登录态代理） |
+| `/api/monitoring/alerts/:id/ack` | POST | 确认监控告警（登录态代理） |
 
 ### 4.2 edge ↔ vps（内部 API，`X-Internal-Token`）
 
@@ -289,7 +311,15 @@ VPS 每日评估 → recommendations.status = 'pushed'
 | `/api/search/understand` | POST | 查询理解：同义词 / 技术栈词表扩展（`query` / `expand`） |
 | `/api/recommend/eval` | POST | 推荐质量评估与阈值 / 权重调参建议（抽样评估集） |
 | `/api/degradation/status` | GET | 降级路径自检（模型缺失 / 超预算） |
+| `/api/monitoring/status` | GET | 实时监控快照（内存 / 磁盘 / 负载 / 日志 / 健康检查 / 活跃告警） |
+| `/api/monitoring/check` | POST | 执行一次检查并落库（告警去重 / 自动恢复 / 历史记录） |
+| `/api/monitoring/history` | GET | 最近检查历史（`?limit=`） |
+| `/api/monitoring/alerts` | GET | 告警列表（`?status=` / `?limit=`） |
+| `/api/monitoring/alerts/{id}/ack` | POST | 确认告警 |
+| `/api/monitoring/logs` | GET | 日志目录统计与文件列表 |
+| `/api/monitoring/logs/cleanup` | POST | 日志清理（`?retention_days=` / `?dry_run=`） |
 | `/healthz` | GET | 健康检查 |
+| `/healthz/ready` | GET | 就绪检查（数据库 / 运行目录，异常返回 503） |
 
 ### 4.3 vps → edge（Vectorize 内部接口，`X-Internal-Token`）
 
@@ -300,6 +330,7 @@ VPS 每日评估 → recommendations.status = 'pushed'
 | `/api/internal/vectors/delete` | POST | 批量删除向量（≤1000 条/批） |
 | `/api/internal/vectors/stats` | GET | 索引统计 |
 | `/api/internal/vectors/list` | GET | 分页列出 ID（孤儿对账；不支持时返回 501） |
+| `/api/internal/analytics` | GET | Workers 请求指标聚合（`?days=1..30`，`X-Internal-Token`） |
 
 ## 5. 安全边界
 

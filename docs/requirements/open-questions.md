@@ -99,6 +99,16 @@
   - C. 先补 `my_repositories.user_id` 与 D1 同步，再做按用户画像（工作量较大，建议随 M3-07 推进）；
 - **默认处理**：A + C 后续排期；单用户自托管场景下当前口径可用。
 
+## Q14. Workers Analytics 数据口径（REQ-202610-0941 新增）
+
+- **背景**：M5-03 需要展示 Workers 请求量 / 错误率。Cloudflare GraphQL Analytics API 需要额外的
+  Account Analytics Token，且免费额度与采样口径不可控；
+- **选项**：
+  - A. edge 中间件自聚合到 D1 `worker_metrics`（按日 / 路由 / 方法 / 状态类），admin 直接读 D1（**当前默认**）；
+  - B. 接入 Cloudflare GraphQL Analytics API（需新增 `CF_ANALYTICS_TOKEN`，指标更全但多一处外部依赖）；
+- **默认处理**：A。已做路由归一化与内部路由排除控制基数；如后续需要 P50/P95 或边缘节点维度，
+  再评估 B 并与本表并行展示。
+
 ---
 
 > 处理约定：人工确认任一问题后，更新本文件状态并在 `docs/planning/task-planning.md` 记录。

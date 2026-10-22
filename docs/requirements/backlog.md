@@ -101,7 +101,7 @@
 | --- | --- | --- | --- | --- |
 | M5-01 | 正式部署（Pages / Workers + 本机节点 + 域名 HTTPS） | P0 | Q3；M1~M4 | — |
 | M5-02 | 本机一体化部署模式评估与落地（离线自托管；Q9） | P1 | Q9 确认 | 满足「部署在本机」增强口径 |
-| M5-03 | 监控与告警（健康检查 / 资源监控 / 日志 / Workers Analytics） | P0 | M5-01 | 含 4G/15G 资源红线监控 |
+| M5-03 | 监控与告警（健康检查 / 资源监控 / 日志 / Workers Analytics） | P0 | M5-01 | ✅ 已实现（REQ-202610-0941）：VPS `monitoring_*` 表 + `/api/monitoring/*`、edge `worker_metrics`（迁移 0012）+ `/api/monitoring/overview`、admin `/monitoring`；含 4G/15G 资源红线监控 |
 | M5-04 | 备份与恢复（D1 导出 / SQLite 快照 / 恢复演练） | P0 | M5-01 | 磁盘配额见 resource-plan |
 | M5-05 | 接口限流与安全加固（限流 / 内部令牌轮换 / 登录防护） | P1 | M5-01 | — |
 | M5-06 | 资源预算实测验证（4G / 15G 红线；超限优化） | P0 | M5-01~03 | 见 resource-plan §6 |

@@ -163,6 +163,39 @@ class Recommendation(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
 
 
+class SummaryQualitySample(Base):
+    """摘要质量抽检样本（REQ-202610-0912 / M2-04）。
+
+    每次批量摘要任务按比例留存样本，并强制留存低质量样本；样本附带自动评分，
+    等待人工复核（passed / failed）。`(batch_id, repo_source, repo_id)` 唯一，
+    重跑只更新不新增；同一仓库同时出现在我的仓库与热榜时也能各留一条。
+    """
+
+    __tablename__ = "summary_quality_samples"
+    __table_args__ = (
+        UniqueConstraint(
+            "batch_id", "repo_source", "repo_id", name="uq_summary_quality_batch_source_repo"
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    batch_id: Mapped[str] = mapped_column(String(128), nullable=False, default="", index=True)
+    repo_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    repo_source: Mapped[str] = mapped_column(String(32), nullable=False, default="my")  # my | trending
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    source: Mapped[str] = mapped_column(String(32), nullable=False, default="")  # ollama | deepseek | truncated
+    model: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    max_chars: Mapped[int] = mapped_column(Integer, nullable=False, default=800)
+    score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    verdict: Mapped[str] = mapped_column(String(16), nullable=False, default="fail")  # pass | fail
+    checks: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON 数组
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")  # pending | passed | failed
+    reviewer: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    review_note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+
+
 class RepoVector(Base):
     """仓库向量（VPS 本地持久化，供增量向量化与语义检索使用）。
 
@@ -273,3 +306,46 @@ class VectorIndexRun(Base):
         DateTime, nullable=False, default=_utcnow, onupdate=_utcnow
     )
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class MonitoringAlert(Base):
+    """监控告警（M5-03）：资源红线 / 依赖故障 / 日志超预算。
+
+    按 `dedupe_key`（kind + scope）在冷却窗口内合并，条件恢复后置为 resolved。
+    """
+
+    __tablename__ = "monitoring_alerts"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    kind: Mapped[str] = mapped_column(
+        String(32), nullable=False
+    )  # memory | disk | service | logs | edge | model
+    severity: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="warning"
+    )  # warning | critical
+    message: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    details: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON 文本
+    dedupe_key: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="open", index=True
+    )  # open | acknowledged | resolved
+    occurrences: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    acknowledged_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class MonitoringCheckRun(Base):
+    """监控检查运行记录（M5-03）：保存每轮健康检查与资源快照。"""
+
+    __tablename__ = "monitoring_check_runs"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="ok"
+    )  # ok | warning | critical
+    checks: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON
+    resources: Mapped[str] = mapped_column(Text, nullable=False, default="{}")  # JSON
+    findings: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)

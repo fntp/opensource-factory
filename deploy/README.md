@@ -62,6 +62,10 @@ deploy/scripts/doctor.sh --services
 两份模板的键集合必须与 `vps/app/config.py` 的 `Settings` 字段一致，
 由 `vps/tests/test_deploy_assets.py` 自动校验，新增配置项时同步三处。
 
+监控（M5-03）相关键已同步到两份模板：`MONITOR_*` 共 17 项，其中
+`MONITOR_HOME=@RUNTIME_DIR@` 指向运行目录，内存 / 磁盘红线默认 4G / 15G。
+生产环境可只改 `MONITOR_ALERT_WEBHOOK_URL` 与阈值，无需改代码。
+
 ## 5. 常用命令
 
 ```bash

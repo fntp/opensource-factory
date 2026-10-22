@@ -24,6 +24,8 @@ import internalTrendingRoutes from './routes/internal-trending';
 import searchRoutes from './routes/search';
 import internalVectorsRoutes from './routes/internal-vectors';
 import internalRecommendationsRoutes from './routes/internal-recommendations';
+import monitoringRoutes, { internalAnalytics } from './routes/monitoring';
+import { normalizeRoute, recordRequestMetric, shouldRecordMetric } from './monitoring/metrics';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -51,6 +53,26 @@ app.use('/api/*', async (c, next) => {
   await next();
 });
 
+// Workers 请求指标（M5-03）：请求结束后异步聚合写入 D1，失败不影响响应
+app.use('/api/*', async (c, next) => {
+  const started = Date.now();
+  await next();
+  const path = new URL(c.req.url).pathname;
+  if (!shouldRecordMetric(c.req.method, path)) return;
+  const task = recordRequestMetric(c.env.DB, {
+    route: normalizeRoute(path),
+    method: c.req.method,
+    status: c.res.status,
+    durationMs: Date.now() - started,
+  }).catch((err) => console.error('worker metrics write failed:', err));
+  try {
+    c.executionCtx.waitUntil(task);
+  } catch {
+    // 非 Worker 运行时（本地脚本 / 测试）没有 executionCtx，直接执行即可
+    void task;
+  }
+});
+
 // 业务路由
 app.route('/api/auth', authRoutes);
 app.route('/api/repos', reposRoutes);
@@ -65,6 +87,8 @@ app.route('/api/internal/trending', internalTrendingRoutes);
 app.route('/api/search', searchRoutes);
 app.route('/api/internal/vectors', internalVectorsRoutes);
 app.route('/api/internal/recommendations', internalRecommendationsRoutes);
+app.route('/api/monitoring', monitoringRoutes);
+app.route('/api/internal/analytics', internalAnalytics);
 
 // 404
 app.notFound((c) =>

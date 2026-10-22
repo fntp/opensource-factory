@@ -70,6 +70,16 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(minute=17, hour=5),
         "kwargs": {"scope": "all", "repair": False},
     },
+    # 监控与告警（M5-03）：每 MONITOR_INTERVAL_MINUTES 分钟检查一次
+    "monitor-system-health": {
+        "task": "app.tasks.jobs.monitor_system_health",
+        "schedule": float(settings.MONITOR_INTERVAL_MINUTES * 60),
+    },
+    # 日志 / 检查历史清理：每日 04:23
+    "cleanup-monitoring-logs-daily": {
+        "task": "app.tasks.jobs.cleanup_monitoring_logs",
+        "schedule": crontab(minute=23, hour=4),
+    },
 }
 
 # 兼容 `celery -A app.tasks.celery_app`（默认按属性名 app/celery 查找）

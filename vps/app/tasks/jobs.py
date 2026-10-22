@@ -492,6 +492,7 @@ def regenerate_recommendation_reasons(
 ) -> dict[str, Any]:
     """按当前模板重算存量推荐的中文理由与依据字段（模板升级 / 画像变化后使用）。"""
     from app.services.recommend_reason import build_reason_detail, build_user_profile
+    from app.services.recommendation_feedback import push_recommendations
 
     db = SessionLocal()
     try:
@@ -536,13 +537,13 @@ def regenerate_recommendation_reasons(
         db.commit()
 
         # 回写 edge D1（推荐页读取）；失败只记日志
-        for uid in target_users:
-            pushed[uid] = push_recommendations(db, uid)
+        target_users = sorted({str(row.user_id) for row in rows if row.user_id})
+        pushed = {uid: push_recommendations(db, uid) for uid in target_users}
     finally:
         db.close()
 
     logger.info("推荐理由回填完成: %d 条", updated)
-    return {"status": "ok", "updated": updated}
+    return {"status": "ok", "updated": updated, "pushed": pushed}
 
 
 @celery_app.task(name="app.tasks.jobs.daily_push")
@@ -653,3 +654,51 @@ def reconcile_vector_index(
     from app.services import vector_index
 
     return vector_index.reconcile_vectors(scope=scope, repair=repair, limit=limit)
+
+
+@celery_app.task(name="app.tasks.jobs.monitor_system_health")
+def monitor_system_health() -> dict[str, Any]:
+    """监控检查（M5-03）：采集资源 / 健康检查 / 阈值判定 / 告警落库。
+
+    失败降级为结构化结果，避免 beat 任务异常影响后续轮次。
+    """
+    from app.services import monitoring
+
+    if not get_settings().MONITOR_ENABLED:
+        return {"status": "disabled"}
+    db = SessionLocal()
+    try:
+        return monitoring.run_monitoring_check(db)
+    except Exception as exc:  # noqa: BLE001 - 监控任务自身不能拖垮 beat
+        logger.exception("监控检查失败")
+        return {"status": "error", "error": str(exc)[:300]}
+    finally:
+        db.close()
+
+
+@celery_app.task(name="app.tasks.jobs.cleanup_monitoring_logs")
+def cleanup_monitoring_logs() -> dict[str, Any]:
+    """日志与检查历史清理（M5-03）：按保留天数删除超期日志文件与历史记录。"""
+    from app.services import monitoring
+
+    settings = get_settings()
+    home = monitoring.resolve_home(settings)
+    log_dir = monitoring.resolve_log_dir(settings, home)
+    log_result: dict[str, Any] = {"status": "skipped", "reason": "日志目录未配置"}
+    if log_dir is not None:
+        log_result = monitoring.cleanup_log_files(
+            log_dir,
+            retention_days=settings.MONITOR_LOG_RETENTION_DAYS,
+        )
+    db = SessionLocal()
+    try:
+        history_result = monitoring.cleanup_monitoring_history(
+            db,
+            settings.MONITOR_HISTORY_RETENTION_DAYS,
+        )
+    except Exception as exc:  # noqa: BLE001 - 清理失败只记录
+        logger.exception("监控历史清理失败")
+        history_result = {"status": "error", "error": str(exc)[:300]}
+    finally:
+        db.close()
+    return {"logs": log_result, "history": history_result}

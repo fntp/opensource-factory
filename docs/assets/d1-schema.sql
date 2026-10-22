@@ -162,6 +162,19 @@ CREATE TABLE notifications (
     read_at DATETIME
 );
 
+-- ── Workers 请求指标（M5-03，迁移 0012）───────────────────────
+CREATE TABLE worker_metrics (
+    metric_date TEXT NOT NULL,                     -- UTC 日期 YYYY-MM-DD
+    route TEXT NOT NULL,                           -- 归一化路由
+    method TEXT NOT NULL,
+    status_class TEXT NOT NULL,                    -- 2xx / 3xx / 4xx / 5xx
+    requests INTEGER NOT NULL DEFAULT 0,
+    total_ms INTEGER NOT NULL DEFAULT 0,
+    max_ms INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (metric_date, route, method, status_class)
+);
+
 -- ── 索引 ────────────────────────────────────────────────────────
 CREATE INDEX idx_my_repositories_user_id ON my_repositories (user_id);
 CREATE INDEX idx_my_repositories_category_id ON my_repositories (category_id);
@@ -184,3 +197,4 @@ CREATE INDEX idx_recommendation_feedback_user_repo
 CREATE INDEX idx_notifications_user_status_created ON notifications (user_id, status, created_at DESC);
 CREATE UNIQUE INDEX idx_notifications_user_recommendation ON notifications (user_id, recommendation_id);
 CREATE UNIQUE INDEX idx_notifications_user_dedupe ON notifications (user_id, dedupe_key);
+CREATE INDEX idx_worker_metrics_date ON worker_metrics (metric_date);
