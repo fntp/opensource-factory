@@ -9,16 +9,16 @@ from app.api.tasks import require_internal_token
 from app.db import get_db
 from app.models import MyRepository
 from app.schemas import (
+    LicenseInfoOut,
     RepoHealthListOut,
     RepoHealthOut,
     RepoHealthRefreshRequest,
     RepoOut,
     TaskEnqueued,
 )
+from app.services.license import build_compliance_hint
 from app.services.repo_health import normalize_status, snapshot_for_row, summarize_health
 from app.tasks.jobs import refresh_repo_health as refresh_repo_health_task
-from app.schemas import LicenseInfoOut, RepoOut, TaskEnqueued
-from app.services.license import build_compliance_hint
 from app.tasks.jobs import summarize_readmes, sync_repositories
 
 router = APIRouter(prefix="/api/repos", tags=["repos"])
@@ -120,6 +120,9 @@ async def enqueue_repo_health_refresh(payload: RepoHealthRefreshRequest) -> Task
         limit=payload.limit,
     )
     return TaskEnqueued(taskId=task.id)
+
+
+@router.get(
     "/{repo_id:path}/license",
     response_model=LicenseInfoOut,
     summary="单仓库 License 合规提示（未识别时返回 unknown）",

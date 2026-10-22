@@ -86,6 +86,7 @@
 | IT-0049 | M6-06 | License 识别与合规提示（GitHub 元数据 + README 兜底 / 合规总览） | M2-03 | ✅ 已完成（2026-10-22） |
 | IT-0050 | M6-07 | 依赖分析（清单解析 / 依赖入库 / 技术栈关联，edge 代理 + admin 依赖分析页） | IT-0047 | ✅ 已完成（2026-10-22） |
 | IT-0051 | M6-08 | 知识库导出（Markdown / JSON / Obsidian；只读聚合 + `openfactory.knowledge.v1`） | M9-04（格式基线先行） | ✅ 已完成（2026-10-22） |
+| IT-0052 | M6-12 | M6 验收与回顾（集成 M6-01~08 + 跨分支验收脚本 + 缺口登记） | IT-0044~0051 | ✅ 已完成（2026-10-22） |
 
 > 说明：IT-0004 / IT-0005 在人工资源（Cloudflare 账号、OAuth App）就绪前，可先以 `wrangler --local` + 本地回调完成开发与验证；其余按需求池顺序滚动排期。
 
@@ -130,5 +131,5 @@
 | 2026-10-22 | 交付 | IT-0048 / M6-05 项目健康度（REQ-202610-0952）：VPS 拉取 pushed_at / issue / 归档字段并计算健康度，每日任务 + 手动刷新回写 D1；edge 本地兜底计算与健康度接口；admin 仓库页汇总、筛选、徽章与刷新按钮；计划见 `planning/plan-req-202610-0952-repo-health-tracking.md` |
 | 2026-10-22 | 交付 | IT-0049 / M6-06 License 合规（REQ-202610-0953）：VPS License 识别任务（GitHub API + README 兜底）与目录 / 提示服务；edge `/api/licenses/*` 与 D1 回写；admin 仓库 / 热榜 License 徽章与合规总览；计划见 `planning/plan-req-202610-0953-license-compliance.md` |
 | 2026-10-22 | 交付 | IT-0050 / M6-07 依赖分析（REQ-202610-0954）：8 类依赖清单解析 + `repo_dependencies` / 扫描状态落库 + 技术栈关联聚合 + edge 用户级代理与本地降级 + admin「依赖分析」页；计划见 `planning/plan-req-202610-0954-dependency-analysis.md` |
-
 | 2026-10-22 | 交付 | IT-0051 / M6-08 知识库导出（REQ-202610-0955）：知识库导出（Markdown / JSON / Obsidian），edge 只读聚合 + `openfactory.knowledge.v1` 格式规范 + admin 导出页；计划见 `planning/plan-req-202610-0955-knowledge-export.md`，格式见 `guides/knowledge-export.md` |
+| 2026-10-22 | 验收 | IT-0052 / M6-12 完成（REQ-202610-0959）：集成 M6-01~08 八个分支，M6 验收 18/18 PASS、3 项平台 pending 缺口登记；三端检查全绿（vps 482 / edge 108 / admin 156）；报告见 `planning/acceptance-m6.md` / `acceptance-m6-report.md` |

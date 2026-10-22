@@ -39,9 +39,10 @@ edge/
 │   ├── 0010_notifications.sql  # 站内通知表 + 去重/列表索引（M4-02）
 │   ├── 0011_push_preferences.sql  # 推送偏好表（M4-06）
 │   ├── 0011_security_hardening.sql  # 限流 / 登录尝试 / 安全事件（M5-05）
-│   └── 0012_worker_metrics.sql  # Workers 请求指标按日聚合（M5-03）
-│   ├── 0009_recommendation_feedback.sql # 推荐反馈明细（M3-07）
-│   └── 0013_duplicate_dismissals.sql    # 重复检测按用户忽略（M6-03）
+│   ├── 0012_worker_metrics.sql  # Workers 请求指标按日聚合（M5-03）
+│   ├── 0013_duplicate_dismissals.sql  # 重复检测按用户忽略（M6-03）
+│   ├── 0014_repo_health.sql  # 仓库健康度字段（M6-05）
+│   └── 0015_license_compliance.sql  # License 识别字段（M6-06）
 └── src/
     ├── index.ts          # Hono 入口：CORS、日志、/healthz、路由挂载、404/500
     ├── types.ts          # Env 绑定 + 数据库行 + API 响应实体
@@ -66,11 +67,10 @@ edge/
         ├── notifications.ts  # /api/notifications + /api/internal/notifications
         ├── push-preferences.ts # /api/push-preferences + /api/internal/push-preferences
         ├── sync.ts       # /api/sync
-        ├── search.ts     # /api/search/semantic（查询理解 + Vectorize → 本地向量 → 关键词三级降级）
+        ├── search.ts     # /api/search/semantic（语义三级降级）· /api/search/fulltext（README FTS）
         ├── tech-stack.ts # /api/tech-stack（语言 / 框架聚合 + 关系图，只读 D1）
         ├── export.ts     # /api/export/knowledge（Markdown / JSON / Obsidian 知识库导出）
         ├── monitoring.ts # /api/monitoring/*（总览 / 检查 / 告警确认 + /api/internal/analytics）
-        ├── search.ts     # /api/search/semantic（语义三级降级）· /api/search/fulltext（README FTS）
         ├── similar.ts    # /api/similar（相似项目：VPS 向量近邻 → D1 关键词兜底）
         ├── duplicates.ts # /api/duplicates/*（重复检测：VPS 规则 + 向量 → 本地兜底；按用户忽略）
         ├── analysis.ts   # /api/analysis/*（依赖分析：用户仓库 → VPS 聚合 → 本地语言概览）
@@ -193,6 +193,8 @@ npm run test:m2 -- --strict \
 | `GET /api/repos/health?status=` | `{summary, items}`（当前用户仓库健康度；`status=active\|attention\|stale\|archived\|unknown` 可选） |
 | `POST /api/repos/health` | 内部接口：VPS 批量回写健康度，body `{items:[{repoId,status,score,lastPushAt,openIssues,archived,checkedAt}]}`，返回 `{total,updated,skipped}` |
 | `POST /api/repos/health/refresh` | 202 `{status:"queued",taskId}`；转发 VPS 刷新健康度，VPS 未配置时 `{status:"accepted",note}` |
+| `GET /api/licenses/catalog` | `{categories, licenses}`（公开的 License 目录与分级口径，M6-06） |
+| `GET /api/licenses/summary?scope=my` | `{total, known, unknown, riskCounts, licenses, checked, unchecked}`（当前用户收藏库的 License / 风险分布） |
 | `GET /api/trending?date=&language=&limit=20` | `TrendingRepo[]`（公开；优先读按日快照，按 `rank` 升序，默认最近一天，可按日期 / 语言筛选；返回 `rank` / `rankChange` / `trend`，无快照时回退最新状态表，含 `summary`） |
 | `GET /api/trending/dates?limit=30` | `[{date, count}]`（可用快照日期，倒序） |
 | `GET /api/trending/languages?date=` | `{date, languages: [{language, count}]}`（指定日期的语言分布） |
@@ -237,10 +239,12 @@ npm run test:m2 -- --strict \
 JSON 形状（前端契约，勿改字段名）：
 
 ```ts
-RepoItem        { id, fullName, description, summary, language, stars, forks, category, tags: string[], updatedAt, url }
+RepoItem        { id, fullName, description, summary, language, stars, forks, category, tags: string[], updatedAt, url,
+                  health: RepoHealth, license?: LicenseInfo | null }
+RepoHealth      { status, label, score, lastPushAt, daysSincePush, openIssues, archived, reasons: string[], checkedAt }
 TrendingRepo    { id, owner, name, description, summary, language, stars, starsToday, url,
                   snapshotDate, rank, rankChange, trend,
-                  languageRank?, starDelta?, rankDelta?, appearances?, isNew? }
+                  languageRank?, starDelta?, rankDelta?, appearances?, isNew?, license?: LicenseInfo | null }
 TrendingRepoDetail { ...TrendingRepo, platform, techStack: string[], summary, summarySource, crawledAt, isFavorited }
 Recommendation  { id, owner, name, description, language, stars, score, reason, basedOn: string[], url }
 CategoriesPayload { categories: [{id, name, count, description}], tags: [{name, count}] }

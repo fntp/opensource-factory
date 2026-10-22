@@ -250,7 +250,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | occurrences | 累计出现次数 |
 | first_seen_at / last_seen_at / acknowledged_at | 首次 / 最近 / 确认时间 |
 
-### 3.8 `notifications` 站内通知（M4-02）
+### 3.9 `notifications` 站内通知（M4-02）
 
 | 字段 | 说明 |
 | --- | --- |
@@ -268,7 +268,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 
 **生成规则**：`GET /api/notifications` 与 `/unread-count` 触发惰性物化——把当前用户（含全局）`recommendations.status = 'pushed'` 且尚未通知的记录写入 `notifications`，由唯一索引 `(user_id, recommendation_id)` / `(user_id, dedupe_key)` 保证幂等。通知忽略时同步把关联推荐置为 `dismissed`。
 
-### 3.9 `recommendation_evaluation_runs` 评估运行（M4-01）
+### 3.10 `recommendation_evaluation_runs` 评估运行（M4-01）
 
 | 字段 | 说明 |
 | --- | --- |
@@ -280,7 +280,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | error TEXT | 失败原因（截断） |
 | created_at / finished_at | 开始 / 结束时间 |
 
-### 3.10 `telegram_deliveries` Telegram 送达记录（M4-04，VPS 本地）
+### 3.11 `telegram_deliveries` Telegram 送达记录（M4-04，VPS 本地）
 
 | 字段 | 说明 |
 | --- | --- |
@@ -297,7 +297,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 
 > 本表为 M4-04 的通道级记录；M4-08「推送记录与回执」落地后可扩展为全通道统一表。
 
-### 3.11 `email_deliveries` Email 送达记录（M4-05）
+### 3.12 `email_deliveries` Email 送达记录（M4-05）
 
 | 字段 | 说明 |
 | --- | --- |
@@ -312,7 +312,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | error TEXT | 失败原因（已替换密码 / 用户名，截断 300 字符） |
 | created_at / finished_at | 创建 / 完成时间 |
 
-### 3.12 `push_preferences` 推送偏好（M4-06）
+### 3.13 `push_preferences` 推送偏好（M4-06）
 
 | 字段 | 说明 |
 | --- | --- |
@@ -327,7 +327,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 
 **默认值**：未保存过偏好的用户按默认值处理（启用、09:00、Asia/Shanghai、匹配度 0.35、质量分 0.55、仅站内通知开启）。VPS 推送任务通过内部接口读取偏好，读取失败时回退默认值，不阻塞推送。
 
-### 3.13 推送事件账本（M4-07）
+### 3.14 推送事件账本（M4-07）
 
 `push_events` 是推送去重 / 静默 / 日限额的统一账本，位于 VPS 本地 SQLite；站内通知与各推送通道共用同一口径。
 
@@ -353,7 +353,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 - 去重窗口按 `PUSH_DEDUPE_DAYS`（默认 7 天）计算，`PUSH_DEDUPE_CROSS_CHANNEL=true` 时跨通道生效；
 - 每日上限按用户本地自然日的去重仓库数计算，避免同一仓库多通道重复计数。
 
-### 3.14 `push_deliveries` 统一推送投递记录（M4-08，VPS 本地）
+### 3.15 `push_deliveries` 统一推送投递记录（M4-08，VPS 本地）
 
 | 字段 | 说明 |
 | --- | --- |
@@ -375,7 +375,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | user_id TEXT | 关联用户 |
 | created_at / sent_at / finished_at / delivered_at | 生命周期时间 |
 
-### 3.15 `push_receipts` 推送回执流水（M4-08，VPS 本地）
+### 3.16 `push_receipts` 推送回执流水（M4-08，VPS 本地）
 
 | 字段 | 说明 |
 | --- | --- |
@@ -388,7 +388,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | detail TEXT | 回执说明（脱敏、截断） |
 | occurred_at / created_at | 回执发生 / 落库时间 |
 
-### 3.16 安全加固表（D1，M5-05）
+### 3.17 安全加固表（D1，M5-05）
 
 > 迁移 `edge/migrations/0011_security_hardening.sql`；只存哈希与计数，不存明文 IP / 令牌。
 
@@ -421,7 +421,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | detail | 事件上下文（scope / 原因等） |
 | created_at | 事件时间 |
 
-### 3.17 `monitoring_alerts` / `monitoring_check_runs` 监控告警（VPS 本地表，M5-03）
+### 3.18 `monitoring_alerts` / `monitoring_check_runs` 监控告警（VPS 本地表，M5-03）
 
 > 仅存在于 VPS 本地镜像库，不进入 D1；由 Celery beat 每 5 分钟执行一次检查。
 
@@ -455,7 +455,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 
 历史默认保留 `MONITOR_HISTORY_RETENTION_DAYS`（7）天，由每日清理任务删除。
 
-### 3.18 `worker_metrics` Workers 请求指标（D1，迁移 `0012`）
+### 3.19 `worker_metrics` Workers 请求指标（D1，迁移 `0012`）
 
 > D1 表，edge 请求中间件按「日期 + 路由 + 方法 + 状态类」UPSERT，用于 Workers Analytics。
 
@@ -472,7 +472,7 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 
 跳过 `OPTIONS` / `HEAD` 与 `/api/internal/*`；索引 `idx_worker_metrics_date (metric_date)` 供按日查询。
 
-### 3.17 `repo_dependencies` / `repo_dependency_scans` 依赖分析（M6-07，VPS 本地表）
+### 3.20 `repo_dependencies` / `repo_dependency_scans` 依赖分析（M6-07，VPS 本地表）
 
 依赖明细只存在 VPS SQLite，不复制到 D1；edge 按当前用户仓库 id 查询，避免多用户依赖数据落到边缘库。
 

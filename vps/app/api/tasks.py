@@ -179,6 +179,10 @@ async def enqueue_evaluate_recommendations(
         match_threshold=match_threshold,
         quality_threshold=quality_threshold,
     )
+    return TaskEnqueued(taskId=task.id)
+
+
+@router.post(
     "/enrich-licenses",
     status_code=status.HTTP_202_ACCEPTED,
     response_model=TaskEnqueued,

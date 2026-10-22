@@ -390,7 +390,7 @@ VPS 端点同时提供 `GET /healthz/ready`（数据库 + 运行目录就绪探�
 `/api/monitoring/{status,check,history,alerts,logs}`（全部要求 `X-Internal-Token`）；
 edge 侧 `/api/monitoring/overview` 需登录，`/api/internal/analytics` 供内部工具读取 Workers 聚合。
 
-### 3.12 相似项目推荐流（M6-02「看了又看」）
+### 3.21 相似项目推荐流（M6-02「看了又看」）
 
 ```
 admin 热榜详情页 GET /api/similar?source=trending&repoId=owner/name&topK=6
@@ -407,7 +407,7 @@ VPS 不可达 / 种子未向量化 / 0 命中 → edge D1 同语言 + 共享技�
 纯向量近邻复用 M3 `repo_vectors`，不新增表；`scope` 控制候选来源（`my` / `trending` / `all`），
 `excludeSaved` 可排除收藏库；`minScore` 可过滤低分近邻。
 
-### 3.13 重复 / 相似项目检测（M6-03）
+### 3.22 重复 / 相似项目检测（M6-03）
 
 ```
 admin 重复检测页 POST /api/duplicates/scan {scope, minScore?, maxClusters?}
@@ -427,7 +427,8 @@ admin 重复检测页 POST /api/duplicates/scan {scope, minScore?, maxClusters?}
 `DUPLICATE_VECTOR_THRESHOLD`（0.88）、`DUPLICATE_MIN_CONFIDENCE`（0.70）、
 `DUPLICATE_MAX_REPOS`（500）、`DUPLICATE_MAX_CLUSTERS`（50）。检测为 O(n²) 有界扫描，
 超过 500 个仓库时按 Star 截断，后续可改为分桶 / 向量近邻候选。
-### 3.14 技术栈图谱流（M6-04）
+
+### 3.23 技术栈图谱流（M6-04）
 
 ```
 admin /tech-stack → GET /api/tech-stack（登录态）
@@ -442,7 +443,7 @@ admin /tech-stack → GET /api/tech-stack（登录态）
 - `share` 以全部收藏仓库数为分母；覆盖率 = 语言或框架至少识别其一的仓库占比；
 - 图谱只保留 Top N 节点与两端均在图中的连线，长尾仍可在框架排行表中查看。
 
-### 3.15 项目健康度追踪（M6-05）
+### 3.24 项目健康度追踪（M6-05）
 
 ```
 admin 仓库页「刷新健康度」POST /api/repos/health/refresh（edge，登录）
@@ -460,7 +461,7 @@ GitHub 禁用强制 `stale` 且封顶 30 分，缺少 `pushed_at` 为 `unknown`�
 ≥50% 扣 20 分、≥20% 扣 10 分，只影响分数不影响状态；无 issue 加 5 分。VPS 每日 06:12
 （`REPO_HEALTH_HOUR/MINUTE`）自动刷新一批（默认 200 个），也可手动触发。
 
-### 3.16 License 识别与合规提示流（M6-06）
+### 3.25 License 识别与合规提示流（M6-06）
 
 ```
 VPS 定时任务 enrich_licenses（每日 06:47 beat，或 POST /api/tasks/enrich-licenses 手动触发）
@@ -479,7 +480,7 @@ VPS 定时任务 enrich_licenses（每日 06:47 beat，或 POST /api/tasks/enric
 分类与义务在读取时派生，数据库只存 SPDX 与来源，避免升级目录后存量数据口径不一致；
 提示为工程辅助信息，不构成法律意见。
 
-### 3.17 依赖分析流（M6-07）
+### 3.26 依赖分析流（M6-07）
 
 ```
 admin「依赖分析」页 GET /api/analysis/dependencies（登录态）
@@ -498,7 +499,7 @@ admin「依赖分析」页 GET /api/analysis/dependencies（登录态）
 依赖明细只落 VPS 本地 SQLite，不复制到 D1；扫描按 `DEPENDENCY_SCAN_TTL_HOURS`
 跳过最近成功仓库，单仓库失败保留旧依赖并标记 `failed`；每日 06:23 由 Celery beat 增量补扫。
 
-### 3.18 知识库导出流（M6-08）
+### 3.27 知识库导出流（M6-08）
 
 ```
 admin /export → GET /api/export/knowledge/summary（登录态）→ 统计卡
@@ -696,7 +697,7 @@ frontmatter）见 `docs/guides/knowledge-export.md`，并作为 M9-04 全量归�
 | vps | 本地服务器 | uvicorn + celery worker + celery beat + redis + ollama |
 | 数据 | D1 + VPS 本地 SQLite | D1 为主数据；VPS 侧为算力缓存/镜像 |
 
-### 3.21 备份与恢复（M5-04）
+### 3.28 备份与恢复（M5-04）
 
 ```
 Celery beat 03:50（每日）→ SQLite backup API 快照 → integrity_check → gzip + manifest

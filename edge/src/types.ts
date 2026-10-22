@@ -267,6 +267,8 @@ export interface RepoItem {
   url: string;
   /** 项目健康度（M6-05，始终由 D1 字段本地计算，VPS 回写后可覆盖） */
   health: RepoHealth;
+  /** License 合规提示（M6-06；未识别过为 null） */
+  license?: LicenseInfo | null;
 }
 
 /** 项目健康度状态（M6-05） */
@@ -293,8 +295,6 @@ export interface RepoHealthSummary {
   archived: number;
   unknown: number;
   averageScore: number;
-  /** License 合规提示（M6-06；未识别过为 null） */
-  license: LicenseInfo | null;
 }
 
 /** GET /api/trending 列表项 */

@@ -50,12 +50,15 @@ vps/
 │   │   ├── email_channel.py      # Email 摘要：SMTP 投递 / 幂等 / 送达记录（M4-05）
 │   │   ├── push_policy.py        # 推送去重 / 静默 / 每日上限 / 事件账本（M4-07）
 │   │   ├── push_records.py       # 统一推送记录 / 回执流水 / 统计（M4-08）
-│   │   ├── resource_budget.py    # 4G / 15G 资源预算实测与超限建议（M5-06）│   │   ├── vector_index.py       # Vectorize 批量 upsert / 重试 / 对账 / 孤儿清理
+│   │   ├── resource_budget.py    # 4G / 15G 资源预算实测与超限建议（M5-06）
+│   │   ├── vector_index.py       # Vectorize 批量 upsert / 重试 / 对账 / 孤儿清理
 │   │   ├── query_understanding.py # 同义词 / 技术栈词表查询理解（离线、确定性）
 │   │   ├── semantic_search.py    # 查询向量化 + repo_vectors 余弦检索 + 结果水合
 │   │   ├── fulltext.py           # README 全文镜像 + FTS5 trigram 检索（短词 LIKE 回退）
 │   │   ├── similar_recommendations.py # 相似项目：种子向量近邻 + 水合（M6-02）
 │   │   ├── duplicates.py         # 重复检测：地址 / 名称 / 简介 / 向量复核 + 聚类 + 合并建议（M6-03）
+│   │   ├── repo_health.py        # 项目健康度：分档 / 理由 / 汇总 / 回写 edge（M6-05）
+│   │   ├── license.py            # License 识别 / 目录 / 合规分级（M6-06）
 │   │   ├── dependency_analysis.py # 依赖清单解析 / 扫描入库 / 技术栈关联聚合（M6-07）
 │   │   └── degradation.py        # 降级路径自检（模型缺失 / 超预算，离线可跑）
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
@@ -69,7 +72,7 @@ vps/
 │   │   ├── vectors.py            # GET /api/vectors/stats、runs、单条向量
 │   │   ├── search.py             # /api/search/*（understand / embed / query / semantic / fulltext / similar / status）
 │   │   ├── duplicates.py         # POST /api/duplicates/scan（重复检测，只读）
-│   │   ├── search.py             # /api/search/*（understand / embed / query / semantic / similar / status）
+│   │   ├── licenses.py           # /api/licenses/*（目录 / 分布统计，M6-06）
 │   │   ├── analysis.py           # /api/analysis/*（依赖分析聚合 / 清单扫描）
 │   │   ├── degradation.py        # GET /api/degradation/status（降级自检）
 │   │   └── tasks.py              # /api/tasks/*（与边缘 Worker 的集成契约，X-Internal-Token 鉴权）
@@ -245,7 +248,7 @@ permissions / COOP 头，认证路径额外返回 `Cache-Control: no-store`。
 | `VECTORIZE_BATCH_SIZE` | `32` | 向量化每批编码 / 提交条数（1~256） |
 | `VECTORIZE_MAX_PER_RUN` | `1000` | 单次向量化默认上限 |
 | `VECTORIZE_AUTO` | `1` | 同步 / 热榜抓取完成后自动入队增量向量化 |
-| `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/push/*`、`/api/notifications/*`、`/api/vector-index/*`、`/api/search/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
+| `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/push/*`、`/api/notifications/*`、`/api/vector-index/*`、`/api/search/*`、`/api/duplicates/*`、`/api/repos/health*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
 | `FTS_ENABLED` | `true` | README 全文检索开关 |
 | `FTS_DEFAULT_TOP_K` | `10` | 全文检索默认返回条数 |
 | `FTS_MAX_TOP_K` | `50` | 全文检索单次最大返回条数 |
@@ -267,7 +270,6 @@ permissions / COOP 头，认证路径额外返回 `Cache-Control: no-store`。
 | `DUPLICATE_VECTOR_THRESHOLD` | `0.88` | 向量余弦复核阈值（0~1） |
 | `DUPLICATE_MIN_CONFIDENCE` | `0.70` | 最低置信度（0~1） |
 | `DUPLICATE_MAX_CLUSTERS` | `50` | 单次返回重复簇上限 |
-| `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/vector-index/*`、`/api/search/*`、`/api/duplicates/*`、`/api/repos/health*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
 | `CELERY_TASK_ALWAYS_EAGER` | `0` | 置 `1` 时任务同步执行（本地调试 / 测试用） |
 | `GITHUB_TOKEN` | 空 | GitHub PAT（仅需 read 权限）；为空时同步 / 健康度任务跳过 |
 | `REPO_HEALTH_ENABLED` | `true` | 项目健康度每日刷新总开关（M6-05） |
