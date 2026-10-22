@@ -21,6 +21,9 @@ TREND_REPO_ID = "trend/reason-test"
 class FakeEmbedding:
     """固定二维向量：目标仓库与收藏仓库同向，其他为反向。"""
 
+    model_name = "fake-embedding"
+    backend = "hash"
+
     @staticmethod
     def _vec(text: str) -> list[float]:
         if MY_REPO_ID in text or TREND_REPO_ID in text:
