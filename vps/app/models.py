@@ -124,6 +124,33 @@ class RecommendationEvaluationRun(Base):
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 
+class EmailDelivery(Base):
+    """Email 通道送达记录（M4-05）。
+
+    每次摘要 / 测试邮件投递写一条记录；`dedupe_key` 用于「日期 + 收件人」级
+    最小幂等（同一批次重复触发时跳过已成功记录），`error` 保存脱敏后的失败原因。
+    """
+
+    __tablename__ = "email_deliveries"
+    __table_args__ = (Index("ix_email_deliveries_dedupe", "dedupe_key", "status"),)
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    recipient: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    kind: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="digest"
+    )  # digest | test
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="sent"
+    )  # sent | failed
+    item_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    subject: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    message_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    dedupe_key: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
 class RepoVector(Base):
     """仓库向量（VPS 本地持久化，供增量向量化与语义检索使用）。
 

@@ -109,7 +109,20 @@ Celery beat（每 30 分钟）或 POST /api/vector-index/sync
 对账（kind=reconcile）：POST /api/internal/vectors/check 比对缺失 / 过期向量并修复；
 可选 list + delete 清理孤儿（默认关闭）。
 ```
+
+### 3.7 Email 推送流（M4-05）
+
 ```
+Celery beat 09:10 或 POST /api/tasks/send-email-digest
+→ 读取 recommendations.status='pushed'（默认回溯 24h，按质量分 / 匹配度排序）
+→ 水合 trending_repositories（回退 my_repositories）→ 渲染中文摘要（plain + HTML）
+→ 校验 EMAIL_* 配置 / 收件人 → smtplib 投递（STARTTLS / SSL / AUTH，瞬时错误重试）
+→ 写 email_deliveries（sent / failed，收件人脱敏、Message-ID、错误脱敏）
+→ 同日同收件人已有 sent 记录时跳过（force 可补发）
+```
+
+未启用 / 未配置 / 无数据 / SMTP 失败分别返回 `disabled` / `not_configured` / `empty` / `failed`，
+不阻塞每日推送主流程；站内通知中心（M4-02）与本通道互不影响。
 
 ## 4. 接口边界
 
@@ -137,6 +150,9 @@ Celery beat（每 30 分钟）或 POST /api/vector-index/sync
 | `/api/tasks/generate-recommendations` | POST | 入队推荐生成 |
 | `/api/tasks/evaluate-recommendations` | POST | 入队每日评估（质量分 + 匹配度阈值） |
 | `/api/tasks/daily-push` | POST | 入队每日推送（仅 `qualified`） |
+| `/api/tasks/send-email-digest` | POST | 入队 Email 每日摘要（`user_id` / `limit` / `force`） |
+| `/api/notifications/email/status` | GET | Email 通道状态与最近送达（脱敏） |
+| `/api/notifications/email/test` | POST | 发送测试邮件（未启用 / 未配置 409） |
 | `/api/tasks/vectorize` | POST | 入队向量化（批量 / 增量 / 断点续跑） |
 | `/api/tasks/{taskId}` | GET | 任务状态 |
 | `/api/vector-index/sync` | POST | 入队 Vectorize 同步 / 对账（`kind` / `scope` / `force`） |

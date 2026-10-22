@@ -34,11 +34,13 @@ vps/
 │   │   ├── recommender.py        # 余弦排序 + 综合打分 + 中文推荐理由模板
 │   │   ├── recommendation_service.py # 每日推荐：画像 / 去重已收藏 / 阈值 / 落库
 │   │   ├── recommendation_eval.py # 每日评估：质量分 / 匹配度门槛 / 运行记录（M4-01）
+│   │   ├── email_channel.py      # Email 摘要：SMTP 投递 / 幂等 / 送达记录（M4-05）
 │   │   └── vector_sync.py        # Vectorize 批量 upsert / 重试 / 对账 / 孤儿清理
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
 │   │   ├── trending.py           # GET /api/trending、POST /api/trending/crawl
 │   │   ├── recommend.py          # /api/recommend/*（查询 / 生成 / 评估 / 合格推荐）
+│   │   ├── notifications.py      # /api/notifications/email/*（状态 / 测试邮件）
 │   │   ├── vector_sync.py        # /api/vector-index/*（同步入队、状态、运行记录）
 │   │   ├── vectors.py            # GET /api/vectors/stats、runs、单条向量
 │   │   └── tasks.py              # /api/tasks/*（与边缘 Worker 的集成契约，X-Internal-Token 鉴权）
@@ -125,7 +127,22 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | `EVAL_QUALITY_THRESHOLD` | `0.55` | 每日评估质量分门槛 |
 | `EVAL_REPO_WEIGHT` | `0.7` | 质量分中仓库质量权重 |
 | `EVAL_REASON_WEIGHT` | `0.3` | 质量分中理由质量权重 |
-| `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/vector-index/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
+| `EMAIL_ENABLED` | `false` | Email 通道总开关；关闭时摘要任务与测试接口直接跳过 |
+| `EMAIL_SMTP_HOST` | 空 | SMTP 服务商地址（如 `smtp.example.com`） |
+| `EMAIL_SMTP_PORT` | `587` | SMTP 端口；465 通常配合 `EMAIL_SSL=true`、`EMAIL_STARTTLS=false` |
+| `EMAIL_SMTP_USERNAME` | 空 | SMTP 认证用户名；留空表示匿名中继 |
+| `EMAIL_SMTP_PASSWORD` | 空 | SMTP 密码（仅 `.env`，不落库 / 不回显） |
+| `EMAIL_FROM` | 空 | 发件人地址（需与服务商允许的 From 一致） |
+| `EMAIL_FROM_NAME` | `OpenFactory` | 发件人显示名 |
+| `EMAIL_TO` | 空 | 默认收件人，逗号 / 分号分隔，最多 20 个 |
+| `EMAIL_STARTTLS` | `true` | 是否对明文连接执行 STARTTLS（与 `EMAIL_SSL` 互斥） |
+| `EMAIL_SSL` | `false` | 是否使用隐式 SSL（通常配 465 端口） |
+| `EMAIL_TIMEOUT_SECONDS` | `15` | SMTP 连接 / 读写超时 |
+| `EMAIL_MAX_RETRIES` | `2` | 瞬时网络错误重试次数（认证 / 收件人拒绝不重试） |
+| `EMAIL_RETRY_BASE_SECONDS` | `0.5` | 重试指数退避基数 |
+| `EMAIL_DAILY_LIMIT` | `10` | 单封摘要最多包含的推荐数 |
+| `EMAIL_DIGEST_WINDOW_HOURS` | `24` | 摘要回溯窗口（小时） |
+| `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/vector-index/*`、`/api/notifications/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
 | `EMBEDDING_FORCE_FALLBACK` | `0` | 置 `1` 强制使用确定性 hash 向量（CI / 2G 预算紧张时） |
 | `VECTORIZE_BATCH_SIZE` | `32` | 向量化每批编码 / 提交条数（1~256） |
 | `VECTORIZE_MAX_PER_RUN` | `1000` | 单次向量化默认上限 |
@@ -147,12 +164,15 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | POST | `/api/tasks/generate-recommendations` | 入队推荐生成（可选 `user_id`、`top_k`、`min_score`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/evaluate-recommendations` | 入队每日评估（可选 `user_id`、`match_threshold`、`quality_threshold`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/daily-push` | 入队每日推送准备（仅将 `qualified` 推荐标记为 `pushed`） | `202 {"taskId": "..."}` |
+| POST | `/api/tasks/send-email-digest` | 入队 Email 每日摘要（可选 `user_id`、`limit`、`force`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/vectorize` | 入队向量化（`scope=my\|trending\|all`，可选 `limit` / `batch_size` / `force` / `run_id`） | `202 {"taskId","runId"}` |
 | GET | `/api/tasks/{task_id}` | 查询任务状态（`pending/started/success/failure`） | `200 {"taskId","status","result"}` |
 | POST | `/api/vector-index/sync` | 入队 Vectorize 同步 / 对账（`kind=sync\|reconcile`、`scope=my\|trending\|all`、`force`、`limit`、`batchSize`） | `202 {"taskId": "..."}` |
 | GET | `/api/vector-index/status` | 本地向量覆盖率、状态分布与最近运行 | `200 {...}` |
 | GET | `/api/vector-index/runs?limit=20` | 最近同步运行记录 | `200 [...]` |
 | GET | `/api/vector-index/runs/{run_id}` | 单次运行详情 | `200 {...}` |
+| GET | `/api/notifications/email/status` | Email 通道开关、配置完整性与最近送达（收件人脱敏） | `200 {...}` |
+| POST | `/api/notifications/email/test` | 发送测试邮件（`to` / `subject` / `body` 均可选） | `200 {...}`；未启用 / 未配置 `409` |
 
 Celery beat 每 30 分钟（`7,37` 分）自动执行一次增量同步；对账建议在低峰期手动触发。
 | GET | `/api/vectors/stats` | 向量覆盖率与最近运行 | `200` |
@@ -244,6 +264,35 @@ curl -sS -X POST 'http://127.0.0.1:8000/api/tasks/evaluate-recommendations?user_
 # 查询运行记录 / 合格推荐
 curl -sS 'http://127.0.0.1:8000/api/recommend/evaluations?limit=10'
 curl -sS 'http://127.0.0.1:8000/api/recommend/qualified?user_id=default'
+```
+
+## Email 通道（M4-05）
+
+Celery beat 每天 09:10 执行 `send_email_digest`，在 09:00 推送准备之后读取
+`recommendations.status='pushed'` 的推荐（默认回溯 24 小时，最多 `EMAIL_DAILY_LIMIT` 条），
+渲染中文摘要并通过 SMTP 投递：
+
+1. **配置**：`.env` 设置 `EMAIL_ENABLED=true`、`EMAIL_SMTP_HOST`、`EMAIL_FROM`、`EMAIL_TO`；
+   587 端口用 STARTTLS（默认），465 端口配 `EMAIL_SSL=true` + `EMAIL_STARTTLS=false`；
+2. **幂等**：按「日期 + 收件人」生成 `dedupe_key`，同日已成功发送则跳过；`force=true` 可补发；
+3. **送达记录**：每次摘要 / 测试邮件写 `email_deliveries`（收件人、状态、条数、Message-ID、脱敏错误）；
+4. **降级**：未启用 → `disabled`，配置不全 → `not_configured`，无推荐 → `empty`，SMTP 失败 → `failed`；
+5. **安全**：SMTP 密码只从环境变量读取，错误信息与状态接口均不回显密码 / 完整收件人。
+
+```bash
+# 查看通道状态（收件人 / 发件人脱敏）
+curl -sS 'http://127.0.0.1:8000/api/notifications/email/status' \
+  -H 'X-Internal-Token: <token>'
+
+# 发送测试邮件（不填 to 时使用 EMAIL_TO）
+curl -sS -X POST 'http://127.0.0.1:8000/api/notifications/email/test' \
+  -H 'Content-Type: application/json' \
+  -H 'X-Internal-Token: <token>' \
+  -d '{"to":"you@example.com"}'
+
+# 手动触发摘要（force=true 忽略当日幂等）
+curl -sS -X POST 'http://127.0.0.1:8000/api/tasks/send-email-digest?force=true' \
+  -H 'X-Internal-Token: <token>'
 ```
 
 ## 常用检查

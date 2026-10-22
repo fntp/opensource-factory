@@ -261,6 +261,36 @@ def daily_push(limit: int = 50) -> dict[str, Any]:
     return {"status": "ok", "pushed": pushed}
 
 
+@celery_app.task(name="app.tasks.jobs.send_email_digest")
+def send_email_digest(
+    user_id: Optional[str] = None,
+    limit: Optional[int] = None,
+    force: bool = False,
+) -> dict[str, Any]:
+    """Email 每日精选推送（M4-05）：把 `pushed` 推荐渲染为摘要邮件并投递。
+
+    通道关闭 / 未配置 / 无数据时返回结构化 `disabled` / `not_configured` /
+    `empty`；SMTP 异常由服务层降级为 `failed`，不向 Celery 抛错。
+    """
+    from app.services.email_channel import send_digest
+
+    db = SessionLocal()
+    try:
+        result = send_digest(db, user_id=user_id, limit=limit, force=force)
+    except Exception as exc:  # noqa: BLE001 - 任务失败降级返回结构化结果
+        logger.exception("Email 摘要任务失败")
+        return {"status": "error", "ok": False, "error": str(exc)[:300]}
+    finally:
+        db.close()
+
+    logger.info(
+        "Email 摘要任务完成: status=%s items=%d",
+        result.get("status"),
+        result.get("itemCount", 0),
+    )
+    return result
+
+
 @celery_app.task(bind=True, name="app.tasks.jobs.vectorize_repositories")
 def vectorize_repositories(
     self,

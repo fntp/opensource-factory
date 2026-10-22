@@ -116,6 +116,21 @@ recommendations              （user_id 可空 = 全局推荐）
 | error TEXT | 失败原因（截断） |
 | created_at / finished_at | 开始 / 结束时间 |
 
+### 3.6 `email_deliveries` Email 送达记录（M4-05）
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | 送达记录 id（UUID hex） |
+| recipient TEXT | 收件人（多个逗号分隔；接口输出时脱敏） |
+| kind TEXT | `digest`（每日摘要）/ `test`（连通性测试） |
+| status TEXT | `sent` / `failed` |
+| item_count INTEGER | 摘要包含的推荐条数（测试邮件为 0） |
+| subject TEXT | 邮件主题 |
+| message_id TEXT | SMTP Message-ID |
+| dedupe_key TEXT | 幂等键：`email:digest:<日期>:<排序后的收件人>` |
+| error TEXT | 失败原因（已替换密码 / 用户名，截断 300 字符） |
+| created_at / finished_at | 创建 / 完成时间 |
+
 ## 4. 索引策略
 
 | 表 | 索引 | 用途 |
@@ -125,6 +140,7 @@ recommendations              （user_id 可空 = 全局推荐）
 | sessions | `(user_id)`、`(expires_at)` | 会话校验与清理 |
 | repo_tags | `(repo_id)`、`(tag_id)` | 反查 |
 | recommendations | `(user_id, score DESC)`、`(evaluation_run_id)` | 推荐列表 / 评估批次查询 |
+| email_deliveries | `(dedupe_key, status)` | 每日摘要幂等校验 / 送达排查 |
 
 ## 5. 向量数据（M3）
 

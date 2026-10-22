@@ -26,6 +26,7 @@ from app.tasks.jobs import (
     daily_push,
     evaluate_recommendations,
     generate_recommendations,
+    send_email_digest,
     sync_repositories,
     vectorize_repositories,
 )
@@ -120,6 +121,22 @@ async def enqueue_evaluate_recommendations(
 )
 async def enqueue_daily_push() -> TaskEnqueued:
     task = daily_push.delay()
+    return TaskEnqueued(taskId=task.id)
+
+
+@router.post(
+    "/send-email-digest",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=TaskEnqueued,
+    dependencies=[Depends(require_internal_token)],
+    summary="入队：Email 每日精选推送",
+)
+async def enqueue_send_email_digest(
+    user_id: str | None = Query(default=None),
+    limit: int | None = Query(default=None, ge=1, le=50),
+    force: bool = Query(default=False),
+) -> TaskEnqueued:
+    task = send_email_digest.delay(user_id=user_id, limit=limit, force=force)
     return TaskEnqueued(taskId=task.id)
 
 

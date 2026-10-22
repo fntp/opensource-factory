@@ -100,6 +100,19 @@
 - **默认处理**：A；全部参数已配置化（`.env` 的 `EVAL_*`），调参无需改代码，
   重跑 `POST /api/tasks/evaluate-recommendations` 即可按新阈值回补。
 
+## Q15. Email 通道的 SMTP 服务商与发件人配置（REQ-202610-0934 新增）
+
+- **背景**：M4-05 已实现 SMTP 投递、送达记录与测试接口，但服务商、发件人域名、
+  端口 / TLS 组合属于部署环境信息，仓库只提供 `.env.example` 占位符；
+- **选项**：
+  - A. 使用现有邮箱服务商的 SMTP（如企业邮箱 / 自建 Postfix）：587 + STARTTLS（**推荐**），
+    按服务商要求配置 `EMAIL_SMTP_USERNAME` / `EMAIL_SMTP_PASSWORD` 与 SPF / DKIM；
+  - B. 使用 465 隐式 SSL：`EMAIL_SSL=true`、`EMAIL_STARTTLS=false`；
+  - C. 匿名中继（仅内网 / 本机）：留空用户名密码，并限制监听来源；
+- **默认处理**：A；上线前用 `POST /api/notifications/email/test` 验证连通性，
+  确认 `GET /api/notifications/email/status` 的 `configured=true` 且 `lastDelivery.status=sent`。
+  发件人域名与退订地址需由维护者按服务商政策确认。
+
 ---
 
 > 处理约定：人工确认任一问题后，更新本文件状态并在 `docs/planning/task-planning.md` 记录。
