@@ -26,6 +26,9 @@ venv/
 *.db
 *.sqlite3
 **/data/
+# 导航数据是源码而非运行时数据（曾被上面的规则误伤导致构建失败）
+!admin/src/components/layout/data/
+!admin/src/components/layout/data/**
 
 # ── 测试产物 ──────────────────────────────────────────
 coverage/

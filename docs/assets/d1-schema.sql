@@ -100,10 +100,40 @@ CREATE TABLE recommendations (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- ── 热榜按日快照（REQ-202610-0913 / M2-05）──────────────────────
+-- 同一仓库同一天只有一行；趋势字段对比上一有效快照计算。
+CREATE TABLE IF NOT EXISTS trending_snapshots (
+    snapshot_date DATE NOT NULL,
+    repo_id TEXT NOT NULL,               -- owner/repo
+    platform TEXT NOT NULL DEFAULT 'github',
+    owner TEXT,
+    name TEXT NOT NULL,
+    html_url TEXT NOT NULL,
+    description TEXT,
+    language TEXT,
+    tech_stack TEXT,
+    stars INTEGER DEFAULT 0,
+    stars_today INTEGER DEFAULT 0,
+    rank INTEGER DEFAULT 0,              -- 全平台综合排名（1 起）
+    language_rank INTEGER DEFAULT 0,     -- 同语言内排名
+    star_delta INTEGER DEFAULT 0,        -- 对比上一快照的总 Star 增量
+    rank_delta INTEGER DEFAULT 0,        -- 正数=排名上升
+    appearances INTEGER DEFAULT 1,       -- 连续上榜天数
+    is_new INTEGER DEFAULT 0,
+    trend TEXT DEFAULT 'steady',         -- new / up / down / steady
+    trending_pages TEXT,                 -- JSON 数组，来源语言页
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (snapshot_date, repo_id)
+);
+
 -- ── 索引 ────────────────────────────────────────────────────────
 CREATE INDEX idx_my_repositories_user_id ON my_repositories (user_id);
 CREATE INDEX idx_my_repositories_category_id ON my_repositories (category_id);
 CREATE INDEX idx_trending_repositories_stars_today ON trending_repositories (stars_today DESC);
+CREATE INDEX idx_trending_snapshots_date_rank ON trending_snapshots (snapshot_date, rank);
+CREATE INDEX idx_trending_snapshots_repo_date ON trending_snapshots (repo_id, snapshot_date);
+CREATE INDEX idx_trending_snapshots_date_language ON trending_snapshots (snapshot_date, language);
 CREATE INDEX idx_sessions_user_id ON sessions (user_id);
 CREATE INDEX idx_sessions_expires_at ON sessions (expires_at);
 CREATE INDEX idx_recommendations_user_id ON recommendations (user_id);

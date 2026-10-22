@@ -74,6 +74,29 @@ export interface TrendingRow {
   stars: number | null;
 }
 
+/** 热榜按日快照（M2-05） */
+export interface TrendingSnapshotRow {
+  snapshot_date: string;
+  repo_id: string;
+  platform: string;
+  owner: string | null;
+  name: string;
+  html_url: string;
+  description: string | null;
+  language: string | null;
+  tech_stack: string | null;
+  stars: number | null;
+  stars_today: number | null;
+  rank: number | null;
+  language_rank: number | null;
+  star_delta: number | null;
+  rank_delta: number | null;
+  appearances: number | null;
+  is_new: number | null;
+  trend: string | null;
+  trending_pages: string | null;
+}
+
 export interface RecommendationRow {
   id: string;
   user_id: string | null;
@@ -142,6 +165,20 @@ export interface TrendingRepo {
   stars: number;
   starsToday: number;
   url: string;
+  /** 快照日期（YYYY-MM-DD）；兼容旧数据时取 crawled_at */
+  snapshotDate: string | null;
+  /** 当日排名（从 1 开始） */
+  rank: number;
+  /** 相对上一快照日的排名变化（正数 = 上升，null = 新上榜） */
+  rankChange: number | null;
+  /** 趋势类型（steady 统一映射为 same） */
+  trend: 'up' | 'down' | 'new' | 'same';
+  /** M2-05 扩展字段（详情页 / 历史趋势备用） */
+  languageRank?: number;
+  starDelta?: number;
+  rankDelta?: number;
+  appearances?: number;
+  isNew?: boolean;
 }
 
 /** GET /api/recommendations 列表项 */

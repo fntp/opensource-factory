@@ -49,7 +49,42 @@ class TrendingRepository(Base):
     stars_today: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=0)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     tech_stack: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # 自动提取的技术栈描述
+    owner: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)  # owner（与 D1 扩展列对齐）
+    language: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)  # 主语言
+    stars: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 总 Star
     crawled_at: Mapped[date] = mapped_column(Date, nullable=False, default=date.today)
+
+
+class TrendingSnapshot(Base):
+    """热榜按日快照（M2-05）。
+
+    同一仓库同一天只有一行：主键 `(snapshot_date, repo_id)` 保证重复抓取幂等；
+    `star_delta` / `rank_delta` / `appearances` / `trend` 为对比上一有效快照的趋势字段。
+    """
+
+    __tablename__ = "trending_snapshots"
+
+    snapshot_date: Mapped[date] = mapped_column(Date, primary_key=True)
+    repo_id: Mapped[str] = mapped_column(String(255), primary_key=True)  # owner/repo
+    platform: Mapped[str] = mapped_column(String(32), nullable=False, default="github")
+    owner: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    html_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    language: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    tech_stack: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    stars: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stars_today: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    rank: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 全平台综合排名（1 起）
+    language_rank: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 同语言内排名
+    star_delta: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 对比上一快照的总 Star 增量
+    rank_delta: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 正数=排名上升
+    appearances: Mapped[int] = mapped_column(Integer, nullable=False, default=1)  # 连续上榜天数
+    is_new: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 1=首次上榜
+    trend: Mapped[str] = mapped_column(String(16), nullable=False, default="steady")  # new/up/down/steady
+    trending_pages: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON 数组，来源语言页
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
 
 
 class Category(Base):
