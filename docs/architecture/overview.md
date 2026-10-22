@@ -667,6 +667,30 @@ admin /star-trends → GET /api/star-trends?days=30&scope=trending|my&language=�
 `scope=my` 返回 `portfolioRepos` / `coverage`，明确只统计收藏仓库中上过热榜的项目。
 只读聚合，不新增表 / 迁移，也不依赖 VPS。
 
+### 3.34 Telegram Bot 查询入口（M8-03）
+
+```
+Telegram 用户发送 /favorites、/recommend、/trending
+→ POST https://<edge>/api/telegram/webhook
+   ↳ 校验 X-Telegram-Bot-Api-Secret-Token（未配置 / 不匹配直接 503 / 401）
+   ↳ 解析命令与参数（支持 @BotName 后缀与中文别名）
+   ↳ chat_id → telegram_links.user_id（未绑定只返回绑定指引）
+   ↳ 按命令查询 D1：my_repositories（收藏 + 关键词）/ recommendations（status=new）
+      / trending_snapshots（最新日期，无快照回退 trending_repositories）
+→ 纯函数拼装中文 HTML 消息（动态内容全部转义，超长按行分片）
+→ 调 Bot API sendMessage 回复
+
+admin 设置 → 通知设置 → Telegram 查询 Bot
+→ POST /api/telegram/link-code 生成 6 位绑定码（10 分钟、只存 sha-256）
+→ Telegram 发送 /link <code> → 写入 telegram_links（一人一聊）
+```
+
+- 与 M4-04 每日推送共用同一个 Bot：VPS 负责主动推送，edge 负责接收命令，互不冲突；
+- 仅支持私聊；群组 / 频道多人共用 chat_id，会统一提示私聊，避免暴露个人数据；
+- webhook 不参与 IP 限流（Telegram 出口 IP 共享），由 secret token 鉴权；
+- 所有查询 SQL 都带 `user_id`，未绑定会话不会读到任何用户数据；
+- 绑定码一次性使用，绑定成功 / 过期后即删除；重新绑定会替换该用户旧会话。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -712,6 +736,10 @@ admin /star-trends → GET /api/star-trends?days=30&scope=trending|my&language=�
 | `/api/repo-updates/scan` | POST | 触发 VPS 扫描当前用户收藏（202） |
 | `/api/push-preferences` | GET | 当前用户推送偏好（未保存时返回默认值） |
 | `/api/push-preferences` | PUT | 保存推送偏好（时间 / 时区 / 阈值 / 通道开关） |
+| `/api/telegram/status` | GET | Telegram Bot 配置 / 绑定状态（chat id 脱敏、命令清单；需登录） |
+| `/api/telegram/link-code` | POST | 生成 6 位绑定码（10 分钟有效；只存 sha-256 摘要） |
+| `/api/telegram/link` | DELETE | 解绑当前用户的 Telegram 会话 |
+| `/api/telegram/webhook` | POST | Telegram Bot 更新入口（`X-Telegram-Bot-Api-Secret-Token` 鉴权；不参与 IP 限流） |
 | `/api/sync` | POST | 触发同步任务（202） |
 | `/api/search/semantic` | POST | 语义搜索（`query` / `topK` / `scope`；vectorize → local → keyword 三级降级） |
 | `/api/tech-stack` | GET | 技术栈图谱（登录态；语言 / 框架聚合 + 语言 × 框架关系图，Top 8 × 16） |

@@ -42,9 +42,15 @@ RATE_LIMIT_AUTH_PER_MINUTE = "10"
 LOGIN_MAX_FAILURES = "10"
 LOGIN_FAILURE_WINDOW_SECONDS = "900"
 LOGIN_LOCKOUT_SECONDS = "900"
+# Telegram Bot（M8-03）：可选，用于生成 t.me 深链；留空时只返回 /link 命令
+TELEGRAM_BOT_USERNAME = ""
+# Telegram Bot API 根地址，可指向自建反代；默认 https://api.telegram.org
+TELEGRAM_API_BASE = "https://api.telegram.org"
 
 # ── 机密（不要写进本文件！用 wrangler secret put 设置）──────────
 #   npx wrangler secret put GITHUB_CLIENT_SECRET   # GitHub OAuth App 的 Client Secret
 #   npx wrangler secret put SESSION_SECRET          # 会话/状态签名用随机字符串
 #   npx wrangler secret put INTERNAL_TOKEN          # 可选：边缘 → VPS 节点内部调用令牌（当前）
 #   npx wrangler secret put INTERNAL_TOKEN_PREVIOUS # 可选：轮换过渡期接受的上一枚令牌
+#   npx wrangler secret put TELEGRAM_BOT_TOKEN      # M8-03：BotFather Token（可与 M4-04 推送复用）
+#   npx wrangler secret put TELEGRAM_WEBHOOK_SECRET # M8-03：setWebhook 的 secret_token，必须与 Telegram 侧一致

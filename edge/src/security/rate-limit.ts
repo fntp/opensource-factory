@@ -5,7 +5,8 @@
  * - 已登录用户按 user id 计数，匿名请求按 IP 计数；
  * - 只保存 sha-256(scope:identity)，不落明文 IP；
  * - auth / write / read 三类桶分别限额；
- * - 内部接口（/api/internal/*）由 X-Internal-Token 保护，不做 IP 限流，避免批量任务被误伤。
+ * - 内部接口（/api/internal/*）由 X-Internal-Token 保护，不做 IP 限流，避免批量任务被误伤；
+ * - Telegram webhook 由 secret token 鉴权，且 Telegram 出口 IP 共享，不做 IP 限流。
  *
  * D1 不可用时 fail-open（放行并记录日志），优先保证业务可用性。
  */
@@ -81,6 +82,7 @@ export function policyFor(
   if (!settings.enabled) return null;
   if (!pathname.startsWith('/api/')) return null;
   if (pathname.startsWith('/api/internal/')) return null;
+  if (pathname === '/api/telegram/webhook') return null;
 
   if (pathname.startsWith('/api/auth/')) {
     return { scope: 'auth', limit: settings.authPerMinute, windowSeconds: settings.windowSeconds };
