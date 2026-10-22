@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import date
 from typing import Any
 
@@ -22,15 +23,26 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db
 from app.local_ui import resolve_admin_dir
-from app.models import Category, MyRepository, Recommendation, TrendingRepository
+from app.models import (
+    Category,
+    MyRepository,
+    Recommendation,
+    TrendingRepository,
+    TrendingSnapshot,
+)
 from app.schemas import (
     LocalAuthUser,
     LocalCategoriesPayload,
     LocalCategoryItem,
     LocalDashboardStats,
     LocalRecommendation,
+    LocalRecommendationStats,
     LocalRepoItem,
     LocalStatus,
+    LocalTrendingDates,
+    LocalTrendingDetail,
+    LocalTrendingLanguageItem,
+    LocalTrendingLanguages,
     LocalTrendingRepo,
 )
 
@@ -118,6 +130,7 @@ def list_repos(
             id=row.id,
             fullName=row.id,
             description=row.description or row.readme_summary,
+            summary=row.readme_summary,
             language=row.language,
             stars=row.stars or 0,
             forks=0,
@@ -130,33 +143,223 @@ def list_repos(
     ]
 
 
+def _trend_value(raw: str | None, is_new: int = 0) -> str:
+    """快照趋势值 → admin 契约（up / down / new / same）。"""
+    if is_new:
+        return "new"
+    return {"up": "up", "down": "down", "new": "new", "steady": "same", "same": "same"}.get(
+        (raw or "").lower(), "same"
+    )
+
+
+def _snapshot_item(row: TrendingSnapshot) -> LocalTrendingRepo:
+    owner, name = _split_repo_id(row.repo_id)
+    return LocalTrendingRepo(
+        id=row.repo_id,
+        owner=row.owner or owner,
+        name=row.name or name,
+        description=row.description,
+        language=row.language,
+        stars=row.stars or 0,
+        starsToday=row.stars_today or 0,
+        url=row.html_url,
+        snapshotDate=row.snapshot_date.isoformat(),
+        rank=row.rank or 0,
+        rankChange=None if row.is_new else (row.rank_delta or 0),
+        trend=_trend_value(row.trend, row.is_new),
+    )
+
+
+def _latest_snapshot_date(db: Session) -> date | None:
+    return db.execute(select(func.max(TrendingSnapshot.snapshot_date))).scalar_one_or_none()
+
+
+def _parse_tech_stack(raw: str | None) -> list[str]:
+    """技术栈字段可能是 JSON 数组或逗号 / 顿号分隔文本。"""
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        parsed = None
+    if isinstance(parsed, list):
+        return [str(item).strip() for item in parsed if str(item).strip()]
+    return [item.strip() for item in re.split(r"[,，、/|]", raw) if item.strip()]
+
+
 @router.get("/trending", response_model=list[LocalTrendingRepo], summary="热榜列表")
 def list_trending(
     db: Session = Depends(get_db),
+    date_str: str | None = Query(default=None, alias="date", description="快照日期 YYYY-MM-DD"),
+    language: str | None = Query(default=None, description="按语言过滤"),
     limit: int = Query(default=20, ge=1, le=100),
 ) -> list[LocalTrendingRepo]:
-    stmt = (
-        select(TrendingRepository)
-        .order_by(TrendingRepository.stars_today.desc(), TrendingRepository.stars.desc())
-        .limit(limit)
+    if date_str:
+        try:
+            snapshot_date = date.fromisoformat(date_str)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail="invalid_date") from exc
+        stmt = select(TrendingSnapshot).where(TrendingSnapshot.snapshot_date == snapshot_date)
+        if language:
+            stmt = stmt.where(TrendingSnapshot.language == language)
+        rows = list(db.execute(stmt.order_by(TrendingSnapshot.rank.asc()).limit(limit)).scalars())
+        return [_snapshot_item(row) for row in rows]
+
+    stmt = select(TrendingRepository)
+    if language:
+        stmt = stmt.where(TrendingRepository.language == language)
+    rows = list(
+        db.execute(
+            stmt.order_by(TrendingRepository.stars_today.desc(), TrendingRepository.stars.desc()).limit(limit)
+        ).scalars()
     )
-    rows = list(db.execute(stmt).scalars().all())
     items: list[LocalTrendingRepo] = []
-    for row in rows:
-        owner = row.owner or _split_repo_id(row.id)[0]
+    for index, row in enumerate(rows, start=1):
+        owner, name = _split_repo_id(row.id)
         items.append(
             LocalTrendingRepo(
                 id=row.id,
-                owner=owner,
-                name=row.name,
+                owner=row.owner or owner,
+                name=row.name or name,
                 description=row.description,
                 language=row.language,
                 stars=row.stars or 0,
                 starsToday=row.stars_today or 0,
                 url=row.html_url,
+                snapshotDate=row.crawled_at.isoformat() if row.crawled_at else None,
+                rank=index,
+                rankChange=None,
+                trend="same",
             )
         )
     return items
+
+
+@router.get("/trending/dates", response_model=LocalTrendingDates, summary="热榜可用日期")
+def trending_dates(db: Session = Depends(get_db)) -> LocalTrendingDates:
+    dates = [
+        item.isoformat()
+        for item in db.execute(
+            select(TrendingSnapshot.snapshot_date)
+            .distinct()
+            .order_by(TrendingSnapshot.snapshot_date.desc())
+            .limit(30)
+        ).scalars()
+    ]
+    if not dates:
+        dates = [
+            item.isoformat()
+            for item in db.execute(
+                select(TrendingRepository.crawled_at)
+                .distinct()
+                .order_by(TrendingRepository.crawled_at.desc())
+                .limit(30)
+            ).scalars()
+            if item is not None
+        ]
+    return LocalTrendingDates(dates=dates, latest=dates[0] if dates else None)
+
+
+@router.get("/trending/languages", response_model=LocalTrendingLanguages, summary="热榜语言分布")
+def trending_languages(
+    db: Session = Depends(get_db),
+    date_str: str | None = Query(default=None, alias="date"),
+) -> LocalTrendingLanguages:
+    snapshot_date: date | None = None
+    if date_str:
+        try:
+            snapshot_date = date.fromisoformat(date_str)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail="invalid_date") from exc
+    else:
+        snapshot_date = _latest_snapshot_date(db)
+
+    if snapshot_date is not None:
+        rows = db.execute(
+            select(TrendingSnapshot.language, func.count(TrendingSnapshot.repo_id))
+            .where(TrendingSnapshot.snapshot_date == snapshot_date)
+            .group_by(TrendingSnapshot.language)
+            .order_by(func.count(TrendingSnapshot.repo_id).desc())
+        ).all()
+        resolved = snapshot_date
+    else:
+        rows = db.execute(
+            select(TrendingRepository.language, func.count(TrendingRepository.id))
+            .group_by(TrendingRepository.language)
+            .order_by(func.count(TrendingRepository.id).desc())
+        ).all()
+        resolved = None
+    return LocalTrendingLanguages(
+        date=resolved.isoformat() if resolved else None,
+        languages=[
+            LocalTrendingLanguageItem(language=language or "未知", count=int(count))
+            for language, count in rows
+        ],
+    )
+
+
+@router.get("/trending/{owner}/{name}", response_model=LocalTrendingDetail, summary="热榜详情")
+def trending_detail(owner: str, name: str, db: Session = Depends(get_db)) -> LocalTrendingDetail:
+    repo_id = f"{owner}/{name}"
+    row = db.get(TrendingRepository, repo_id)
+    snapshot_date = _latest_snapshot_date(db)
+    snapshot = (
+        db.execute(
+            select(TrendingSnapshot).where(
+                TrendingSnapshot.snapshot_date == snapshot_date,
+                TrendingSnapshot.repo_id == repo_id,
+            )
+        ).scalar_one_or_none()
+        if snapshot_date
+        else None
+    )
+    if row is None and snapshot is None:
+        raise HTTPException(status_code=404, detail="not_found")
+
+    if row is not None:
+        base = LocalTrendingRepo(
+            id=row.id,
+            owner=row.owner or owner,
+            name=row.name or name,
+            description=row.description,
+            language=row.language,
+            stars=row.stars or 0,
+            starsToday=row.stars_today or 0,
+            url=row.html_url,
+            snapshotDate=row.crawled_at.isoformat() if row.crawled_at else None,
+            rank=snapshot.rank if snapshot else 0,
+            rankChange=None if snapshot is None or snapshot.is_new else (snapshot.rank_delta or 0),
+            trend=_trend_value(snapshot.trend, snapshot.is_new) if snapshot else "same",
+        )
+        platform = row.platform
+        tech_stack = _parse_tech_stack(row.tech_stack)
+        summary = row.readme_summary
+        crawled_at = row.crawled_at.isoformat() if row.crawled_at else None
+    else:
+        assert snapshot is not None
+        base = _snapshot_item(snapshot)
+        platform = snapshot.platform
+        tech_stack = _parse_tech_stack(snapshot.tech_stack)
+        summary = None
+        crawled_at = snapshot.snapshot_date.isoformat()
+
+    if summary:
+        summary_source = "readme"
+    elif base.description:
+        summary_source = "description"
+    elif tech_stack:
+        summary_source = "tech"
+    else:
+        summary_source = "empty"
+    return LocalTrendingDetail(
+        **base.model_dump(),
+        platform=platform,
+        techStack=tech_stack,
+        summary=summary,
+        summarySource=summary_source,
+        crawledAt=crawled_at,
+        isFavorited=db.get(MyRepository, repo_id) is not None,
+    )
 
 
 @router.get(
@@ -218,6 +421,7 @@ def list_recommendations(
         items.append(
             LocalRecommendation(
                 id=row.id,
+                repoId=row.repo_id,
                 owner=owner or None,
                 name=name or None,
                 description=description,
@@ -227,9 +431,34 @@ def list_recommendations(
                 reason=row.reason,
                 basedOn=_parse_based_on(row.based_on),
                 url=url,
+                status=row.status or "new",
+                createdAt=_iso(row.created_at),
             )
         )
     return items
+
+
+@router.get(
+    "/recommendations/stats",
+    response_model=LocalRecommendationStats,
+    summary="推荐状态统计",
+)
+def recommendation_stats(db: Session = Depends(get_db)) -> LocalRecommendationStats:
+    counts = {
+        str(status): int(count)
+        for status, count in db.execute(
+            select(Recommendation.status, func.count(Recommendation.id)).group_by(
+                Recommendation.status
+            )
+        ).all()
+    }
+    return LocalRecommendationStats(
+        new=counts.get("new", 0),
+        saved=counts.get("saved", 0),
+        dismissed=counts.get("dismissed", 0),
+        pushed=counts.get("pushed", 0),
+        clicked=0,
+    )
 
 
 @router.get("/categories", response_model=LocalCategoriesPayload, summary="分类 + 标签")

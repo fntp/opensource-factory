@@ -40,7 +40,7 @@
 
 | 文件 | 内容 |
 | --- | --- |
-| `vps/app/api/local.py` | edge 兼容只读 API：auth/me、repos、trending、recommendations、categories、dashboard/stats、local/status |
+| `vps/app/api/local.py` | edge 兼容只读 API：auth/me、repos、trending（列表 / 日期 / 语言 / 详情）、recommendations（列表 / 统计）、categories、dashboard/stats、local/status |
 | `vps/app/local_ui.py` | admin 静态托管与 SPA 回退（路径穿越防护、缺失构建提示） |
 | `vps/app/config.py` | `LOCAL_MODE` / `LOCAL_USER_*` / `LOCAL_ADMIN_DIR` |
 | `vps/app/main.py` | 按 `LOCAL_MODE` 挂载 `/local` 路由与静态站点 |
@@ -65,7 +65,7 @@
 
 | 层 | 用例 |
 | --- | --- |
-| 本地 API | TestClient 覆盖 6 个读接口的 JSON 契约、`q` / `categoryId` / `limit` 过滤、空库返回 |
+| 本地 API | TestClient 覆盖核心读接口的 JSON 契约、`q` / `categoryId` / `date` / `limit` 过滤、空库返回 |
 | 开关 | `LOCAL_MODE=false` 时 `/local/api/*` 返回 404；`true` 时 `/local/api/local/status` 正常 |
 | 静态托管 | 临时目录放 `index.html` + 资源文件，校验根路径、资源与 SPA 回退；缺失目录返回 503 提示 |
 | 部署资产 | `test_deploy_assets.py` 校验两份 env 模板覆盖全部 `Settings` 字段；脚本 `bash -n` |

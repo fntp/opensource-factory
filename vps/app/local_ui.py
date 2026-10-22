@@ -64,10 +64,10 @@ def mount_local_ui(app: FastAPI) -> None:
             return FileResponse(target)
         return FileResponse(admin_dir / "index.html")
 
-    @app.get("/", include_in_schema=False)
+    @app.get("/", include_in_schema=False, response_model=None)
     def local_index() -> FileResponse | JSONResponse:
         return _serve("")
 
-    @app.get("/{full_path:path}", include_in_schema=False)
+    @app.get("/{full_path:path}", include_in_schema=False, response_model=None)
     def local_spa(full_path: str) -> FileResponse | JSONResponse:
         return _serve(full_path)

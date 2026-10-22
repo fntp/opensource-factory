@@ -599,6 +599,7 @@ class LocalRepoItem(BaseModel):
     id: str
     fullName: str
     description: Optional[str] = None
+    summary: Optional[str] = None
     language: Optional[str] = None
     stars: int = 0
     forks: int = 0
@@ -619,12 +620,50 @@ class LocalTrendingRepo(BaseModel):
     stars: int = 0
     starsToday: int = 0
     url: str = ""
+    # 快照字段：无快照时给安全默认值，保证 admin 页面可直接渲染
+    snapshotDate: Optional[str] = None
+    rank: int = 0
+    rankChange: Optional[int] = None
+    trend: str = "same"
+
+
+class LocalTrendingDetail(LocalTrendingRepo):
+    """`GET /local/api/trending/{owner}/{name}` 详情。"""
+
+    platform: str = "github"
+    techStack: list[str] = Field(default_factory=list)
+    summary: Optional[str] = None
+    summarySource: str = "empty"
+    crawledAt: Optional[str] = None
+    isFavorited: bool = False
+
+
+class LocalTrendingDates(BaseModel):
+    """`GET /local/api/trending/dates` 可用快照日期。"""
+
+    dates: list[str] = Field(default_factory=list)
+    latest: Optional[str] = None
+
+
+class LocalTrendingLanguageItem(BaseModel):
+    """热榜语言分布项。"""
+
+    language: str
+    count: int = 0
+
+
+class LocalTrendingLanguages(BaseModel):
+    """`GET /local/api/trending/languages` 响应。"""
+
+    date: Optional[str] = None
+    languages: list[LocalTrendingLanguageItem] = Field(default_factory=list)
 
 
 class LocalRecommendation(BaseModel):
     """`GET /local/api/recommendations` 列表项（与 edge Recommendation 对齐）。"""
 
     id: str
+    repoId: str = ""
     owner: Optional[str] = None
     name: Optional[str] = None
     description: Optional[str] = None
@@ -634,6 +673,18 @@ class LocalRecommendation(BaseModel):
     reason: Optional[str] = None
     basedOn: list[str] = Field(default_factory=list)
     url: Optional[str] = None
+    status: str = "new"
+    createdAt: Optional[str] = None
+
+
+class LocalRecommendationStats(BaseModel):
+    """`GET /local/api/recommendations/stats` 各状态数量。"""
+
+    new: int = 0
+    saved: int = 0
+    dismissed: int = 0
+    pushed: int = 0
+    clicked: int = 0
 
 
 class LocalCategoryItem(BaseModel):

@@ -13,7 +13,13 @@ from fastapi.testclient import TestClient
 
 from app.db import SessionLocal, init_db
 from app.main import app
-from app.models import Category, MyRepository, Recommendation, TrendingRepository
+from app.models import (
+    Category,
+    MyRepository,
+    Recommendation,
+    TrendingRepository,
+    TrendingSnapshot,
+)
 
 
 @pytest.fixture()
@@ -22,7 +28,13 @@ def db():
     init_db()
     session = SessionLocal()
     try:
-        for model in (Recommendation, TrendingRepository, MyRepository, Category):
+        for model in (
+            Recommendation,
+            TrendingSnapshot,
+            TrendingRepository,
+            MyRepository,
+            Category,
+        ):
             session.query(model).delete()
         session.commit()
         yield session
@@ -135,11 +147,34 @@ def test_trending_and_recommendations_contract(db) -> None:
             status="new",
         )
     )
+    db.add(
+        TrendingSnapshot(
+            snapshot_date=date.today(),
+            repo_id="hot/project",
+            owner="hot",
+            name="project",
+            html_url="https://github.com/hot/project",
+            description="今日热门",
+            language="Go",
+            stars=900,
+            stars_today=88,
+            rank=1,
+            rank_delta=3,
+            trend="up",
+            is_new=0,
+        )
+    )
     db.commit()
 
     with TestClient(app) as client:
         trending = client.get("/local/api/trending", params={"limit": 10}).json()
+        by_date = client.get("/local/api/trending", params={"date": date.today().isoformat()}).json()
+        dates = client.get("/local/api/trending/dates").json()
+        languages = client.get("/local/api/trending/languages").json()
+        detail = client.get("/local/api/trending/hot/project").json()
+        missing_detail = client.get("/local/api/trending/none/nope")
         recommendations = client.get("/local/api/recommendations").json()
+        stats = client.get("/local/api/recommendations/stats").json()
 
     assert trending[0]["id"] == "hot/project"
     assert trending[0]["owner"] == "hot"
@@ -147,9 +182,28 @@ def test_trending_and_recommendations_contract(db) -> None:
     assert trending[0]["stars"] == 900
     assert trending[0]["language"] == "Go"
 
+    assert [row["id"] for row in by_date] == ["hot/project"]
+    assert by_date[0]["snapshotDate"] == date.today().isoformat()
+    assert by_date[0]["rank"] == 1
+    assert by_date[0]["rankChange"] == 3
+    assert by_date[0]["trend"] == "up"
+
+    assert dates == {"dates": [date.today().isoformat()], "latest": date.today().isoformat()}
+    assert languages["date"] == date.today().isoformat()
+    assert languages["languages"] == [{"language": "Go", "count": 1}]
+
+    assert detail["id"] == "hot/project"
+    assert detail["platform"] == "github"
+    assert detail["rank"] == 1
+    assert detail["trend"] == "up"
+    assert detail["summarySource"] == "description"
+    assert detail["isFavorited"] is False
+    assert missing_detail.status_code == 404
+
     assert len(recommendations) == 1
     rec = recommendations[0]
     assert rec["id"] == "rec-1"
+    assert rec["repoId"] == "acme/pay"
     assert rec["owner"] == "acme"
     assert rec["name"] == "pay"
     assert rec["description"] == "支付网关"
@@ -157,6 +211,10 @@ def test_trending_and_recommendations_contract(db) -> None:
     assert rec["score"] == pytest.approx(0.91)
     assert rec["basedOn"] == ["stars", "language"]
     assert rec["url"] == "https://github.com/acme/pay"
+    assert rec["status"] == "new"
+    assert rec["createdAt"]
+
+    assert stats == {"new": 1, "saved": 0, "dismissed": 0, "pushed": 0, "clicked": 0}
 
 
 def test_categories_and_dashboard_stats(db) -> None:

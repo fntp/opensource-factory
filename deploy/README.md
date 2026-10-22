@@ -1,6 +1,6 @@
 # 部署基线（`deploy/`）
 
-> 对应需求：REQ-202610-0893（backlog M1-01 / IT-0003）｜ 维护人：fntp
+> 对应需求：REQ-202610-0893（backlog M1-01 / IT-0003）、REQ-202610-0940（M5-02）｜ 维护人：fntp
 
 本目录把「本机运行」固化为可复现的基线：运行目录、Redis、systemd 进程管理与环境模板。
 完整说明见 [docs/guides/deployment-baseline.md](../docs/guides/deployment-baseline.md)。
@@ -78,3 +78,20 @@ journalctl -u openfactory-api -f         # 查看进程日志
 - Redis 仅监听回环地址，禁止暴露公网；
 - `CORS_ORIGINS` 生产环境禁止使用 `*`；
 - 单元默认以专用系统用户 `openfactory` 运行，启用 `NoNewPrivileges` / `ProtectSystem=full`。
+
+## 7. 本机一体化模式（可选）
+
+`local-allinone.sh` 提供离线自托管开关：开启后 `openfactory-api` 同进程托管 admin 构建产物
+与 `/local/api/*` 只读接口，不依赖 Cloudflare；默认关闭，混合架构不受影响。
+
+```bash
+deploy/scripts/local-allinone.sh build    # 构建 admin（VITE_API_BASE_URL=/local）并复制到运行目录
+sudo deploy/scripts/local-allinone.sh enable
+deploy/scripts/local-allinone.sh status
+deploy/scripts/local-allinone.sh verify   # 离线冒烟
+sudo deploy/scripts/local-allinone.sh disable  # 回滚到混合架构
+```
+
+配置项：`LOCAL_MODE` / `LOCAL_USER_ID` / `LOCAL_USER_LOGIN` / `LOCAL_USER_NAME` /
+`LOCAL_ADMIN_DIR`。安全边界、资源占用与验收清单见
+[docs/guides/local-allinone-deployment.md](../docs/guides/local-allinone-deployment.md)。
