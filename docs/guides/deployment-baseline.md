@@ -129,8 +129,15 @@ deploy/scripts/doctor.sh --services
 | `env_keys` | 与 `Settings` 字段一致，无缺失 |
 | `env_placeholders` | 无 `CHANGE_ME` / `REPLACE_WITH` / `<your` 残留 |
 | `internal_token` | 长度 ≥ 16（bootstrap 生成 64 位） |
+| `model_budget` | 已登记的模型峰值驻留 ≤ `MODEL_BUDGET_MB`（未识别模型跳过） |
 | `data_writable` | `data/` 可写 |
 | `redis`（`--services`） | `REDIS_URL` 的 host:port 可连接 |
+
+模型预算可单独复核（`--probe` 会读取本机 Ollama `/api/ps`）：
+
+```bash
+cd vps && .venv/bin/python -m app.model_budget check --probe
+```
 
 验收记录（2026-10-22，本机）：
 
@@ -155,5 +162,5 @@ deploy/scripts/doctor.sh --services
 | --- | --- |
 | 安装 Redis | ✅ 2026-10-22 已通过 `bootstrap-runtime.sh --with-redis` 安装并启用 |
 | 启用服务 | `openfactory-api` / `openfactory-redis` 已启用；worker / beat 待 M1-05 后启用 |
-| Ollama / 模型 | 属 M3-01，本基线只预留地址与端口 |
+| Ollama / 模型 | M3-01 已选型（bge-m3 int8 + `qwen2.5:1.5b-instruct-q4_K_M`）；本基线预留地址与端口，模型需另行 `ollama pull` |
 | 生产域名 | 属 M1-02 / M5，`CORS_ORIGINS` 先保留 localhost 占位 |
