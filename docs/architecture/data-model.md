@@ -201,6 +201,34 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | occurrences | 累计出现次数 |
 | first_seen_at / last_seen_at / acknowledged_at | 首次 / 最近 / 确认时间 |
 
+### 3.8 `repo_dependencies` / `repo_dependency_scans` 依赖分析（M6-07，VPS 本地表）
+
+依赖明细只存在 VPS SQLite，不复制到 D1；edge 按当前用户仓库 id 查询，避免多用户依赖数据落到边缘库。
+
+`repo_dependencies`（仓库 × 依赖，一行对应一份清单里的一个依赖）：
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | `sha1(repo_id\|ecosystem\|name\|kind)` 前 16 位，重复扫描按主键覆盖 |
+| repo_id | 仓库 id（`owner/repo`），索引 |
+| ecosystem | `npm` / `pypi` / `go` / `cargo` / `maven` / `rubygems` / `composer` |
+| name | 规范化依赖名（PyPI 小写并把 `_` / `.` 归一为 `-`） |
+| version | 原始版本约束（不做语义化解析） |
+| kind | `runtime` / `dev` |
+| manifest | 来源清单文件名 |
+| updated_at | 更新时间 |
+
+`repo_dependency_scans`（每仓库一条扫描状态）：
+
+| 字段 | 说明 |
+| --- | --- |
+| repo_id TEXT PK | 仓库 id |
+| status | `ok` / `no_manifest` / `failed` |
+| manifests | 命中的清单文件（逗号分隔） |
+| dependency_count | 本次解析的依赖行数 |
+| error | 拉取 / 解析错误摘要（失败时保留旧依赖） |
+| scanned_at | 最近扫描时间 |
+
 ## 4. 索引策略
 
 | 表 | 索引 | 用途 |
@@ -214,6 +242,8 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | recommendations | `(user_id, score DESC)` | 推荐列表 |
 | crawl_alerts | `(dedupe_key)`、`(status)` | 告警去重与未确认列表 |
 | recommendation_feedback | `(user_id, recommendation_id, action)` UNIQUE、`(user_id, created_at)`、`(user_id, repo_id)` | 反馈幂等 / 回流查询 |
+| repo_dependencies | `(repo_id)`、`(ecosystem)`、`(name)`、`(repo_id, ecosystem)` | 依赖覆盖统计 / 仓库明细 |
+| repo_dependency_scans | `(repo_id)` 主键 | 扫描状态与增量跳过 |
 
 ## 5. 向量数据（M3）
 

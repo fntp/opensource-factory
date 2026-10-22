@@ -46,6 +46,7 @@ vps/
 │   │   ├── query_understanding.py # 同义词 / 技术栈词表查询理解（离线、确定性）
 │   │   ├── semantic_search.py    # 查询向量化 + repo_vectors 余弦检索 + 结果水合
 │   │   ├── similar_recommendations.py # 相似项目：种子向量近邻 + 水合（M6-02）
+│   │   ├── dependency_analysis.py # 依赖清单解析 / 扫描入库 / 技术栈关联聚合（M6-07）
 │   │   └── degradation.py        # 降级路径自检（模型缺失 / 超预算，离线可跑）
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
@@ -54,6 +55,7 @@ vps/
 │   │   ├── vector_index.py       # /api/vector-index/*（同步入队、对账、状态、运行记录）
 │   │   ├── vectors.py            # GET /api/vectors/stats、runs、单条向量
 │   │   ├── search.py             # /api/search/*（understand / embed / query / semantic / similar / status）
+│   │   ├── analysis.py           # /api/analysis/*（依赖分析聚合 / 清单扫描）
 │   │   ├── degradation.py        # GET /api/degradation/status（降级自检）
 │   │   └── tasks.py              # /api/tasks/*（与边缘 Worker 的集成契约，X-Internal-Token 鉴权）
 │   └── tasks/                # Celery 任务（薄封装，调用 services + 落库）
@@ -162,6 +164,11 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | `SEARCH_DEFAULT_TOP_K` | `10` | 语义搜索默认返回条数 |
 | `SEARCH_MAX_TOP_K` | `50` | 语义搜索单次最大返回条数 |
 | `SEARCH_MIN_SCORE` | `0.0` | 最低余弦相似度（0 表示不过滤） |
+| `DEPENDENCY_ANALYSIS_TOP` | `20` | 依赖分析聚合默认返回的热门依赖数 |
+| `DEPENDENCY_SCAN_MAX_REPOS` | `100` | 单次依赖清单扫描仓库上限 |
+| `DEPENDENCY_SCAN_TTL_HOURS` | `24` | 非强制扫描时跳过最近成功仓库的窗口 |
+| `DEPENDENCY_SCAN_TIMEOUT_SECONDS` | `15` | 单份清单拉取超时 |
+| `DEPENDENCY_MANIFEST_MAX_BYTES` | `512000` | 单份清单大小上限 |
 | `SEARCH_MAX_VECTORS` | `50000` | 本地全量余弦扫描上限，超过后依赖 Vectorize |
 | `SEARCH_QUERY_EXPANSION_ENABLED` | `true` | 是否启用查询理解（同义词 / 技术栈词表扩展） |
 | `SEARCH_QUERY_EXPANSION_MAX_TERMS` | `12` | 单次查询最多扩展词数（1~50） |
@@ -284,6 +291,8 @@ Celery beat 每日 04:37 自动增量同步、05:17 自动对账；也可通过�
 | POST | `/api/search/semantic` | 本地检索并水合完整项目信息 | `200 {items:[...],understanding}` |
 | POST | `/api/search/similar` | 相似项目向量近邻（未水合） | `200 {source,repoId,scope,count,topK,minScore,excludeSaved,model,backend,dim,scanned,seed,items:[{source,repoId,score}]}` |
 | GET | `/api/search/status` | 向量覆盖率、模型分布、最近运行与词表规模 | `200 {...}` |
+| GET | `/api/analysis/dependencies?repoIds=&top=20` | 依赖分析聚合（技术栈 / 生态 / 依赖覆盖 / 依赖 × 语言关联） | `200 {...}` |
+| POST | `/api/analysis/dependencies/refresh` | 扫描仓库依赖清单并入库（`repoIds` / `force` / `limit`） | `200 {...}` |
 | POST | `/api/recommend/eval` | 推荐质量评估与调参（`sampleSize` / `topK` / `holdoutRatio` / `negativesPerPositive` / `seed` / `userId`） | `200 {status,metrics,thresholds,weights,recommended,...}` |
 
 Vectorize 索引维护接口（同样使用 `X-Internal-Token`）：

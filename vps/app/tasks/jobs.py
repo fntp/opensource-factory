@@ -654,3 +654,22 @@ def reconcile_vector_index(
     from app.services import vector_index
 
     return vector_index.reconcile_vectors(scope=scope, repair=repair, limit=limit)
+
+
+@celery_app.task(name="app.tasks.jobs.analyze_dependencies")
+def analyze_dependencies(
+    repo_ids: Optional[list[str]] = None,
+    force: bool = False,
+    limit: int = 0,
+) -> dict[str, Any]:
+    """扫描仓库依赖清单并落库（M6-07）；失败降级为结构化返回值。"""
+    from app.services.dependency_analysis import scan_repositories
+
+    db = SessionLocal()
+    try:
+        return scan_repositories(db, repo_ids, force=force, limit=limit)
+    except Exception as exc:  # noqa: BLE001 - 任务失败不阻塞后续调度
+        logger.exception("依赖分析扫描失败")
+        return {"status": "error", "error": str(exc)[:300]}
+    finally:
+        db.close()

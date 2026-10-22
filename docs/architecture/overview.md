@@ -220,6 +220,25 @@ VPS 不可达 / 种子未向量化 / 0 命中 → edge D1 同语言 + 共享技�
 纯向量近邻复用 M3 `repo_vectors`，不新增表；`scope` 控制候选来源（`my` / `trending` / `all`），
 `excludeSaved` 可排除收藏库；`minScore` 可过滤低分近邻。
 
+### 3.13 依赖分析流（M6-07）
+
+```
+admin「依赖分析」页 GET /api/analysis/dependencies（登录态）
+→ edge 从 D1 读取当前用户仓库 id / language（最多 100 个）
+→ edge 调 VPS GET /api/analysis/dependencies?repoIds=...&top=20（X-Internal-Token）
+   ↳ VPS 聚合 repo_dependencies + repo_dependency_scans + my_repositories.language
+→ 返回 summary / techStack / ecosystems / dependencies / links / repos
+
+刷新：admin POST /api/analysis/dependencies/refresh
+→ edge 以当前用户仓库 id 调 VPS POST /api/analysis/dependencies/refresh
+→ VPS 按仓库拉取 package.json / requirements.txt / pyproject.toml / go.mod /
+   Cargo.toml / pom.xml / Gemfile / composer.json，解析后覆盖式写入
+降级：VPS 不可达 → edge buildLocalOverview 只按 D1 语言给出本地概览（mode=local）
+```
+
+依赖明细只落 VPS 本地 SQLite，不复制到 D1；扫描按 `DEPENDENCY_SCAN_TTL_HOURS`
+跳过最近成功仓库，单仓库失败保留旧依赖并标记 `failed`；每日 06:23 由 Celery beat 增量补扫。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -249,6 +268,8 @@ VPS 不可达 / 种子未向量化 / 0 命中 → edge D1 同语言 + 共享技�
 | `/api/sync` | POST | 触发同步任务（202） |
 | `/api/search/semantic` | POST | 语义搜索（`query` / `topK` / `scope`；vectorize → local → keyword 三级降级） |
 | `/api/similar` | GET | 相似项目推荐（`source=my\|trending` / `repoId` / `topK` / `scope` / `minScore` / `excludeSaved`；local → keyword 降级） |
+| `/api/analysis/dependencies` | GET | 依赖分析聚合（`?top=`；当前用户仓库 → VPS；VPS 不可达回退 D1 语言概览） |
+| `/api/analysis/dependencies/refresh` | POST | 扫描当前用户仓库依赖清单（VPS 不可达返回 `status=unavailable`） |
 
 ### 4.2 edge ↔ vps（内部 API，`X-Internal-Token`）
 
@@ -286,6 +307,8 @@ VPS 不可达 / 种子未向量化 / 0 命中 → edge D1 同语言 + 共享技�
 | `/api/search/semantic` | POST | 本地检索并水合完整项目信息 |
 | `/api/search/similar` | POST | 相似项目向量近邻（`source` / `repoId` / `topK` / `scope` / `minScore` / `excludeSaved`；返回未水合 hits） |
 | `/api/search/status` | GET | 向量覆盖率、模型分布与最近向量化运行 |
+| `/api/analysis/dependencies` | GET | 依赖分析聚合（`repoIds` 逗号分隔 / `top`；只读本地表） |
+| `/api/analysis/dependencies/refresh` | POST | 扫描依赖清单并入库（`repoIds` / `force` / `limit`） |
 | `/api/vectors/stats` | GET | 向量覆盖率与最近运行 |
 | `/api/vectors/runs/{runId}` | GET | 向量化运行详情 |
 | `/api/vectors/{source}/{repoId}` | GET | 单条仓库向量 |

@@ -43,6 +43,8 @@ edge/
     │   └── items.ts      # 搜索结果水合（语义搜索 / 相似推荐共用）
     ├── similar/
     │   └── helpers.ts    # 相似推荐参数归一化 + 关键词兜底打分（纯函数）
+    ├── dependencies/
+    │   └── helpers.ts    # 依赖分析参数归一化 + D1 语言概览降级（纯函数）
     └── routes/
         ├── auth.ts       # /api/auth/*（login / callback / me / logout）
         ├── repos.ts      # /api/repos
@@ -54,6 +56,7 @@ edge/
         ├── sync.ts       # /api/sync
         ├── search.ts     # /api/search/semantic（查询理解 + Vectorize → 本地向量 → 关键词三级降级）
         ├── similar.ts    # /api/similar（相似项目：VPS 向量近邻 → D1 关键词兜底）
+        ├── analysis.ts   # /api/analysis/*（依赖分析：用户仓库 → VPS 聚合 → 本地语言概览）
         └── internal-vectors.ts # /api/internal/vectors/*（VPS → Vectorize，X-Internal-Token）
 ```
 
@@ -178,6 +181,8 @@ npm run test:m2 -- --strict \
 | `POST /api/sync` | 202 `{"status":"queued"}`（已配置 VPS）或 `{"status":"accepted","note":"vps node not configured"}` |
 | `POST /api/search/semantic` | `SearchResponse`：body `{query, topK?, scope?}`；mode 为 `vectorize` / `local` / `keyword`；`my` 结果仅当前用户；响应可带 `understanding`（查询理解结果），关键词兜底用其扩展词做多词 OR LIKE |
 | `GET /api/similar` | `SimilarResponse`：query `source=my\|trending` / `repoId` / `topK` / `scope` / `minScore` / `excludeSaved`；mode 为 `local`（VPS 向量近邻）/ `keyword`（D1 同语言 + 技术栈兜底）；`source=my` 需登录且只返回当前用户仓库 |
+| `GET /api/analysis/dependencies` | 依赖分析：query `top`；按当前用户仓库 id 调 VPS 聚合，mode 为 `vps` / `local`（D1 语言概览降级）；需登录 |
+| `POST /api/analysis/dependencies/refresh` | 扫描当前用户仓库依赖清单；VPS 不可达返回 `{status:"unavailable"}`，需登录 |
 | `GET /healthz` | `{"status":"ok"}` |
 
 JSON 形状（前端契约，勿改字段名）：

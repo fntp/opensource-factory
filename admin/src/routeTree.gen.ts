@@ -19,6 +19,7 @@ import { Route as errors503RouteImport } from './routes/(errors)/503'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings/route'
 import { Route as AuthenticatedCategoriesIndexRouteImport } from './routes/_authenticated/categories/index'
+import { Route as AuthenticatedDependenciesIndexRouteImport } from './routes/_authenticated/dependencies/index'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
 import { Route as AuthenticatedRecommendIndexRouteImport } from './routes/_authenticated/recommend/index'
 import { Route as AuthenticatedReposIndexRouteImport } from './routes/_authenticated/repos/index'
@@ -80,6 +81,12 @@ const AuthenticatedCategoriesIndexRoute =
   AuthenticatedCategoriesIndexRouteImport.update({
     id: '/categories/',
     path: '/categories/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedDependenciesIndexRoute =
+  AuthenticatedDependenciesIndexRouteImport.update({
+    id: '/dependencies/',
+    path: '/dependencies/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedErrorsErrorRoute =
@@ -163,6 +170,7 @@ export interface FileRoutesByFullPath {
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/categories/': typeof AuthenticatedCategoriesIndexRoute
+  '/dependencies/': typeof AuthenticatedDependenciesIndexRoute
   '/recommend/': typeof AuthenticatedRecommendIndexRoute
   '/repos/': typeof AuthenticatedReposIndexRoute
   '/search/': typeof AuthenticatedSearchIndexRoute
@@ -184,6 +192,7 @@ export interface FileRoutesByTo {
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/categories': typeof AuthenticatedCategoriesIndexRoute
+  '/dependencies': typeof AuthenticatedDependenciesIndexRoute
   '/recommend': typeof AuthenticatedRecommendIndexRoute
   '/repos': typeof AuthenticatedReposIndexRoute
   '/search': typeof AuthenticatedSearchIndexRoute
@@ -208,6 +217,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/display': typeof AuthenticatedSettingsDisplayRoute
   '/_authenticated/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/_authenticated/categories/': typeof AuthenticatedCategoriesIndexRoute
+  '/_authenticated/dependencies/': typeof AuthenticatedDependenciesIndexRoute
   '/_authenticated/recommend/': typeof AuthenticatedRecommendIndexRoute
   '/_authenticated/repos/': typeof AuthenticatedReposIndexRoute
   '/_authenticated/search/': typeof AuthenticatedSearchIndexRoute
@@ -232,6 +242,7 @@ export interface FileRouteTypes {
     | '/settings/display'
     | '/settings/notifications'
     | '/categories/'
+    | '/dependencies/'
     | '/recommend/'
     | '/repos/'
     | '/search/'
@@ -253,6 +264,7 @@ export interface FileRouteTypes {
     | '/settings/display'
     | '/settings/notifications'
     | '/categories'
+    | '/dependencies'
     | '/recommend'
     | '/repos'
     | '/search'
@@ -276,6 +288,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/display'
     | '/_authenticated/settings/notifications'
     | '/_authenticated/categories/'
+    | '/_authenticated/dependencies/'
     | '/_authenticated/recommend/'
     | '/_authenticated/repos/'
     | '/_authenticated/search/'
@@ -364,6 +377,13 @@ declare module '@tanstack/react-router' {
       path: '/categories'
       fullPath: '/categories/'
       preLoaderRoute: typeof AuthenticatedCategoriesIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/dependencies/': {
+      id: '/_authenticated/dependencies/'
+      path: '/dependencies'
+      fullPath: '/dependencies/'
+      preLoaderRoute: typeof AuthenticatedDependenciesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/errors/$error': {
@@ -474,6 +494,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedCategoriesIndexRoute: typeof AuthenticatedCategoriesIndexRoute
+  AuthenticatedDependenciesIndexRoute: typeof AuthenticatedDependenciesIndexRoute
   AuthenticatedRecommendIndexRoute: typeof AuthenticatedRecommendIndexRoute
   AuthenticatedReposIndexRoute: typeof AuthenticatedReposIndexRoute
   AuthenticatedSearchIndexRoute: typeof AuthenticatedSearchIndexRoute
@@ -486,6 +507,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedCategoriesIndexRoute: AuthenticatedCategoriesIndexRoute,
+  AuthenticatedDependenciesIndexRoute: AuthenticatedDependenciesIndexRoute,
   AuthenticatedRecommendIndexRoute: AuthenticatedRecommendIndexRoute,
   AuthenticatedReposIndexRoute: AuthenticatedReposIndexRoute,
   AuthenticatedSearchIndexRoute: AuthenticatedSearchIndexRoute,

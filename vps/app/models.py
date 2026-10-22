@@ -306,3 +306,42 @@ class VectorIndexRun(Base):
         DateTime, nullable=False, default=_utcnow, onupdate=_utcnow
     )
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class RepoDependency(Base):
+    """仓库依赖明细（M6-07 依赖分析）。
+
+    一行 = 某仓库某清单里的一个依赖；`id` 由
+    `sha1(repo_id|ecosystem|name|kind)` 生成，重复扫描按主键覆盖，
+    不会产生重复行。依赖明细只落 VPS 本地库，不复制到 D1。
+    """
+
+    __tablename__ = "repo_dependencies"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    repo_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)  # owner/repo
+    ecosystem: Mapped[str] = mapped_column(
+        String(32), nullable=False, index=True
+    )  # npm | pypi | go | cargo | maven | rubygems | composer
+    name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    version: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # 原始版本约束
+    kind: Mapped[str] = mapped_column(String(16), nullable=False, default="runtime")  # runtime | dev
+    manifest: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+
+    __table_args__ = (Index("idx_repo_dependencies_repo_eco", "repo_id", "ecosystem"),)
+
+
+class RepoDependencyScan(Base):
+    """仓库依赖清单扫描状态（每个仓库一条，记录命中清单与错误）。"""
+
+    __tablename__ = "repo_dependency_scans"
+
+    repo_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="ok"
+    )  # ok | no_manifest | failed
+    manifests: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # 逗号分隔
+    dependency_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    scanned_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
