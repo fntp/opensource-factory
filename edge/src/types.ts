@@ -18,6 +18,8 @@ export interface Env {
   VPS_NODE_URL: string;
   // 可选：边缘 → VPS 节点的内部调用令牌
   INTERNAL_TOKEN?: string;
+  // Vectorize 索引绑定（wrangler.toml 的 [[vectorize]]；未配置时内部接口返回 503）
+  VECTORIZE?: VectorizeIndex;
 }
 
 // ── 数据库行 ────────────────────────────────────────────────────
@@ -170,6 +172,34 @@ export interface DashboardStats {
   trendingToday: number;
   pendingRecommendations: number;
   categoryCount: number;
+}
+
+/** POST /api/search/semantic 结果条目 */
+export interface SearchResultItem {
+  id: string;
+  source: 'my' | 'trending';
+  fullName: string;
+  name: string;
+  description: string;
+  language: string;
+  stars: number;
+  starsToday: number;
+  url: string;
+  score: number;
+  reason: string;
+}
+
+/** POST /api/search/semantic 响应 */
+export interface SearchResponse {
+  query: string;
+  mode: 'vectorize' | 'local' | 'keyword';
+  count: number;
+  tookMs: number;
+  backend: string;
+  model: string;
+  dim: number;
+  items: SearchResultItem[];
+  scope: 'my' | 'trending' | 'all';
 }
 
 /** GitHub /user 接口返回（仅取所需字段） */

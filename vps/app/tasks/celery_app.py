@@ -43,6 +43,12 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.jobs.daily_push",
         "schedule": crontab(minute=0, hour=9),
     },
+    # Vectorize 索引增量同步：每 30 分钟一次（M3-03）；未配置 edge 时任务自动跳过
+    "sync-vector-index-every-30m": {
+        "task": "app.tasks.jobs.sync_vector_index",
+        "schedule": crontab(minute="7,37"),
+        "kwargs": {"kind": "sync", "scope": "all"},
+    },
 }
 
 # 兼容 `celery -A app.tasks.celery_app`（默认按属性名 app/celery 查找）
