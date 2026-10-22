@@ -59,7 +59,7 @@
 
 - **目标**：项目部署并运行于本机（唯一运行环境）；
 - **进程清单**（本机）：`vps-api`、`vps-worker`、`vps-beat`、`redis`、`ollama`、`caddy`（静态托管，可选）；
-- **运行目录（建议）**：`/opt/openfactory/`（`.env`、`data/`、`logs/`、`backups/`；仅本机、不进仓库）；
+- **运行目录**：`/opt/openfactory/`（`.env`、`etc/redis.conf`、`data/`、`logs/`、`backups/`、`run/`；仅本机、不进仓库），基线见 [deployment-baseline.md](../guides/deployment-baseline.md)；
 - **云侧组件**：Cloudflare Pages / Workers / D1 / Vectorize（免费额度内）不占本机资源；是否完全本机化见 [Q9](../requirements/open-questions.md)。
 
 ### 5.2 配置文件分级（公开 / 私有）

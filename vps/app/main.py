@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 from typing import AsyncIterator
 
 from fastapi import FastAPI
@@ -17,9 +19,28 @@ from app.db import init_db
 
 settings = get_settings()
 
+
+def _build_handlers() -> list[logging.Handler]:
+    """构建日志 handler：stdout 常驻，配置 LOG_DIR 时追加滚动文件。"""
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    if settings.LOG_DIR:
+        log_dir = Path(settings.LOG_DIR)
+        log_dir.mkdir(parents=True, exist_ok=True)
+        handlers.append(
+            RotatingFileHandler(
+                log_dir / "vps-api.log",
+                maxBytes=10 * 1024 * 1024,
+                backupCount=5,
+                encoding="utf-8",
+            )
+        )
+    return handlers
+
+
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    handlers=_build_handlers(),
 )
 logger = logging.getLogger(__name__)
 

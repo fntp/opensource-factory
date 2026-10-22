@@ -7,7 +7,7 @@
 | 目录 | 内容 | 入口 |
 | --- | --- | --- |
 | `standards/` | 规范落实：项目规范 / 代码约束 / 需求规范 / 编码规范 | [project-spec.md](./standards/project-spec.md) |
-| `guides/` | Agent 维护文档、开发周期文档 | [agent-maintenance.md](./guides/agent-maintenance.md) |
+| `guides/` | Agent 维护、开发周期、部署基线 | [agent-maintenance.md](./guides/agent-maintenance.md) · [deployment-baseline.md](./guides/deployment-baseline.md) |
 | `planning/` | 路线图、计划文档、资源规划 | [roadmap.md](./planning/roadmap.md) · [resource-plan.md](./planning/resource-plan.md) |
 | `requirements/` | 需求规格、功能梳理、需求池、待确认问题 | [spec.md](./requirements/spec.md) · [backlog.md](./requirements/backlog.md) |
 | `architecture/` | 架构总览、数据模型 | [overview.md](./architecture/overview.md) |
