@@ -42,6 +42,7 @@ import {
   summarizeRepoHealth,
   type HealthStatus,
 } from './health'
+import { LicenseBadge } from '@/features/licenses/license-badge'
 
 const HEALTH_FILTERS: Array<{ value: 'all' | HealthStatus; label: string }> = [
   { value: 'all', label: '全部健康度' },
@@ -211,6 +212,7 @@ export function Repos() {
                   <TableHead>仓库</TableHead>
                   <TableHead>健康度</TableHead>
                   <TableHead>分类</TableHead>
+                  <TableHead>License</TableHead>
                   <TableHead>标签</TableHead>
                   <TableHead className='text-end'>Stars</TableHead>
                   <TableHead className='text-end'>最近更新</TableHead>
@@ -258,6 +260,9 @@ export function Repos() {
                       </TableCell>
                       <TableCell>
                         <Badge variant='secondary'>{repo.category}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <LicenseBadge license={repo.license} />
                       </TableCell>
                       <TableCell>
                         <div className='flex flex-wrap gap-1'>

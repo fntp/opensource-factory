@@ -252,6 +252,16 @@
   - C. 接入 GitHub Search API 区分 issue 与 PR 后重新计算；
 - **默认处理**：A；如需调整只改 VPS 配置或 `evaluate_health` 阈值，D1 / admin 契约不变。
 
+## Q28. License 合规提示的法律口径与 Gitee 覆盖（REQ-202610-0953 新增）
+
+- **背景**：M6-06 依据 GitHub `license.spdx_id` 与 README 启发式识别 License，并按内置目录给出义务与风险等级；
+  该结果可能因仓库元数据缺失或 README 写法不规范而误判，且当前不读取 Gitee 开放平台许可证字段；
+- **选项**：
+  - A. 页面明确「工程辅助信息、不构成法律意见」，商用 / SaaS 场景建议法务复核；Gitee 后续按开放平台补（**当前默认**）；
+  - B. 接入第三方合规数据库 / 法务审核流程后再上线提示；
+  - C. 仅展示 SPDX 标识，不给出风险等级与义务说明；
+- **默认处理**：A。`license_source` 保留识别来源便于排查，后续可增加人工修正入口。
+
 ---
 
 > 处理约定：人工确认任一问题后，更新本文件状态并在 `docs/planning/task-planning.md` 记录。

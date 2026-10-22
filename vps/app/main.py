@@ -16,8 +16,9 @@ from fastapi.responses import JSONResponse
 
 from app.api import (
     backup,
-    duplicates,
     degradation,
+    duplicates,
+    licenses,
     local,
     monitoring,
     notifications,
@@ -107,6 +108,7 @@ app.include_router(vectors.router)
 app.include_router(vector_index.router)
 app.include_router(search.router)
 app.include_router(duplicates.router)
+app.include_router(licenses.router)
 app.include_router(degradation.router)
 app.include_router(push.router)
 app.include_router(backup.router)

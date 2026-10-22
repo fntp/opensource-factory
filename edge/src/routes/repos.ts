@@ -11,6 +11,7 @@ import type { Env, HealthStatus, RepoItem, RepoRow, Variables } from '../types';
 import { all, run } from '../db';
 import { checkOptionalInternalToken } from '../security/internal-token.ts';
 import { healthFromRow, summarizeRepoHealth } from '../repos/health';
+import { licenseFromRow } from '../license/compliance';
 
 const repos = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -35,6 +36,7 @@ export function toRepoItem(row: RepoRow): RepoItem {
     updatedAt: row.updated_at ?? row.synced_at ?? row.created_at ?? null,
     url: row.html_url,
     health: healthFromRow(row),
+    license: licenseFromRow(row),
   };
 }
 

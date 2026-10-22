@@ -2,9 +2,8 @@
  * OpenFactory 边缘 API — Hono 应用入口
  * 中间件：CORS（精确回显 ALLOWED_ORIGIN，允许 credentials）+ 请求日志
  * 路由：/api/auth、/api/repos、/api/trending、/api/recommendations、
- *       /api/notifications、/api/push-preferences、/api/categories、
  *       /api/dashboard、/api/sync、/api/internal/trending、/api/search、/api/similar、
- *       /api/tech-stack
+ *       /api/tech-stack、/api/licenses、/api/internal/licenses
  */
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -44,6 +43,8 @@ import {
 } from './security/rate-limit.ts';
 import { recordSecurityEvent } from './security/login-guard.ts';
 import { normalizeRoute, recordRequestMetric, shouldRecordMetric } from './monitoring/metrics';
+import licensesRoutes from './routes/licenses';
+import internalLicensesRoutes from './routes/internal-licenses';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -174,6 +175,8 @@ app.route('/api/internal/recommendations', internalRecommendationsRoutes);
 app.route('/api/internal/security', internalSecurityRoutes);
 app.route('/api/monitoring', monitoringRoutes);
 app.route('/api/internal/analytics', internalAnalytics);
+app.route('/api/licenses', licensesRoutes);
+app.route('/api/internal/licenses', internalLicensesRoutes);
 
 // 404
 app.notFound((c) =>

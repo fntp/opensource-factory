@@ -21,6 +21,19 @@ const detail: TrendingRepoDetail = {
   summarySource: 'readme',
   crawledAt: '2026-10-22',
   isFavorited: false,
+  license: {
+    spdxId: 'MIT',
+    name: 'MIT License',
+    category: 'permissive',
+    categoryLabel: '宽松许可',
+    riskLevel: 'low',
+    riskLabel: '低风险',
+    summary: '允许商用、修改、再分发与闭源衍生。',
+    obligations: ['保留版权声明', '保留许可证文本'],
+    warnings: [],
+    source: 'github',
+    checkedAt: '2026-10-22T08:00:00',
+  },
 }
 
 describe('trending detail helpers', () => {
@@ -35,11 +48,19 @@ describe('trending detail helpers', () => {
     const items = buildMetaItems(detail)
     expect(items).toContainEqual({ label: '总 Star', value: '65,432' })
     expect(items).toContainEqual({ label: '今日 Star', value: '+1,234' })
+    expect(items).toContainEqual({ label: '许可证', value: 'MIT' })
     expect(items).toContainEqual({ label: '技术栈', value: 'Python · PyTorch' })
     expect(items).toContainEqual({ label: '抓取日期', value: '2026-10-22' })
 
-    const empty = buildMetaItems({ ...detail, language: '', techStack: [], crawledAt: null })
+    const empty = buildMetaItems({
+      ...detail,
+      language: '',
+      techStack: [],
+      crawledAt: null,
+      license: null,
+    })
     expect(empty).toContainEqual({ label: '主语言', value: '—' })
+    expect(empty).toContainEqual({ label: '许可证', value: '未识别' })
     expect(empty).toContainEqual({ label: '技术栈', value: '—' })
     expect(empty).toContainEqual({ label: '抓取日期', value: '—' })
   })

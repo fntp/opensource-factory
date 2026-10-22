@@ -12,6 +12,8 @@ from typing import Any
 
 import httpx
 
+from app.services.license import identify_github_license
+
 logger = logging.getLogger(__name__)
 
 GITHUB_API = "https://api.github.com"
@@ -51,8 +53,14 @@ def _headers(token: str | None = None) -> dict[str, str]:
 
 
 def normalize_repo(repo: dict[str, Any]) -> dict[str, Any]:
-    """把 GitHub API 仓库对象标准化为本地统一结构。"""
+    """把 GitHub API 仓库对象标准化为本地统一结构。
+
+    M6-06：保留 `license` 对象，归一化为 `license_spdx` / `license_name` / `license_source`。
+    GitHub 返回 `license: null` 表示仓库未声明许可证，此时 source 记为 `none`。
+    """
     full_name = repo.get("full_name") or ""
+    license_value = repo.get("license")
+    license_info = identify_github_license(license_value) if license_value is not None else None
     return {
         "id": full_name,  # 以 "owner/repo" 作为主键
         "platform": "github",
@@ -69,6 +77,9 @@ def normalize_repo(repo: dict[str, Any]) -> dict[str, Any]:
         "archived": bool(repo.get("archived")),
         "disabled": bool(repo.get("disabled")),
         "default_branch": repo.get("default_branch") or "",
+        "license_spdx": (license_info or {}).get("spdxId") or "",
+        "license_name": (license_info or {}).get("name") or "",
+        "license_source": "github" if license_info else "none",
     }
 
 

@@ -17,6 +17,8 @@ from app.schemas import (
 )
 from app.services.repo_health import normalize_status, snapshot_for_row, summarize_health
 from app.tasks.jobs import refresh_repo_health as refresh_repo_health_task
+from app.schemas import LicenseInfoOut, RepoOut, TaskEnqueued
+from app.services.license import build_compliance_hint
 from app.tasks.jobs import summarize_readmes, sync_repositories
 
 router = APIRouter(prefix="/api/repos", tags=["repos"])
@@ -118,6 +120,16 @@ async def enqueue_repo_health_refresh(payload: RepoHealthRefreshRequest) -> Task
         limit=payload.limit,
     )
     return TaskEnqueued(taskId=task.id)
+    "/{repo_id:path}/license",
+    response_model=LicenseInfoOut,
+    summary="单仓库 License 合规提示（未识别时返回 unknown）",
+)
+def get_repo_license(repo_id: str, db: Session = Depends(get_db)) -> dict:
+    normalized = repo_id.strip().strip("/")
+    row = db.get(MyRepository, normalized)
+    if row is None:
+        raise HTTPException(status_code=404, detail="repo not found")
+    return row.license or build_compliance_hint(None, None)
 
 
 @router.post(

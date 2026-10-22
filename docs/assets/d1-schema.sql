@@ -30,7 +30,12 @@ CREATE TABLE my_repositories (
     disabled INTEGER NOT NULL DEFAULT 0,
     health_status TEXT,                  -- active | attention | stale | archived | unknown
     health_score INTEGER,                -- 0-100
-    health_checked_at DATETIME
+    health_checked_at DATETIME,
+    -- License（M6-06）
+    license_spdx TEXT,
+    license_name TEXT,
+    license_source TEXT,
+    license_checked_at TEXT
 );
 
 -- ── 今日趋势仓库（爬虫写入）─────────────────────────────────────
@@ -47,7 +52,12 @@ CREATE TABLE trending_repositories (
     owner TEXT,
     language TEXT,
     stars INTEGER DEFAULT 0,
-    readme_summary TEXT
+    readme_summary TEXT,
+    -- License（M6-06）
+    license_spdx TEXT,
+    license_name TEXT,
+    license_source TEXT,
+    license_checked_at TEXT
 );
 
 -- ── 分类 ────────────────────────────────────────────────────────
@@ -209,6 +219,8 @@ CREATE TABLE worker_metrics (
 
 -- ── 索引 ────────────────────────────────────────────────────────
 CREATE INDEX idx_my_repositories_user_id ON my_repositories (user_id);
+CREATE INDEX idx_my_repositories_license_spdx ON my_repositories (license_spdx);
+CREATE INDEX idx_trending_repositories_license_spdx ON trending_repositories (license_spdx);
 CREATE INDEX idx_my_repositories_category_id ON my_repositories (category_id);
 CREATE INDEX idx_my_repositories_health ON my_repositories (user_id, health_status);
 CREATE INDEX idx_trending_repositories_stars_today ON trending_repositories (stars_today DESC);

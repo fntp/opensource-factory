@@ -1,4 +1,9 @@
 import { apiFetch, DEMO_MODE, fetchWithFallback } from '@/lib/api'
+import type {
+  LicenseCategory,
+  LicenseInfo,
+  LicenseRisk,
+} from '@/features/licenses/api'
 
 export type SummarySource = 'readme' | 'description' | 'tech' | 'empty'
 
@@ -20,6 +25,8 @@ export interface TrendingRepo {
   /** 相对上一快照日的排名变化（正数 = 上升，null = 新上榜） */
   rankChange: number | null
   trend: TrendingTrend
+  /** License 合规提示（M6-06；未识别过为 null） */
+  license?: LicenseInfo | null
 }
 
 export interface TrendingQuery {
@@ -41,6 +48,44 @@ export interface TrendingLanguage {
 export interface TrendingLanguagesResponse {
   date: string | null
   languages: TrendingLanguage[]
+}
+
+function mockLicense(
+  spdxId: string,
+  name: string,
+  category: LicenseCategory,
+  riskLevel: LicenseRisk,
+  source = 'github'
+): LicenseInfo {
+  return {
+    spdxId,
+    name,
+    category,
+    categoryLabel:
+      category === 'permissive'
+        ? '宽松许可'
+        : category === 'weak-copyleft'
+          ? '弱著佐权'
+          : category === 'strong-copyleft'
+            ? '强著佐权'
+            : category === 'network-copyleft'
+              ? '网络著佐权'
+              : '公共领域',
+    riskLevel,
+    riskLabel:
+      riskLevel === 'low'
+        ? '低风险'
+        : riskLevel === 'medium'
+          ? '中风险'
+          : riskLevel === 'high'
+            ? '高风险'
+            : '未知风险',
+    summary: `${name}：请按许可证义务使用、修改与分发。`,
+    obligations: ['保留版权与许可证声明'],
+    warnings: riskLevel === 'high' ? ['闭源商用前需法务评估'] : [],
+    source,
+    checkedAt: '2026-10-22T08:00:00',
+  }
 }
 
 export const MOCK_TRENDING_DATES = ['2026-10-22', '2026-10-21', '2026-10-20']
@@ -74,6 +119,7 @@ export const MOCK_TRENDING_REPOS: TrendingRepo[] = [
     rank: 1,
     rankChange: 2,
     trend: 'up',
+    license: mockLicense('MIT', 'MIT License', 'permissive', 'low'),
   },
   {
     id: '2',
@@ -88,6 +134,12 @@ export const MOCK_TRENDING_REPOS: TrendingRepo[] = [
     rank: 2,
     rankChange: -1,
     trend: 'down',
+    license: mockLicense(
+      'Apache-2.0',
+      'Apache License 2.0',
+      'permissive',
+      'low'
+    ),
   },
   {
     id: '3',
@@ -102,6 +154,7 @@ export const MOCK_TRENDING_REPOS: TrendingRepo[] = [
     rank: 3,
     rankChange: 0,
     trend: 'same',
+    license: mockLicense('MIT', 'MIT License', 'permissive', 'low'),
   },
   {
     id: '4',
@@ -116,6 +169,12 @@ export const MOCK_TRENDING_REPOS: TrendingRepo[] = [
     rank: 4,
     rankChange: null,
     trend: 'new',
+    license: mockLicense(
+      'AGPL-3.0',
+      'GNU Affero General Public License 3.0',
+      'network-copyleft',
+      'high'
+    ),
   },
   {
     id: '5',
@@ -130,6 +189,7 @@ export const MOCK_TRENDING_REPOS: TrendingRepo[] = [
     rank: 5,
     rankChange: 3,
     trend: 'up',
+    license: mockLicense('MIT', 'MIT License', 'permissive', 'low'),
   },
   {
     id: '6',
@@ -144,6 +204,7 @@ export const MOCK_TRENDING_REPOS: TrendingRepo[] = [
     rank: 6,
     rankChange: -2,
     trend: 'down',
+    license: mockLicense('MIT', 'MIT License', 'permissive', 'low'),
   },
   {
     id: '7',
@@ -158,6 +219,12 @@ export const MOCK_TRENDING_REPOS: TrendingRepo[] = [
     rank: 7,
     rankChange: 0,
     trend: 'same',
+    license: mockLicense(
+      'Apache-2.0',
+      'Apache License 2.0',
+      'permissive',
+      'low'
+    ),
   },
   {
     id: '8',
@@ -172,6 +239,7 @@ export const MOCK_TRENDING_REPOS: TrendingRepo[] = [
     rank: 8,
     rankChange: null,
     trend: 'new',
+    license: null,
   },
   {
     id: '9',
@@ -186,6 +254,12 @@ export const MOCK_TRENDING_REPOS: TrendingRepo[] = [
     rank: 9,
     rankChange: 1,
     trend: 'up',
+    license: mockLicense(
+      'Apache-2.0',
+      'Apache License 2.0',
+      'permissive',
+      'low'
+    ),
   },
   {
     id: '10',
@@ -200,6 +274,7 @@ export const MOCK_TRENDING_REPOS: TrendingRepo[] = [
     rank: 10,
     rankChange: -1,
     trend: 'down',
+    license: mockLicense('MIT', 'MIT License', 'permissive', 'low'),
   },
 ]
 
@@ -330,6 +405,7 @@ function mockDetail(owner: string, name: string): TrendingRepoDetail {
     summarySource: 'empty',
     crawledAt: null,
     isFavorited: false,
+    license: null,
   }
 }
 

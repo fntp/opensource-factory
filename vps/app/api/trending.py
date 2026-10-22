@@ -53,7 +53,9 @@ def _trend_of(row: TrendingSnapshot) -> str:
     return "same"
 
 
-def _snapshot_out(row: TrendingSnapshot) -> TrendingRepoOut:
+def _snapshot_out(
+    row: TrendingSnapshot, license_info: Optional[dict] = None
+) -> TrendingRepoOut:
     return TrendingRepoOut(
         id=row.repo_id,
         platform=row.platform,
@@ -66,11 +68,22 @@ def _snapshot_out(row: TrendingSnapshot) -> TrendingRepoOut:
         owner=row.owner,
         language=row.language,
         stars=row.stars or 0,
+        license=license_info,
         snapshot_date=row.snapshot_date,
         rank=row.rank or 0,
         rank_change=None if row.is_new else (row.rank_delta or 0),
         trend=_trend_of(row),
     )
+
+
+def _license_map(db: Session, repo_ids: list[str]) -> dict[str, dict]:
+    """批量取快照对应仓库的 License 提示（M6-06）。"""
+    if not repo_ids:
+        return {}
+    rows = db.execute(
+        select(TrendingRepository).where(TrendingRepository.id.in_(repo_ids))
+    ).scalars().all()
+    return {row.id: row.license for row in rows if row.license}
 
 
 def _latest_out(row: TrendingRepository, rank: int) -> TrendingRepoOut:
@@ -86,6 +99,7 @@ def _latest_out(row: TrendingRepository, rank: int) -> TrendingRepoOut:
         owner=row.owner,
         language=row.language,
         stars=row.stars or 0,
+        license=row.license,
         snapshot_date=row.crawled_at,
         rank=rank,
         rank_change=0,
@@ -134,7 +148,8 @@ def list_trending(
             stmt = stmt.where(func.lower(TrendingSnapshot.language) == language.strip().lower())
         rows = list(db.execute(stmt).scalars().all())
         if rows:
-            return [_snapshot_out(row) for row in rows]
+            licenses = _license_map(db, [row.repo_id for row in rows])
+            return [_snapshot_out(row, licenses.get(row.repo_id)) for row in rows]
 
         # 明确指定日期 / 语言但无匹配：返回空列表，不静默回退
         if snapshot_date is not None or language:

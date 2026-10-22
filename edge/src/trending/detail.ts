@@ -3,6 +3,7 @@
  * 不依赖 Hono / D1，便于在 node:test 中直接覆盖。
  */
 import type { TrendingRepoDetail, TrendingRow } from '../types';
+import { licenseFromRow } from '../license/compliance.ts';
 
 export type SummarySource = TrendingRepoDetail['summarySource'];
 
@@ -62,6 +63,7 @@ export function toTrendingDetail(row: TrendingRow, isFavorited = false): Trendin
     summarySource: source,
     crawledAt: row.crawled_at ?? null,
     isFavorited,
+    license: licenseFromRow(row),
   };
 }
 

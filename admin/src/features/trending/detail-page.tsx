@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import {
+  AlertTriangle,
   ArrowLeft,
   Bookmark,
   BookmarkCheck,
   ExternalLink,
   Flame,
   RefreshCw,
+  Scale,
   Sparkles,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -27,6 +29,11 @@ import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
+import { LicenseBadge } from '@/features/licenses/license-badge'
+import {
+  formatLicenseCheckedAt,
+  licenseSourceLabel,
+} from '@/features/licenses/utils'
 import {
   favoriteTrending,
   fetchSimilarRepos,
@@ -176,6 +183,67 @@ export function TrendingDetail({ owner, name }: TrendingDetailProps) {
                 {data.summarySource === 'readme' && data.description && (
                   <p className='border-t pt-3 text-sm text-muted-foreground'>
                     原始简介：{data.description}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className='flex flex-wrap items-center justify-between gap-2'>
+                  <CardTitle className='flex items-center gap-2'>
+                    <Scale className='size-4 text-primary' />
+                    License 合规提示
+                  </CardTitle>
+                  <LicenseBadge license={data.license} />
+                </div>
+                <CardDescription>
+                  {data.license
+                    ? `${data.license.categoryLabel} · ${data.license.riskLabel} · 来源：${licenseSourceLabel(data.license.source)} · 识别于 ${formatLicenseCheckedAt(data.license.checkedAt)}`
+                    : '尚未识别 License，建议运行 License 补全任务后再评估使用方式。'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className='space-y-4'>
+                {data.license ? (
+                  <>
+                    <p className='text-sm leading-6'>{data.license.summary}</p>
+                    <div className='grid gap-4 sm:grid-cols-2'>
+                      <div>
+                        <h4 className='mb-2 text-sm font-medium'>需要履行的义务</h4>
+                        <ul className='space-y-1 text-sm text-muted-foreground'>
+                          {data.license.obligations.length ? (
+                            data.license.obligations.map((item) => (
+                              <li key={item}>· {item}</li>
+                            ))
+                          ) : (
+                            <li>无强制义务</li>
+                          )}
+                        </ul>
+                      </div>
+                      <div>
+                        <h4 className='mb-2 flex items-center gap-1 text-sm font-medium'>
+                          <AlertTriangle className='size-3.5 text-amber-500' />
+                          风险提醒
+                        </h4>
+                        <ul className='space-y-1 text-sm text-muted-foreground'>
+                          {data.license.warnings.length ? (
+                            data.license.warnings.map((item) => (
+                              <li key={item}>· {item}</li>
+                            ))
+                          ) : (
+                            <li>暂无额外提醒</li>
+                          )}
+                        </ul>
+                      </div>
+                    </div>
+                    <p className='border-t pt-3 text-xs text-muted-foreground'>
+                      合规提示仅为工程辅助信息，不构成法律意见；商用或 SaaS
+                      场景建议进行法务复核。
+                    </p>
+                  </>
+                ) : (
+                  <p className='text-sm leading-6 text-muted-foreground'>
+                    无许可证不等于可以自由使用；复制、修改、分发或商用前需联系作者获取明确授权。
                   </p>
                 )}
               </CardContent>

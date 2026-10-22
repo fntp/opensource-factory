@@ -26,6 +26,7 @@ export function buildMetaItems(detail: TrendingRepoDetail): MetaItem[] {
     { label: '总 Star', value: formatStars(detail.stars) },
     { label: '今日 Star', value: `+${formatStars(detail.starsToday)}` },
     { label: '主语言', value: detail.language || '—' },
+    { label: '许可证', value: detail.license?.spdxId || '未识别' },
     { label: '平台', value: detail.platform || 'github' },
     { label: '技术栈', value: detail.techStack.length ? detail.techStack.join(' · ') : '—' },
     { label: '抓取日期', value: detail.crawledAt || '—' },

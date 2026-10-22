@@ -59,22 +59,43 @@ def _ensure_sqlite_columns() -> None:
         return
 
     inspector = inspect(engine)
-    tables = set(inspector.get_table_names())
-
-    if "trending_repositories" in tables:
-        existing = {column["name"] for column in inspector.get_columns("trending_repositories")}
-        additions = {
+    table_additions: dict[str, dict[str, str]] = {
+        "trending_repositories": {
             "readme_summary": "TEXT",
             "owner": "TEXT",
             "language": "TEXT",
             "stars": "INTEGER NOT NULL DEFAULT 0",
-        }
+            "license_spdx": "TEXT",
+            "license_name": "TEXT",
+            "license_source": "TEXT",
+            "license_checked_at": "DATETIME",
+        },
+        "my_repositories": {
+            "pushed_at": "DATETIME",
+            "updated_at": "DATETIME",
+            "open_issues_count": "INTEGER NOT NULL DEFAULT 0",
+            "archived": "BOOLEAN NOT NULL DEFAULT 0",
+            "disabled": "BOOLEAN NOT NULL DEFAULT 0",
+            "health_status": "TEXT",
+            "health_score": "INTEGER",
+            "health_checked_at": "DATETIME",
+            "license_spdx": "TEXT",
+            "license_name": "TEXT",
+            "license_source": "TEXT",
+            "license_checked_at": "DATETIME",
+        },
+    }
+    tables = set(inspector.get_table_names())
+    for table, additions in table_additions.items():
+        if table not in tables:
+            continue
+        existing = {column["name"] for column in inspector.get_columns(table)}
         missing = {name: ddl for name, ddl in additions.items() if name not in existing}
         if missing:
             with engine.begin() as connection:
                 for name, ddl in missing.items():
-                    connection.execute(text(f"ALTER TABLE trending_repositories ADD COLUMN {name} {ddl}"))
-            logger.info("trending_repositories 已补齐列: %s", ", ".join(sorted(missing)))
+                    connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+            logger.info("%s 已补齐列: %s", table, ", ".join(sorted(missing)))
 
     if "recommendations" in tables:
         existing = {column["name"] for column in inspector.get_columns("recommendations")}
@@ -97,26 +118,6 @@ def _ensure_sqlite_columns() -> None:
                 logger.info("推荐表已补齐评估列: %s", ", ".join(name for name, _ in missing))
             except Exception:  # noqa: BLE001 - 补列失败不阻塞启动，任务会返回明确错误
                 logger.warning("推荐表补列失败（可手工迁移后重试）", exc_info=True)
-
-    if "my_repositories" in inspector.get_table_names():
-        existing = {column["name"] for column in inspector.get_columns("my_repositories")}
-        additions = {
-            # M6-05 项目健康度
-            "pushed_at": "DATETIME",
-            "updated_at": "DATETIME",
-            "open_issues_count": "INTEGER NOT NULL DEFAULT 0",
-            "archived": "BOOLEAN NOT NULL DEFAULT 0",
-            "disabled": "BOOLEAN NOT NULL DEFAULT 0",
-            "health_status": "TEXT",
-            "health_score": "INTEGER",
-            "health_checked_at": "DATETIME",
-        }
-        missing = {name: ddl for name, ddl in additions.items() if name not in existing}
-        if missing:
-            with engine.begin() as connection:
-                for name, ddl in missing.items():
-                    connection.execute(text(f"ALTER TABLE my_repositories ADD COLUMN {name} {ddl}"))
-            logger.info("my_repositories 已补齐列: %s", ", ".join(sorted(missing)))
 
 
 def _ensure_sqlite_indexes() -> None:

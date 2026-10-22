@@ -1,5 +1,40 @@
 import { apiFetch, fetchWithFallback } from '@/lib/api'
+import type { LicenseInfo } from '@/features/licenses/api'
 import { HEALTH_LABELS, type RepoHealth } from './health'
+
+function demoLicense(
+  spdxId: string,
+  name: string,
+  category: LicenseInfo['category'],
+  riskLevel: LicenseInfo['riskLevel']
+): LicenseInfo {
+  const categoryLabel =
+    category === 'permissive'
+      ? '宽松许可'
+      : category === 'weak-copyleft'
+        ? '弱著佐权'
+        : category === 'network-copyleft'
+          ? '网络著佐权'
+          : '强著佐权'
+  return {
+    spdxId,
+    name,
+    category,
+    categoryLabel,
+    riskLevel,
+    riskLabel:
+      riskLevel === 'low'
+        ? '低风险'
+        : riskLevel === 'medium'
+          ? '中风险'
+          : '高风险',
+    summary: `${name}：请按许可证义务使用、修改与分发。`,
+    obligations: ['保留版权与许可证声明'],
+    warnings: [],
+    source: 'github',
+    checkedAt: '2026-10-22T08:00:00',
+  }
+}
 
 export interface RepoItem {
   id: string
@@ -16,6 +51,8 @@ export interface RepoItem {
   url: string
   /** 项目健康度（M6-05，旧接口可能缺失） */
   health?: RepoHealth
+  /** License 合规提示（M6-06） */
+  license?: LicenseInfo | null
 }
 
 function mockHealth(
@@ -52,6 +89,7 @@ export const MOCK_REPOS: RepoItem[] = [
       daysSincePush: 10,
       reasons: ['最后提交于 10 天前', '当前没有未关闭 issue'],
     }),
+    license: demoLicense('MIT', 'MIT License', 'permissive', 'low'),
   },
   {
     id: '2',
@@ -72,6 +110,7 @@ export const MOCK_REPOS: RepoItem[] = [
       openIssues: 320,
       reasons: ['最后提交于 9 天前', '存在 320 个未关闭 issue / PR'],
     }),
+    license: demoLicense('MIT', 'MIT License', 'permissive', 'low'),
   },
   {
     id: '3',
@@ -95,6 +134,7 @@ export const MOCK_REPOS: RepoItem[] = [
         '存在 410 个未关闭 issue / PR（占 Star 1%）',
       ],
     }),
+    license: demoLicense('MIT', 'MIT License', 'permissive', 'low'),
   },
   {
     id: '4',
@@ -114,6 +154,12 @@ export const MOCK_REPOS: RepoItem[] = [
       daysSincePush: 9,
       reasons: ['最后提交于 9 天前', '当前没有未关闭 issue'],
     }),
+    license: demoLicense(
+      'AGPL-3.0',
+      'GNU Affero General Public License 3.0',
+      'network-copyleft',
+      'high'
+    ),
   },
   {
     id: '5',
@@ -133,6 +179,7 @@ export const MOCK_REPOS: RepoItem[] = [
       archived: true,
       reasons: ['仓库已归档，不再接收更新'],
     }),
+    license: demoLicense('MIT', 'MIT License', 'permissive', 'low'),
   },
   {
     id: '6',
@@ -152,6 +199,7 @@ export const MOCK_REPOS: RepoItem[] = [
       daysSincePush: 12,
       reasons: ['最后提交于 12 天前', '当前没有未关闭 issue'],
     }),
+    license: demoLicense('MIT', 'MIT License', 'permissive', 'low'),
   },
   {
     id: '7',
@@ -171,6 +219,7 @@ export const MOCK_REPOS: RepoItem[] = [
       daysSincePush: 10,
       reasons: ['最后提交于 10 天前', '当前没有未关闭 issue'],
     }),
+    license: demoLicense('MIT', 'MIT License', 'permissive', 'low'),
   },
   {
     id: '8',
@@ -194,6 +243,12 @@ export const MOCK_REPOS: RepoItem[] = [
         '当前没有未关闭 issue',
       ],
     }),
+    license: demoLicense(
+      'Apache-2.0',
+      'Apache License 2.0',
+      'permissive',
+      'low'
+    ),
   },
 ]
 
