@@ -67,8 +67,8 @@ M3-01~M3-10 已全部集成到验收分支，跨分支端到端验收 **23/23 PA
 
 | 场景 | 样本数 | P50 | P95 | Max | 预算 |
 | --- | --- | --- | --- | --- | --- |
-| `/api/search/query` | 30 | 9.3ms | 13.4ms | 15.4ms | P95 < 500ms |
-| `/api/recommend/list?user_id=2001&limit=50` | 30 | 8.0ms | 9.7ms | 10.5ms | P95 < 300ms |
+| `/api/search/query` | 30 | 8.5ms | 14.1ms | 14.7ms | P95 < 500ms |
+| `/api/recommend/list?user_id=2001&limit=50` | 30 | 4.8ms | 6.1ms | 6.3ms | P95 < 300ms |
 
 本机为 hash 兜底向量（256 维），性能数据仅代表本地 SQLite + 纯计算路径；
 真实 BGE-M3 / Vectorize 的延迟需在生产环境复测。
