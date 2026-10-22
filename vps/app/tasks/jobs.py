@@ -33,56 +33,58 @@ def _run_async(coro: Coroutine[Any, Any, Any]) -> Any:
 
 
 @celery_app.task(name="app.tasks.jobs.sync_repositories")
-def sync_repositories(include_starred: bool = True) -> dict[str, Any]:
-    """同步 GitHub 仓库（自己的 + 可选 Starred）到本地镜像表。"""
+def sync_repositories(
+    include_starred: bool = True,
+    mode: str = "incremental",
+    per_page: int = 100,
+    max_pages: int | None = None,
+) -> dict[str, Any]:
+    """同步 GitHub 仓库（增量优先，可手动全量）。
+
+    - `mode=incremental`（默认）：按 `sync_state` 水位线增量拉取；首次 / 超过 7 天
+      自动升级为全量对账；
+    - `mode=full`：忽略水位线，扫描全部页，用于手动对账；
+    - 只对 `pushed_at` / `stars` / 元数据变化的行写库，未变化行不产生 UPDATE。
+    """
     settings = get_settings()
     token = (settings.GITHUB_TOKEN or "").strip()
     if not token:
         return {"status": "skipped", "reason": "GITHUB_TOKEN 未配置，跳过 GitHub 同步"}
 
-    from app.services.github_service import list_user_repos
+    from app.db import init_db
+    from app.services.incremental import run_incremental_sync
+
+    async def _run() -> dict[str, Any]:
+        init_db()  # 确保新增列 / sync_state 表就绪（幂等）
+        db = SessionLocal()
+        try:
+            return await run_incremental_sync(
+                db,
+                token,
+                include_starred=include_starred,
+                mode=mode,
+                per_page=per_page,
+                max_pages=max_pages,
+            )
+        finally:
+            db.close()
 
     try:
-        repos = _run_async(list_user_repos(token, include_starred=include_starred))
+        result = _run_async(_run())
     except Exception as exc:  # noqa: BLE001 - 同步失败降级返回，等待下次重试
         logger.exception("GitHub 同步失败")
         return {"status": "error", "error": str(exc)[:300]}
 
-    created = 0
-    updated = 0
-    db = SessionLocal()
-    try:
-        for item in repos:
-            repo_id = item.get("id") or ""
-            if not repo_id:
-                continue
-            row = db.get(MyRepository, repo_id)
-            if row is None:
-                db.add(
-                    MyRepository(
-                        id=repo_id,
-                        platform=item.get("platform") or "github",
-                        name=item.get("name") or repo_id.split("/")[-1],
-                        description=item.get("description") or "",
-                        html_url=item.get("html_url") or f"https://github.com/{repo_id}",
-                        stars=int(item.get("stars") or 0),
-                        language=item.get("language") or None,
-                    )
-                )
-                created += 1
-            else:
-                row.name = item.get("name") or row.name
-                row.description = item.get("description") or row.description
-                row.html_url = item.get("html_url") or row.html_url
-                row.stars = int(item.get("stars") or 0)
-                row.language = item.get("language") or row.language
-                updated += 1
-        db.commit()
-    finally:
-        db.close()
-
-    logger.info("GitHub 同步完成: 共 %d 个仓库（新增 %d / 更新 %d）", len(repos), created, updated)
-    return {"status": "ok", "total": len(repos), "created": created, "updated": updated}
+    logger.info(
+        "GitHub 同步任务结束: mode=%s status=%s 共 %d 条（新增 %d / 更新 %d / 未变化 %d）",
+        result.get("mode"),
+        result.get("status"),
+        result.get("total", 0),
+        result.get("created", 0),
+        result.get("updated", 0),
+        result.get("unchanged", 0),
+    )
+    return result
 
 
 @celery_app.task(name="app.tasks.jobs.crawl_trending")

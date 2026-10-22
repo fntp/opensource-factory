@@ -2,7 +2,7 @@
 
 - broker / backend：`REDIS_URL`（默认 `redis://localhost:6379/0`）；
 - `CELERY_TASK_ALWAYS_EAGER=1` 时任务同步执行（本地调试 / 测试）；
-- beat 计划：每 6 小时抓取热榜、每日 09:00 推送准备。
+- beat 计划：每日增量同步 GitHub 资产、每周全量对账、每 6 小时抓取热榜、每日 09:00 推送准备。
 """
 from __future__ import annotations
 
@@ -34,6 +34,18 @@ celery_app.conf.update(
 
 # 定时计划（配合 `celery -A app.tasks.celery_app beat` 使用）
 celery_app.conf.beat_schedule = {
+    # 增量同步：每天凌晨按 pushed_at / star 变化拉取（REQ-202610-0899）
+    "sync-repositories-incremental-daily": {
+        "task": "app.tasks.jobs.sync_repositories",
+        "schedule": crontab(minute=17, hour=3),
+        "kwargs": {"include_starred": True, "mode": "incremental"},
+    },
+    # 全量对账：每周日扫描全部页，补偿 Star 变化 / 取消 Star 等增量盲区
+    "sync-repositories-full-weekly": {
+        "task": "app.tasks.jobs.sync_repositories",
+        "schedule": crontab(minute=7, hour=4, day_of_week="sun"),
+        "kwargs": {"include_starred": True, "mode": "full"},
+    },
     "crawl-trending-every-6h": {
         "task": "app.tasks.jobs.crawl_trending",
         "schedule": crontab(minute=15, hour="*/6"),

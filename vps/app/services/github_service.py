@@ -36,6 +36,7 @@ def _headers(token: str | None = None) -> dict[str, str]:
 def normalize_repo(repo: dict[str, Any]) -> dict[str, Any]:
     """把 GitHub API 仓库对象标准化为本地统一结构。"""
     full_name = repo.get("full_name") or ""
+    owner = repo.get("owner") if isinstance(repo.get("owner"), dict) else {}
     return {
         "id": full_name,  # 以 "owner/repo" 作为主键
         "platform": "github",
@@ -45,6 +46,12 @@ def normalize_repo(repo: dict[str, Any]) -> dict[str, Any]:
         "stars": int(repo.get("stargazers_count") or 0),
         "language": repo.get("language") or "",
         "forks": int(repo.get("forks_count") or 0),
+        "owner": (owner or {}).get("login") or (full_name.split("/")[0] if full_name else ""),
+        # 增量同步判定依据（REQ-202610-0899）
+        "pushed_at": repo.get("pushed_at") or "",
+        "updated_at": repo.get("updated_at") or "",
+        "archived": bool(repo.get("archived")),
+        "fork": bool(repo.get("fork")),
     }
 
 
@@ -54,15 +61,22 @@ async def _paginate(
     token: str,
     *,
     per_page: int = 100,
-    max_pages: int = 10,
+    max_pages: int | None = 10,
+    extra_params: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    """按页拉取列表接口；遇到 401/403/404 或网络错误时返回已获取的部分。"""
+    """按页拉取列表接口；遇到 401/403/404 或网络错误时返回已获取的部分。
+
+    `max_pages=None` 表示不设页数上限（全量对账）；`extra_params` 透传
+    `sort` / `direction` / `since` 等 GitHub 列表参数。
+    """
     items: list[dict[str, Any]] = []
-    for page in range(1, max_pages + 1):
+    page = 1
+    while max_pages is None or page <= max_pages:
+        params: dict[str, Any] = {"per_page": per_page, "page": page}
+        if extra_params:
+            params.update(extra_params)
         try:
-            resp = await client.get(
-                url, headers=_headers(token), params={"per_page": per_page, "page": page}
-            )
+            resp = await client.get(url, headers=_headers(token), params=params)
         except httpx.HTTPError as exc:
             logger.warning("GitHub 请求失败 %s: %s", url, exc)
             break
@@ -85,6 +99,7 @@ async def _paginate(
         items.extend(item for item in batch if isinstance(item, dict))
         if len(batch) < per_page:
             break
+        page += 1
     return items
 
 
@@ -118,6 +133,68 @@ async def list_user_repos(
                 if isinstance(repo, dict) and repo.get("full_name"):
                     collected.setdefault(repo["full_name"], normalize_repo(repo))
     return list(collected.values())
+
+
+def _normalize_starred_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """标准化 Starred 列表，兼容裸仓库对象与 `{starred_at, repo}` 包装。"""
+    repos: dict[str, dict[str, Any]] = {}
+    for item in items:
+        repo = item.get("repo") if isinstance(item.get("repo"), dict) else item
+        if not isinstance(repo, dict) or not repo.get("full_name"):
+            continue
+        repos[repo["full_name"]] = normalize_repo(repo)
+    return list(repos.values())
+
+
+async def list_own_repos(
+    token: str,
+    *,
+    since: str | None = None,
+    per_page: int = 100,
+    max_pages: int | None = 10,
+) -> list[dict[str, Any]]:
+    """按 `updated_at` 增量拉取自有仓库（REQ-202610-0899）。
+
+    - `since` 为上次成功同步的 `updated_at` 高水位，GitHub 服务端过滤；
+    - `since=None` 表示全量拉取；
+    - 按 `updated` 倒序返回，便于首页即包含最新变化。
+    """
+    params: dict[str, Any] = {"sort": "updated", "direction": "desc"}
+    if since:
+        params["since"] = since
+    async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
+        raw = await _paginate(
+            client,
+            f"{GITHUB_API}/user/repos",
+            token,
+            per_page=per_page,
+            max_pages=max_pages,
+            extra_params=params,
+        )
+    return [normalize_repo(item) for item in raw if item.get("full_name")]
+
+
+async def list_starred_repos_for_sync(
+    token: str,
+    *,
+    per_page: int = 100,
+    max_pages: int | None = None,
+) -> list[dict[str, Any]]:
+    """拉取 Starred 列表用于同步（REQ-202610-0899）。
+
+    GitHub 的 `/user/starred` 不支持 `since`，因此按 `updated` 倒序分页扫描；
+    调用方只对 `pushed_at` / `stars` 等字段变化的行写库，避免全量 UPDATE。
+    """
+    async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
+        raw = await _paginate(
+            client,
+            f"{GITHUB_API}/user/starred",
+            token,
+            per_page=per_page,
+            max_pages=max_pages,
+            extra_params={"sort": "updated", "direction": "desc"},
+        )
+    return _normalize_starred_items(raw)
 
 
 async def get_repo(token: str | None, full_name: str) -> dict[str, Any] | None:

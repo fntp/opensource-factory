@@ -25,7 +25,8 @@ vps/
 │   ├── models.py             # 数据库模型（D1 表结构的本地镜像）
 │   ├── schemas.py            # Pydantic 出入参模型
 │   ├── services/             # 业务逻辑（单一职责，可独立单测）
-│   │   ├── github_service.py     # GitHub REST v3 异步客户端（分页、README base64 解码）
+│   │   ├── github_service.py     # GitHub REST v3 异步客户端（分页、增量拉取、README base64 解码）
+│   │   ├── incremental.py        # 增量同步编排（水位线 / 变化判定 / 全量对账）
 │   │   ├── trending_crawler.py   # GitHub Trending 解析/抓取 + Gitee 探索页（尽力而为）
 │   │   ├── readme.py             # README 清洗 + 技术栈启发式提取
 │   │   ├── embedding.py          # BGE-M3（懒加载）与确定性 hash 降级向量
@@ -64,7 +65,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 # 5) 启动 Celery worker（异步任务）
 celery -A app.tasks.celery_app worker -l info
 
-# 6) 可选：启动 beat（定时抓取热榜 / 每日推送）
+# 6) 可选：启动 beat（每日增量同步 / 每周全量对账 / 热榜抓取 / 每日推送）
 celery -A app.tasks.celery_app beat -l info
 
 # 7) 测试（不访问网络）
@@ -95,7 +96,7 @@ pytest -q
 
 | 方法 | 路径 | 说明 | 返回 |
 | --- | --- | --- | --- |
-| POST | `/api/tasks/sync` | 入队 GitHub 仓库同步（自己的 + Starred） | `202 {"taskId": "..."}` |
+| POST | `/api/tasks/sync` | 入队 GitHub 仓库同步（自己的 + Starred；`mode=incremental\|full`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/crawl-trending` | 入队热榜抓取（`platform=github\|gitee\|all`，可选 `language`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/generate-recommendations` | 入队推荐生成（可选 `user_id`、`top_k`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/daily-push` | 入队每日推送准备（将 `new` 推荐标记为 `pushed`） | `202 {"taskId": "..."}` |
@@ -108,6 +109,15 @@ pytest -q
 - **直接查询接口**（供边缘回源或调试）：`GET /api/repos`、`GET /api/trending`、`POST /api/recommend/query`；
 - **数据契约**：本地表结构与 D1 Schema 保持一致（`my_repositories` / `trending_repositories` / `categories` 字段名与语义镜像），边缘侧按 `id`（`owner/repo`）对齐；
 - **降级语义**：外部依赖不可用时任务返回 `{"status": "skipped"|"error", ...}` 而不是失败抛错，边缘侧可安全重试。
+
+### 增量同步（REQ-202610-0899）
+
+- 默认 `mode=incremental`：自有仓库用 `/user/repos?since=<sync_state.last_synced_at>` 增量拉取
+  （`since` 留 60 秒重叠窗口，避免同一秒更新被漏掉）；
+  Starred 按 `updated` 倒序分页，但只写 `pushed_at` / `stars` / 元数据变化的行；
+- 首次同步、距上次全量超过 7 天或手动 `mode=full` 时执行全量对账；
+- 水位线存本地 `sync_state` 表，失败不推进；未变化的仓库不会产生 UPDATE；
+- beat 默认：每日 03:17 增量、每周日 04:07 全量。
 
 ## 常用检查
 

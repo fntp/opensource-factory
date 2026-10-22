@@ -57,8 +57,12 @@ GitHub → /api/auth/github/callback?code → edge 换取 token → 拉取用户
 ### 3.2 同步流（资产）
 
 ```
-admin「同步仓库」→ POST /api/sync（edge）→ POST {VPS}/api/tasks/sync（X-Internal-Token）
-→ Celery 拉取 GitHub Starred/自有仓库 → upsert → 摘要（Ollama）→ 写回 D1 → 前端可见
+admin「同步仓库」→ POST /api/sync（edge）→ POST {VPS}/api/tasks/sync?mode=incremental（X-Internal-Token）
+→ Celery 按 sync_state 水位线增量拉取 GitHub 自有仓库 / Starred
+→ 仅对 pushed_at / stars / 元数据变化的行 upsert → 摘要（Ollama）→ 写回 D1 → 前端可见
+
+> 增量策略（REQ-202610-0899）：自有仓库用 `/user/repos?since=<水位线>` 服务端过滤；
+> Starred 按 updated 倒序分页但只写变化行；每周自动全量对账，也可手动 `mode=full`。
 ```
 
 ### 3.3 热榜流
@@ -96,7 +100,7 @@ Celery beat 每日 → 抓取 GitHub Trending → 清洗解析 → upsert trendi
 
 | 端点 | 方法 | 说明 |
 | --- | --- | --- |
-| `/api/tasks/sync` | POST | 入队仓库同步 |
+| `/api/tasks/sync` | POST | 入队仓库同步（`?mode=incremental\|full`） |
 | `/api/tasks/crawl-trending` | POST | 入队热榜抓取 |
 | `/api/tasks/generate-recommendations` | POST | 入队推荐生成 |
 | `/api/tasks/daily-push` | POST | 入队每日推送 |

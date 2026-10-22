@@ -12,13 +12,15 @@ const sync = new Hono<{ Bindings: Env; Variables: Variables }>();
 sync.post('/', async (c) => {
   const user = c.get('user');
   const vpsUrl = c.env.VPS_NODE_URL?.trim();
+  // 默认增量；`?mode=full` 触发全量对账（REQ-202610-0899）
+  const mode = c.req.query('mode') === 'full' ? 'full' : 'incremental';
 
   if (!vpsUrl) {
     return c.json({ status: 'accepted', note: 'vps node not configured' }, 202);
   }
 
   try {
-    const res = await fetch(`${vpsUrl.replace(/\/+$/, '')}/api/tasks/sync`, {
+    const res = await fetch(`${vpsUrl.replace(/\/+$/, '')}/api/tasks/sync?mode=${mode}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
