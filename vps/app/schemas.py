@@ -38,6 +38,9 @@ class TrendingRepoOut(ORMModel):
     stars_today: Optional[int] = 0
     description: Optional[str] = None
     tech_stack: Optional[str] = None
+    owner: Optional[str] = None
+    language: Optional[str] = None
+    stars: int = 0
     crawled_at: Optional[date] = None
 
 

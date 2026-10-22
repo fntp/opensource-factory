@@ -86,31 +86,72 @@ def sync_repositories(include_starred: bool = True) -> dict[str, Any]:
 
 
 @celery_app.task(name="app.tasks.jobs.crawl_trending")
-def crawl_trending(platform: str = "github", language: Optional[str] = None) -> dict[str, Any]:
-    """抓取热榜（GitHub Trending，可选 Gitee）并 upsert 到 trending 表。"""
-    from app.services.readme import extract_tech_stack
-    from app.services.trending_crawler import crawl_gitee_explore, crawl_github_trending
+def crawl_trending(
+    platform: str = "github",
+    language: Optional[str] = None,
+    languages: Optional[list[str] | str] = None,
+    since: str = "daily",
+) -> dict[str, Any]:
+    """抓取热榜（GitHub Trending 全局页 + 多语言页，可选 Gitee）并 upsert。
 
+    - 未指定 `language` 时按 `languages`（默认 `TRENDING_LANGUAGES`）抓取多语言页；
+    - 页面级失败不中断整轮，返回 `pages` / `failedPages` 供告警与排查。
+    """
+    from app.services.readme import extract_tech_stack
+    from app.services.trending_crawler import (
+        crawl_gitee_explore,
+        crawl_github_trending_pages,
+    )
+
+    settings = get_settings()
     items: list[dict[str, Any]] = []
+    pages: list[dict[str, Any]] = []
     try:
         if platform in ("github", "all", ""):
-            items.extend(_run_async(crawl_github_trending(language=language)))
+            if language:
+                result = _run_async(
+                    crawl_github_trending_pages(
+                        languages=[language],
+                        since=since,
+                        include_global=False,
+                    )
+                )
+            else:
+                configured = settings.TRENDING_LANGUAGES if languages is None else languages
+                result = _run_async(
+                    crawl_github_trending_pages(languages=configured, since=since)
+                )
+            items.extend(result.get("items") or [])
+            pages.extend(result.get("pages") or [])
         if platform in ("gitee", "all"):
             items.extend(_run_async(crawl_gitee_explore()))
     except Exception as exc:  # noqa: BLE001 - 抓取失败降级返回空结果
         logger.exception("热榜抓取失败")
-        return {"status": "error", "error": str(exc)[:300]}
+        return {"status": "error", "error": str(exc)[:300], "pages": pages}
+
+    # 跨平台 / 多页去重（同一 owner/repo 只保留一条）
+    unique: dict[str, dict[str, Any]] = {}
+    for item in items:
+        repo_id = str(item.get("id") or "").strip()
+        if repo_id and repo_id not in unique:
+            unique[repo_id] = item
+    items = list(unique.values())
 
     created = 0
     updated = 0
+    today = date.today()
     db = SessionLocal()
     try:
         for item in items:
-            repo_id = item.get("id") or ""
+            repo_id = str(item.get("id") or "").strip()
             if not repo_id:
                 continue
+            owner = item.get("owner") or repo_id.split("/")[0]
+            language_name = (item.get("language") or "").strip() or None
+            stars = int(item.get("stars") or 0)
+            stars_today = int(item.get("stars_today") or 0)
             tech_stack = extract_tech_stack(
-                " ".join(filter(None, [item.get("description"), item.get("language")]))
+                " ".join(filter(None, [item.get("description"), language_name]))
             )
             row = db.get(TrendingRepository, repo_id)
             if row is None:
@@ -120,10 +161,13 @@ def crawl_trending(platform: str = "github", language: Optional[str] = None) -> 
                         platform=item.get("platform") or "github",
                         name=item.get("name") or repo_id.split("/")[-1],
                         html_url=item.get("html_url") or "",
-                        stars_today=int(item.get("stars_today") or 0),
+                        stars_today=stars_today,
                         description=item.get("description") or "",
                         tech_stack=tech_stack,
-                        crawled_at=date.today(),
+                        owner=owner,
+                        language=language_name,
+                        stars=stars,
+                        crawled_at=today,
                     )
                 )
                 created += 1
@@ -131,17 +175,43 @@ def crawl_trending(platform: str = "github", language: Optional[str] = None) -> 
                 row.platform = item.get("platform") or row.platform
                 row.name = item.get("name") or row.name
                 row.html_url = item.get("html_url") or row.html_url
-                row.stars_today = int(item.get("stars_today") or 0)
-                row.description = item.get("description") or row.description
+                row.owner = owner or row.owner
+                row.language = language_name or row.language
+                row.stars = stars
+                row.stars_today = stars_today
+                if item.get("description"):
+                    row.description = item["description"]
                 row.tech_stack = tech_stack or row.tech_stack
-                row.crawled_at = date.today()
+                row.crawled_at = today
                 updated += 1
         db.commit()
     finally:
         db.close()
 
-    logger.info("热榜抓取完成: 共 %d 条（新增 %d / 更新 %d）", len(items), created, updated)
-    return {"status": "ok", "total": len(items), "created": created, "updated": updated}
+    failed_pages = [page for page in pages if not page.get("ok", True)]
+    if not items and failed_pages:
+        status = "error"
+    elif failed_pages:
+        status = "partial"
+    else:
+        status = "ok"
+
+    logger.info(
+        "热榜抓取完成: 共 %d 条（新增 %d / 更新 %d，失败页 %d）",
+        len(items),
+        created,
+        updated,
+        len(failed_pages),
+    )
+    return {
+        "status": status,
+        "platform": platform,
+        "total": len(items),
+        "created": created,
+        "updated": updated,
+        "pages": pages,
+        "failedPages": failed_pages,
+    }
 
 
 @celery_app.task(name="app.tasks.jobs.generate_recommendations")
