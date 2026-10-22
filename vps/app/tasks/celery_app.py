@@ -2,7 +2,7 @@
 
 - broker / backend：`REDIS_URL`（默认 `redis://localhost:6379/0`）；
 - `CELERY_TASK_ALWAYS_EAGER=1` 时任务同步执行（本地调试 / 测试）；
-- beat 计划：每 6 小时抓取热榜、每日 09:00 推送准备。
+- beat 计划：每日抓取热榜（全局页 + 多语言页）、每日 08:30 生成推荐、每日 09:00 推送准备。
 """
 from __future__ import annotations
 
@@ -33,15 +33,50 @@ celery_app.conf.update(
 )
 
 # 定时计划（配合 `celery -A app.tasks.celery_app beat` 使用）
+# 热榜每日抓取：默认 03:27（Asia/Shanghai），全局页 + TRENDING_LANGUAGES 配置的多语言页。
 celery_app.conf.beat_schedule = {
-    "crawl-trending-every-6h": {
+    "crawl-trending-daily": {
         "task": "app.tasks.jobs.crawl_trending",
-        "schedule": crontab(minute=15, hour="*/6"),
-        "kwargs": {"platform": "github"},
+        "schedule": crontab(
+            minute=settings.TRENDING_CRAWL_MINUTE,
+            hour=settings.TRENDING_CRAWL_HOUR,
+        ),
+        "kwargs": {"platform": "github", "languages": settings.TRENDING_LANGUAGES},
+    },
+    "cleanup-trending-daily": {
+        "task": "app.tasks.jobs.cleanup_trending_data",
+        "schedule": crontab(
+            minute=settings.TRENDING_RETENTION_MINUTE,
+            hour=settings.TRENDING_RETENTION_HOUR,
+        ),
+    },
+    # 每日推荐生成（M3-05）：08:30 生成，09:00 推送准备使用最新结果
+    "generate-recommendations-daily": {
+        "task": "app.tasks.jobs.generate_recommendations",
+        "schedule": crontab(minute=30, hour=8),
     },
     "daily-push-at-9am": {
         "task": "app.tasks.jobs.daily_push",
         "schedule": crontab(minute=0, hour=9),
+    },
+    # 项目健康度元数据刷新（M6-05）：每日 06:12，避开抓取 / 推荐高峰
+    "refresh-repo-health-daily": {
+        "task": "app.tasks.jobs.refresh_repo_health",
+        "schedule": crontab(
+            minute=settings.REPO_HEALTH_MINUTE,
+            hour=settings.REPO_HEALTH_HOUR,
+        ),
+    },
+    # Vectorize 索引：每日增量同步 + 对账（M3-03）
+    "vector-index-sync-daily": {
+        "task": "app.tasks.jobs.sync_vector_index",
+        "schedule": crontab(minute=37, hour=4),
+        "kwargs": {"mode": "incremental", "scope": "all"},
+    },
+    "vector-index-reconcile-daily": {
+        "task": "app.tasks.jobs.reconcile_vector_index",
+        "schedule": crontab(minute=17, hour=5),
+        "kwargs": {"scope": "all", "repair": False},
     },
 }
 

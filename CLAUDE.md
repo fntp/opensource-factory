@@ -5,7 +5,7 @@
 ## 项目速览
 
 开源项目工厂（OpenFactory）：个人开源资产管理与智能推荐系统。
-Monorepo：`admin/`（React 前端）· `edge/`（Cloudflare Workers API）· `vps/`（Python 算力节点）· `docs/`（文档与数据资产）。
+Monorepo：`admin/`（React 前端）· `edge/`（Cloudflare Workers API）· `vps/`（Python 算力节点）· `deploy/`（本机部署基线）· `docs/`（文档与数据资产）。
 
 ## 常用命令
 

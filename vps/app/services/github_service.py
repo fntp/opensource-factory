@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import base64
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
@@ -15,6 +16,22 @@ logger = logging.getLogger(__name__)
 
 GITHUB_API = "https://api.github.com"
 _TIMEOUT = httpx.Timeout(30.0, connect=10.0)
+
+
+def _parse_github_time(value: Any) -> datetime | None:
+    """解析 GitHub ISO 时间（如 `2026-10-20T08:00:00Z`）为无时区 UTC。"""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip()
+    if text.endswith("Z"):
+        text = f"{text[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+    return parsed
 
 
 class GitHubServiceError(Exception):
@@ -45,6 +62,13 @@ def normalize_repo(repo: dict[str, Any]) -> dict[str, Any]:
         "stars": int(repo.get("stargazers_count") or 0),
         "language": repo.get("language") or "",
         "forks": int(repo.get("forks_count") or 0),
+        # M6-05 项目健康度：最后提交 / issue 活跃 / 归档标记
+        "pushed_at": _parse_github_time(repo.get("pushed_at")),
+        "updated_at": _parse_github_time(repo.get("updated_at")),
+        "open_issues_count": int(repo.get("open_issues_count") or 0),
+        "archived": bool(repo.get("archived")),
+        "disabled": bool(repo.get("disabled")),
+        "default_branch": repo.get("default_branch") or "",
     }
 
 

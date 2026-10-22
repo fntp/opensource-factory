@@ -13,22 +13,61 @@ import re
 from typing import Optional, Sequence
 
 from app.config import get_settings
+from app.services.model_budget import DEFAULT_BUDGET_MB, resolve_embedding_spec
 
 logger = logging.getLogger(__name__)
 
 FALLBACK_DIM = 256
 _WHITESPACE_RE = re.compile(r"\s+")
+_INT8_ALIASES = frozenset({"int8", "q8", "q8_0", "onnx-int8", "onnx_int8", "int8-dynamic"})
+_FP16_ALIASES = frozenset({"fp16", "float16", "half"})
+
+
+def _quantize_dynamic(model: object) -> object:
+    """对 Linear 层做 int8 动态量化；失败时原样返回（不阻塞降级链）。"""
+    try:
+        import torch  # type: ignore[import-not-found]
+
+        quantized = torch.quantization.quantize_dynamic(  # type: ignore[attr-defined]
+            model, {torch.nn.Linear}, dtype=torch.qint8
+        )
+        logger.info("已启用 int8 动态量化（Linear 层）")
+        return quantized
+    except Exception as exc:  # noqa: BLE001 - 量化失败仍可使用原模型
+        logger.warning("int8 动态量化失败，使用原模型: %s", exc)
+        return model
 
 
 class EmbeddingService:
     """向量化服务（懒加载模型；可用 `force_fallback=True` 强制走 hash 兜底）。"""
 
-    def __init__(self, model_name: str | None = None, *, force_fallback: bool = False) -> None:
+    def __init__(
+        self,
+        model_name: str | None = None,
+        *,
+        force_fallback: bool = False,
+        budget_mb: int | None = None,
+    ) -> None:
         settings = get_settings()
         self.model_name: str = model_name or settings.EMBEDDING_MODEL
+        self.quantization: str = (settings.EMBEDDING_QUANTIZATION or "none").strip().lower()
+        self.device: str = (settings.EMBEDDING_DEVICE or "cpu").strip().lower()
+        self.budget_mb: int = int(
+            budget_mb
+            if budget_mb is not None
+            else (settings.MODEL_BUDGET_MB or DEFAULT_BUDGET_MB)
+        )
         self.force_fallback: bool = force_fallback
         self._backend: Optional[str] = None  # 'sentence-transformers' | 'flagembedding' | 'hash'
         self._model: object | None = None
+        self._degraded_reason: str = ""
+
+    @property
+    def degraded_reason(self) -> str:
+        """降级原因（`forced` / `over_budget` / `model_missing`；正常加载时为空）。"""
+        if self._backend is None:
+            self._load_backend()
+        return self._degraded_reason
 
     # ------------------------------------------------------------------ 后端
 
@@ -45,26 +84,61 @@ class EmbeddingService:
             return self._backend
         if self.force_fallback:
             self._backend = "hash"
+            self._degraded_reason = "forced"
+            return self._backend
+
+        # 超预算前置检查：不加载已知会突破内存红线的模型，直接走 hash
+        spec = resolve_embedding_spec(self.model_name, self.quantization)
+        if spec is not None and spec.resident_mb > self.budget_mb:
+            self._backend = "hash"
+            self._degraded_reason = (
+                f"over_budget: {spec.resident_mb}MB > {self.budget_mb}MB"
+            )
+            logger.warning(
+                "嵌入模型 %s 估算驻留 %d MB 超出预算 %d MB，使用 hash 兜底（dim=%d）",
+                self.model_name,
+                spec.resident_mb,
+                self.budget_mb,
+                FALLBACK_DIM,
+            )
             return self._backend
 
         try:
             from sentence_transformers import SentenceTransformer  # type: ignore[import-not-found]
 
-            self._model = SentenceTransformer(self.model_name)
+            self._model = SentenceTransformer(self.model_name, device=self.device)
+            if self.quantization in _INT8_ALIASES:
+                self._model = _quantize_dynamic(self._model)
             self._backend = "sentence-transformers"
-            logger.info("嵌入后端: sentence-transformers (%s)", self.model_name)
+            self._degraded_reason = ""
+            logger.info(
+                "嵌入后端: sentence-transformers (%s, device=%s, quantization=%s)",
+                self.model_name,
+                self.device,
+                self.quantization,
+            )
             return self._backend
         except Exception as exc:  # noqa: BLE001 - 未安装或加载失败都走降级
+            self._degraded_reason = f"model_missing: sentence-transformers ({exc})"
             logger.info("sentence-transformers 不可用: %s", exc)
 
         try:
             from FlagEmbedding import BGEM3FlagModel  # type: ignore[import-not-found]
 
-            self._model = BGEM3FlagModel(self.model_name, use_fp16=True)
+            # CPU 上 fp16 既无收益也可能不被支持；仅 GPU + fp16 口径启用
+            use_fp16 = self.device != "cpu" and self.quantization in _FP16_ALIASES
+            self._model = BGEM3FlagModel(self.model_name, use_fp16=use_fp16, device=self.device)
             self._backend = "flagembedding"
-            logger.info("嵌入后端: FlagEmbedding (%s)", self.model_name)
+            self._degraded_reason = ""
+            logger.info(
+                "嵌入后端: FlagEmbedding (%s, device=%s, fp16=%s)",
+                self.model_name,
+                self.device,
+                use_fp16,
+            )
             return self._backend
         except Exception as exc:  # noqa: BLE001 - 同上
+            self._degraded_reason = f"model_missing: FlagEmbedding ({exc})"
             logger.info("FlagEmbedding 不可用: %s", exc)
 
         self._backend = "hash"
@@ -142,8 +216,8 @@ _service: Optional[EmbeddingService] = None
 
 
 def get_embedding_service() -> EmbeddingService:
-    """获取全局向量化服务单例。"""
+    """获取全局向量化服务单例（尊重 `EMBEDDING_FORCE_FALLBACK`）。"""
     global _service
     if _service is None:
-        _service = EmbeddingService()
+        _service = EmbeddingService(force_fallback=get_settings().EMBEDDING_FORCE_FALLBACK)
     return _service
