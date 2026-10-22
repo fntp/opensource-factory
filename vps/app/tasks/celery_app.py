@@ -2,7 +2,8 @@
 
 - broker / backend：`REDIS_URL`（默认 `redis://localhost:6379/0`）；
 - `CELERY_TASK_ALWAYS_EAGER=1` 时任务同步执行（本地调试 / 测试）；
-- beat 计划：每 6 小时抓取热榜、每日 08:30 生成推荐、08:45 评估推荐、09:00 推送准备。
+- beat 计划：每 6 小时抓取热榜、每日 08:30 生成推荐、08:45 评估推荐、09:00 推送准备、
+  09:05 Telegram 摘要（M4-04，未启用时自动跳过）。
 """
 from __future__ import annotations
 
@@ -52,6 +53,11 @@ celery_app.conf.beat_schedule = {
     "daily-push-at-9am": {
         "task": "app.tasks.jobs.daily_push",
         "schedule": crontab(minute=0, hour=9),
+    },
+    # Telegram 每日摘要（M4-04）：09:05 在推送准备之后下发；未启用时任务直接跳过
+    "send-telegram-digest-daily": {
+        "task": "app.tasks.jobs.send_telegram_digest",
+        "schedule": crontab(minute=5, hour=9),
     },
     # Vectorize 索引增量同步：每 30 分钟一次（M3-03）；未配置 edge 时任务自动跳过
     "sync-vector-index-every-30m": {

@@ -13,7 +13,7 @@ from typing import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import recommend, repos, tasks, trending, vector_sync, vectors
+from app.api import notifications, recommend, repos, tasks, trending, vector_sync, vectors
 from app.config import get_settings
 from app.db import init_db
 
@@ -74,6 +74,7 @@ app.include_router(tasks.router)
 app.include_router(repos.router)
 app.include_router(trending.router)
 app.include_router(recommend.router)
+app.include_router(notifications.router)
 app.include_router(vector_sync.router)
 app.include_router(vectors.router)
 

@@ -111,6 +111,20 @@ Celery beat（每 30 分钟）或 POST /api/vector-index/sync
 ```
 ```
 
+### 3.7 Telegram 推送流（M4-04）
+
+```
+Celery beat 09:05（daily_push 之后）或 POST /api/tasks/send-telegram-digest
+→ 读取最近 TELEGRAM_DIGEST_WINDOW_HOURS 小时内 status=pushed 的推荐
+→ 关联 trending_repositories（标题 / 简介 / 链接 / 今日 Star）
+→ 生成中文 HTML 摘要（转义 + 按 3800 字符分片，≤ Telegram 4096 上限）
+→ POST {TELEGRAM_API_BASE}/bot{token}/sendMessage（429 / 5xx / 网络异常指数退避）
+→ 写 telegram_deliveries（sent / failed / pending；同日同会话最小幂等）
+```
+
+未启用 / 未配置 / 无数据时任务返回结构化状态并直接跳过，不访问网络；Bot Token 仅存
+VPS 本机 `.env`，状态接口只返回脱敏 chat id。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -137,6 +151,9 @@ Celery beat（每 30 分钟）或 POST /api/vector-index/sync
 | `/api/tasks/generate-recommendations` | POST | 入队推荐生成 |
 | `/api/tasks/evaluate-recommendations` | POST | 入队每日评估（质量分 + 匹配度阈值） |
 | `/api/tasks/daily-push` | POST | 入队每日推送（仅 `qualified`） |
+| `/api/tasks/send-telegram-digest` | POST | 入队 Telegram 每日摘要（M4-04，可选 `user_id` / `limit` / `force`） |
+| `/api/notifications/telegram/status` | GET | Telegram 通道状态（不返回 token，chat id 脱敏） |
+| `/api/notifications/telegram/test` | POST | 发送 Telegram 测试消息 |
 | `/api/tasks/vectorize` | POST | 入队向量化（批量 / 增量 / 断点续跑） |
 | `/api/tasks/{taskId}` | GET | 任务状态 |
 | `/api/vector-index/sync` | POST | 入队 Vectorize 同步 / 对账（`kind` / `scope` / `force`） |
