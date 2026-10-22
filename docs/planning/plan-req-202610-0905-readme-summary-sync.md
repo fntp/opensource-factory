@@ -87,12 +87,14 @@
 
 - `vps/app/services/summarizer.py`、`vps/app/services/summary_pipeline.py`
 - `vps/app/tasks/jobs.py`、`vps/app/api/tasks.py`、`vps/app/api/repos.py`
-- `vps/app/config.py`、`vps/app/runtime.py`、`vps/app/schemas.py`
-- `vps/.env.example`、`deploy/env/openfactory.env.example`
-- `edge/src/routes/repos.ts`、`edge/src/types.ts`、`edge/src/index.ts`（如需）
+- `vps/app/config.py`、`vps/app/schemas.py`
+- `vps/.env.example`
+- `edge/src/routes/repos.ts`、`edge/src/types.ts`
 - `admin/src/features/repos/api.ts`、`admin/src/features/repos/index.tsx`
 - `vps/tests/test_summary_pipeline.py`、`vps/tests/test_api.py`
-- 文档：`docs/architecture/overview.md`、`docs/architecture/data-model.md`、`docs/planning/task-planning.md`、`vps/README.md`、`edge/README.md`
+- 文档：`docs/architecture/overview.md`、`docs/architecture/data-model.md`、`docs/planning/task-planning.md`、`docs/requirements/open-questions.md`、`vps/README.md`、`edge/README.md`
+
+> 说明：当前集成分支尚无 `vps/app/runtime.py` 与 `deploy/` 模板（M1-01 / REQ-202610-0893 未合并），本需求不涉及；待其合并后再把新增环境变量补进部署模板。
 
 ## 6. 验证计划
 
