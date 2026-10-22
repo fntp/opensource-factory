@@ -314,6 +314,41 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 - 去重窗口按 `PUSH_DEDUPE_DAYS`（默认 7 天）计算，`PUSH_DEDUPE_CROSS_CHANNEL=true` 时跨通道生效；
 - 每日上限按用户本地自然日的去重仓库数计算，避免同一仓库多通道重复计数。
 
+### 3.14 `push_deliveries` 统一推送投递记录（M4-08，VPS 本地）
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | 统一投递记录 id（UUID hex） |
+| channel TEXT | `bark` / `telegram` / `email` |
+| kind TEXT | `digest` / `test` / `single` |
+| target TEXT | 目标原值（API 输出脱敏；Bark 存 group 名，不存 device key） |
+| target_type TEXT | `chat` / `email` / `group` |
+| status TEXT | `pending` / `sent` / `delivered` / `failed` / `skipped` |
+| item_count / message_count | 推送条目数 / 实际消息条数 |
+| message_id TEXT | 服务商消息 id（Email Message-ID / Telegram message_id） |
+| subject TEXT | 邮件主题 / Bark 标题 |
+| dedupe_key TEXT | 通道幂等键，用于和通道表对账 |
+| receipt_status TEXT | 最新回执状态：`accepted` / `delivered` / `bounced` / `failed` |
+| receipt_detail TEXT | 最新回执说明（脱敏、截断） |
+| error TEXT | 发送失败原因（脱敏、截断 500 字符） |
+| attempts INTEGER | 尝试次数（当前固定 1，预留重投） |
+| source_id TEXT | 通道原表 id；Bark 为推荐 id |
+| user_id TEXT | 关联用户 |
+| created_at / sent_at / finished_at / delivered_at | 生命周期时间 |
+
+### 3.15 `push_receipts` 推送回执流水（M4-08，VPS 本地）
+
+| 字段 | 说明 |
+| --- | --- |
+| id TEXT PK | 回执 id |
+| delivery_id TEXT | 关联 `push_deliveries.id` |
+| channel TEXT | 冗余通道，便于统计 |
+| status TEXT | `accepted` / `delivered` / `bounced` / `failed` |
+| source TEXT | `provider` / `manual` / `system` |
+| external_id TEXT | 服务商回执 id，用于幂等 |
+| detail TEXT | 回执说明（脱敏、截断） |
+| occurred_at / created_at | 回执发生 / 落库时间 |
+
 ## 4. 索引策略
 
 | 表 | 索引 | 用途 |
@@ -332,6 +367,8 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | telegram_deliveries | `(dedupe_key, status)`、`(dedupe_key)` | 当日幂等与送达记录查询 |
 | email_deliveries | `(dedupe_key, status)` | 每日摘要幂等校验 / 送达排查 |
 | push_events | `(user_id, repo_id, updated_at)`、`(user_id, updated_at)`、`event_key` UNIQUE | 去重窗口 / 每日额度 / 事件幂等 |
+| push_deliveries | `(channel)`、`(status)`、`(created_at)`、`(dedupe_key)`、`(source_id)`、`(user_id)` | 记录列表过滤 / 统计 / 对账 |
+| push_receipts | `(delivery_id)`、`(status)`、`(external_id)` | 回执时间线 / 幂等 |
 
 ## 5. 向量数据（M3）
 

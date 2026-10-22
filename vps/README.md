@@ -47,6 +47,7 @@ vps/
 │   │   ├── telegram.py           # Telegram 摘要：HTML / 分片 / 重试 / 送达记录（M4-04）
 │   │   ├── email_channel.py      # Email 摘要：SMTP 投递 / 幂等 / 送达记录（M4-05）
 │   │   ├── push_policy.py        # 推送去重 / 静默 / 每日上限 / 事件账本（M4-07）
+│   │   ├── push_records.py       # 统一推送记录 / 回执流水 / 统计（M4-08）
 │   │   ├── vector_index.py       # Vectorize 批量 upsert / 重试 / 对账 / 孤儿清理
 │   │   ├── query_understanding.py # 同义词 / 技术栈词表查询理解（离线、确定性）
 │   │   ├── semantic_search.py    # 查询向量化 + repo_vectors 余弦检索 + 结果水合
@@ -55,7 +56,7 @@ vps/
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
 │   │   ├── trending.py           # GET /api/trending、/snapshots、/dates、/history、/retention、POST /crawl、/retention/cleanup
 │   │   ├── recommend.py          # /api/recommend/*（查询 / 列表 / 生成 / 质量评估 / 每日评估 / 合格推荐）
-│   │   ├── push.py               # /api/push/bark/*（状态 / 测试 / 投递入队）
+│   │   ├── push.py               # /api/push/bark/*（状态 / 测试 / 投递入队）、/api/push/records/*、/api/push/receipts
 │   │   ├── notifications.py      # /api/notifications/telegram/*、/api/notifications/email/*（状态 / 测试）
 │   │   ├── push_policy.py        # /api/push/policy/*（状态 / 预演 / 事件）
 │   │   ├── vector_index.py       # /api/vector-index/*（同步入队、对账、状态、运行记录）
@@ -320,6 +321,10 @@ cd vps
 | GET | `/api/push/bark/status` | Bark 通道状态与待投递 / 已投递 / 失败计数 | `200 {...}` |
 | POST | `/api/push/bark/test` | 同步发送 Bark 测试通知（需已配置） | `200 {"ok":true}` |
 | POST | `/api/push/bark/dispatch` | 入队 Bark 投递（可选 `user_id` / `limit`） | `202 {"taskId":"..."}` |
+| GET | `/api/push/records` | 统一推送记录（`channel` / `status` / `kind` / `user_id` / `q` / 时间 + 分页） | `200 {...}` |
+| GET | `/api/push/records/stats` | 投递统计（分通道 / 分状态 / 回执 / 送达率） | `200 {...}` |
+| GET | `/api/push/records/{id}` | 投递详情 + 回执时间线 | `200 {...}` / `404` |
+| POST | `/api/push/receipts` | 写入送达回执（`deliveryId` / `status` / `source` / `externalId`） | `200 {...}` / `400` / `404` |
 
 Celery beat 每日 04:37 自动增量同步、05:17 自动对账；也可通过上述接口手动触发。
 | GET | `/api/vectors/stats` | 向量覆盖率与最近运行 | `200` |
@@ -343,6 +348,8 @@ Vectorize 索引维护接口（同样使用 `X-Internal-Token`）：
 | GET | `/api/vector-index/runs?limit=20` | 最近运行列表 | `200 {"items": [...]}` |
 | GET | `/api/vector-index/runs/{run_id}` | 单次运行详情 | `200` / `404` |
 | GET | `/api/degradation/status` | 降级路径自检（模型缺失 / 超预算） | `200 {...}` |
+
+Celery beat 每 30 分钟（`7,37` 分）自动执行一次向量索引增量同步；对账建议在低峰期手动触发。
 
 约定：
 
@@ -659,6 +666,36 @@ curl -sS -X POST 'http://127.0.0.1:8000/api/push/policy/events' \
 
 Celery beat 每 10 分钟执行 `daily_push(respect_schedule=True)`，并按 `PUSH_RETRY_INTERVAL_MINUTES`（默认 30 分钟）执行
 `retry_deferred_push`；重试任务只在非静默且存在 `qualified` 时真正运行。
+
+## 推送记录与回执（M4-08）
+
+Bark / Telegram / Email 每次实际发送都会写一条 `push_deliveries`，并在发送结束后回写
+`sent` / `failed` / `skipped`；服务商异步回执或人工补记通过 `POST /api/push/receipts`
+写入 `push_receipts`，支持 `accepted / delivered / bounced / failed` 四种状态。
+
+```bash
+# 最近 7 天的记录（可按 channel / status / kind / q / date_from / date_to 过滤）
+curl -sS 'http://127.0.0.1:8000/api/push/records?date_from=2026-10-15T00:00:00&page=1&pageSize=20' \
+  -H 'X-Internal-Token: <token>'
+
+# 统计
+curl -sS 'http://127.0.0.1:8000/api/push/records/stats?days=30' \
+  -H 'X-Internal-Token: <token>'
+
+# 写入回执（服务商回调或人工确认）
+curl -sS -X POST 'http://127.0.0.1:8000/api/push/receipts' \
+  -H 'Content-Type: application/json' \
+  -H 'X-Internal-Token: <token>' \
+  -d '{"deliveryId":"<id>","status":"delivered","source":"manual","detail":"人工确认已送达"}'
+```
+
+说明：
+
+- 列表接口的 `days` 只用于 `stats`；记录列表用 `date_from` / `date_to`（ISO 时间）过滤；
+- 目标字段统一脱敏：邮箱 `a***@example.com`，chat id `12***89`，Bark group 原样返回；
+- 同一 `deliveryId + externalId + status` 重复回调幂等；已 `delivered` 的记录不会被迟到回执降级；
+- Bark / Telegram 官方 API 没有逐条送达回执，默认只有发送结果；需要精确送达时由服务商适配器或人工补记；
+- 历史 `telegram_deliveries` / `email_deliveries` 不回填，统一记录从本版本起生效。
 
 ## 常用检查
 

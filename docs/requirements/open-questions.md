@@ -134,6 +134,16 @@
 - **默认处理**：A；上线前用 `POST /api/notifications/email/test` 验证连通性，
   确认 `GET /api/notifications/email/status` 的 `configured=true` 且 `lastDelivery.status=sent`。
   发件人域名与退订地址需由维护者按服务商政策确认。
+## Q17. 推送回执的服务商适配与签名校验（REQ-202610-0937 新增）
+
+- **背景**：M4-08 提供统一的 `POST /api/push/receipts` 回执入口与幂等语义，但不同服务商的
+  回调格式、签名算法、重试策略不一致；Bark / Telegram 官方 API 也不提供逐条送达回执；
+- **选项**：
+  - A. 当前通用入口 + `X-Internal-Token`，由部署方在服务商控制台配置 webhook 或人工补记（**当前默认**）；
+  - B. 为 Email 服务商（如 SES / Mailgun）单独实现签名校验与事件映射适配器；
+  - C. 仅人工补记，不接服务商回调；
+- **默认处理**：A；后续接入具体服务商时在 `vps/app/api/push.py` 前增加适配层，
+  不改变 `push_receipts` 的数据结构与状态机。
 
 ---
 
