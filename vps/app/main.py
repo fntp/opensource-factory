@@ -22,6 +22,7 @@ from app.api import (
     recommend,
     repos,
     search,
+    security,
     summaries,
     tasks,
     trending,
@@ -30,6 +31,7 @@ from app.api import (
 )
 from app.config import get_settings
 from app.db import init_db
+from app.middleware.rate_limit import install_rate_limit_middleware
 
 settings = get_settings()
 
@@ -97,6 +99,10 @@ app.include_router(search.router)
 app.include_router(degradation.router)
 app.include_router(push.router)
 app.include_router(backup.router)
+app.include_router(security.router)
+
+# 接口限流（M5-05）：进程内滑动窗口，默认开启
+install_rate_limit_middleware(app)
 
 
 @app.get("/healthz", tags=["health"], summary="健康检查")

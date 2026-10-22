@@ -308,6 +308,28 @@ Bark / Telegram / Email 每次实际发送
 
 ```
 
+### 3.12 限流与登录防护（M5-05）
+
+```
+admin / 匿名请求 → edge /api/*
+  ├─ 会话解析 → 限流桶（auth / write / read）
+  │    ├─ 已登录：sha256(scope:user:<id>)
+  │    └─ 匿名：sha256(scope:ip:<客户端 IP>)
+  ├─ D1 rate_limit_counters 固定窗口计数（UPSERT + RETURNING）
+  │    ├─ 未超限 → 放行并回写 X-RateLimit-* 响应头
+  │    └─ 超限 → 429 rate_limited + Retry-After（auth 桶同时记 security_events）
+  └─ D1 异常 → fail-open（放行并记录日志）
+
+GitHub OAuth callback → login_attempts / security_events
+  ├─ 失败（state / token / userinfo）→ 记失败，窗口内达到阈值 → 记 login_locked
+  ├─ 锁定中 → 429 login_locked + Retry-After
+  └─ 成功 → 清除该 IP 的失败记录并记 login_succeeded
+```
+
+- edge 侧 `/api/internal/*` 不走 IP 限流（由内部令牌保护），避免 VPS 批量任务被误伤；
+- VPS 侧另有进程内滑动窗口（`RATE_LIMIT_*`），`/api/tasks`、`/api/vector-index`、`/api/search`、`/api/recommend/eval` 使用更低的「重接口」阈值；
+- 限流身份只落 sha-256 哈希，不存明文 IP；`rate_limit_counters` 过期行与历史安全事件由 `POST /api/internal/security/cleanup` 定期清理。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -422,12 +444,22 @@ Bark / Telegram / Email 每次实际发送
 | `/api/internal/vectors/list` | GET | 分页列出 ID（孤儿对账；不支持时返回 501） |
 | `/api/internal/push-preferences` | GET | 读取全部推送偏好（VPS 推送任务使用；`?userId=` 可查单个） |
 
+### 4.4 安全运维接口（M5-05）
+
+| 端点 | 方法 | 说明 |
+| --- | --- | --- |
+| `/api/internal/security/status`（edge） | GET | 限流 / 登录防护 / 双令牌状态与指纹（`X-Internal-Token`） |
+| `/api/internal/security/cleanup`（edge） | POST | 清理过期限流计数、30 天前登录失败与 90 天前安全事件（`X-Internal-Token`） |
+| `/api/security/status`（vps） | GET | VPS 侧限流参数与双令牌状态（`X-Internal-Token`） |
+
 ## 5. 安全边界
 
 - 浏览器侧仅持有 httpOnly 会话 Cookie（`of_session`），**不接触任何第三方 token**；
 - GitHub access token 仅存在于 edge（换取用户信息后即弃）与 vps（同步任务使用，存服务端）；
 - edge → vps 调用必须带 `X-Internal-Token`；vps 不直接对公网暴露业务接口；
-- 所有密钥通过平台 secrets 注入，仓库内只有 `.env.example` 占位符。
+- 内部令牌支持双令牌轮换：`INTERNAL_TOKEN`（当前）+ `INTERNAL_TOKEN_PREVIOUS`（过渡期），两端均接受两枚，验证通过后清空过渡位；
+- 边缘接口按 auth / write / read 三类固定窗口限流；登录失败达到阈值后按 IP 锁定，身份只存 sha-256 哈希；
+- 所有密钥通过平台 secrets 注入，仓库内只有 `.env.example` 占位符；任何接口都不回显令牌明文，只提供 12 位指纹。
 
 ## 6. 部署拓扑
 

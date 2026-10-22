@@ -9,7 +9,7 @@ from dataclasses import asdict
 
 from fastapi import APIRouter, Depends
 
-from app.api.tasks import require_internal_token
+from app.security import require_internal_token
 from app.schemas import DegradationCheckOut, DegradationStatusOut
 from app.services.degradation import run_degradation_checks
 

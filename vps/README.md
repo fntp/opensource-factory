@@ -216,6 +216,12 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | `VECTORIZE_MAX_PER_RUN` | `1000` | 单次向量化默认上限 |
 | `VECTORIZE_AUTO` | `1` | 同步 / 热榜抓取完成后自动入队增量向量化 |
 | `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/push/*`、`/api/notifications/*`、`/api/vector-index/*`、`/api/search/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
+| `INTERNAL_TOKEN_PREVIOUS` | 空 | 令牌轮换过渡位：与 `INTERNAL_TOKEN` 同时被接受，验证完成后清空 |
+| `RATE_LIMIT_ENABLED` | `true` | 进程内限流开关；`false` 时完全放行 |
+| `RATE_LIMIT_WINDOW_SECONDS` | `60` | 滑动窗口长度（秒） |
+| `RATE_LIMIT_MAX_REQUESTS` | `600` | 普通接口每窗口上限 |
+| `RATE_LIMIT_HEAVY_MAX_REQUESTS` | `120` | 重接口每窗口上限（tasks / vector-index / search / recommend eval） |
+| `RATE_LIMIT_TRUST_PROXY` | `true` | 是否信任 `X-Forwarded-For` 第一跳（仅可信反向代理后开启） |
 | `CELERY_TASK_ALWAYS_EAGER` | `0` | 置 `1` 时任务同步执行（本地调试 / 测试用） |
 | `GITHUB_TOKEN` | 空 | GitHub PAT（仅需 read 权限）；为空时同步任务跳过 |
 | `TRENDING_LANGUAGES` | `python,javascript,typescript,go,rust,java,cpp,c,php,ruby,swift,kotlin` | 每日抓取的 Trending 语言页（逗号分隔；留空只抓全局页） |

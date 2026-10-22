@@ -55,6 +55,11 @@ fi
 if [[ ${#INTERNAL_TOKEN_VALUE} -lt 16 ]]; then
   die "INTERNAL_TOKEN 未就绪（先初始化运行目录或显式提供）"
 fi
+# 轮换过渡位（M5-05）：存在时同步为 Worker 机密，使旧令牌在过渡期仍可用
+INTERNAL_TOKEN_PREVIOUS_VALUE="${INTERNAL_TOKEN_PREVIOUS:-}"
+if [[ -z "$INTERNAL_TOKEN_PREVIOUS_VALUE" && -f "$runtime_env" ]]; then
+  INTERNAL_TOKEN_PREVIOUS_VALUE="$(read_env_value "$runtime_env" INTERNAL_TOKEN_PREVIOUS)"
+fi
 
 cd "$APP_DIR/edge"
 
@@ -81,6 +86,9 @@ put_secret() {
 put_secret GITHUB_CLIENT_SECRET "$GITHUB_CLIENT_SECRET"
 put_secret SESSION_SECRET "$SESSION_SECRET"
 put_secret INTERNAL_TOKEN "$INTERNAL_TOKEN_VALUE"
+if [[ -n "$INTERNAL_TOKEN_PREVIOUS_VALUE" ]]; then
+  put_secret INTERNAL_TOKEN_PREVIOUS "$INTERNAL_TOKEN_PREVIOUS_VALUE"
+fi
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
   log "DRY-RUN 将执行：wrangler d1 migrations apply $D1_DATABASE_NAME --remote"

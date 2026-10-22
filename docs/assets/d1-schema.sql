@@ -199,3 +199,31 @@ CREATE INDEX idx_recommendation_feedback_user_repo
 CREATE INDEX idx_notifications_user_status_created ON notifications (user_id, status, created_at DESC);
 CREATE UNIQUE INDEX idx_notifications_user_recommendation ON notifications (user_id, recommendation_id);
 CREATE UNIQUE INDEX idx_notifications_user_dedupe ON notifications (user_id, dedupe_key);
+
+-- ── 安全加固（M5-05，迁移 0011）────────────────────────────────
+CREATE TABLE IF NOT EXISTS rate_limit_counters (
+    bucket TEXT PRIMARY KEY,             -- scope:sha256(identity)
+    window_start INTEGER NOT NULL,       -- 固定窗口起点（Unix 秒）
+    count INTEGER NOT NULL DEFAULT 0,
+    expires_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS login_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ip_hash TEXT NOT NULL,               -- sha256(login:ip)
+    outcome TEXT NOT NULL,               -- success / failure
+    reason TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS security_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,            -- rate_limited / login_locked / ...
+    actor_hash TEXT,
+    detail TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_rate_limit_counters_expires ON rate_limit_counters (expires_at);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_ip_created ON login_attempts (ip_hash, created_at);
+CREATE INDEX IF NOT EXISTS idx_security_events_type_created ON security_events (event_type, created_at);

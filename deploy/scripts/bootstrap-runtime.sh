@@ -80,6 +80,12 @@ if grep -qE '^INTERNAL_TOKEN=[[:space:]]*$' "$RUNTIME_DIR/.env"; then
   sed -i "s|^INTERNAL_TOKEN=.*$|INTERNAL_TOKEN=${token}|" "$RUNTIME_DIR/.env"
   log "已生成 INTERNAL_TOKEN（仅写入本机 .env，未回显）"
 fi
+
+# 旧版 .env 补 INTERNAL_TOKEN_PREVIOUS（M5-05 轮换过渡位）
+if ! grep -qE '^INTERNAL_TOKEN_PREVIOUS=' "$RUNTIME_DIR/.env"; then
+  printf '\n# 内部令牌轮换过渡位（M5-05）：验证完成后清空\nINTERNAL_TOKEN_PREVIOUS=\n' >> "$RUNTIME_DIR/.env"
+  log "已补充 INTERNAL_TOKEN_PREVIOUS（空）"
+fi
 chmod 600 "$RUNTIME_DIR/.env"
 
 # ---------- 3. Redis 配置 ----------

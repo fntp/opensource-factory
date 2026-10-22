@@ -27,6 +27,16 @@ import internalTrendingRoutes from './routes/internal-trending';
 import searchRoutes from './routes/search';
 import internalVectorsRoutes from './routes/internal-vectors';
 import internalRecommendationsRoutes from './routes/internal-recommendations';
+import internalSecurityRoutes from './routes/internal-security';
+import {
+  cleanupSecurityData,
+  clientIpFromHeaders,
+  consumeRateLimit,
+  policyFor,
+  rateLimitBucket,
+  rateLimitIdentity,
+} from './security/rate-limit.ts';
+import { recordSecurityEvent } from './security/login-guard.ts';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -48,9 +58,67 @@ app.use('*', async (c, next) => {
 // 健康检查
 app.get('/healthz', (c) => c.json({ status: 'ok' }));
 
-// 在每个请求上解析会话用户，挂到 c.var.user（未登录为 null）
+// 会话解析 + 接口限流（M5-05）
+// 限流按 用户 id / 匿名 IP 哈希分桶；D1 异常时 fail-open，不阻塞业务。
+let securityRequestCounter = 0;
+
 app.use('/api/*', async (c, next) => {
-  c.set('user', await getSessionUser(c));
+  const user = await getSessionUser(c);
+  c.set('user', user);
+
+  const policy = policyFor(c.req.method, new URL(c.req.url).pathname, c.env);
+  if (!policy) {
+    await next();
+    return;
+  }
+
+  const ip = clientIpFromHeaders(c.req.header('CF-Connecting-IP'), c.req.header('X-Forwarded-For'));
+  try {
+    const identity = await rateLimitIdentity(policy.scope, user?.id, ip);
+    const decision = await consumeRateLimit(
+      c.env.DB,
+      rateLimitBucket(policy.scope, identity),
+      policy.limit,
+      policy.windowSeconds,
+      Date.now()
+    );
+    c.header('X-RateLimit-Limit', String(decision.limit));
+    c.header('X-RateLimit-Remaining', String(decision.remaining));
+    c.header('X-RateLimit-Reset', String(Math.floor(decision.resetAt / 1000)));
+    if (!decision.allowed) {
+      c.header('Retry-After', String(decision.retryAfterSeconds));
+      if (policy.scope === 'auth') {
+        await recordSecurityEvent(
+          c.env.DB,
+          'rate_limited',
+          identity,
+          policy.scope,
+          new Date().toISOString()
+        );
+      }
+      return c.json(
+        {
+          error: 'rate_limited',
+          scope: policy.scope,
+          retryAfterSeconds: decision.retryAfterSeconds,
+        },
+        429
+      );
+    }
+  } catch (err) {
+    // D1 限流不可用时放行，保证可用性优先
+    console.error('rate limiter unavailable:', err);
+  }
+
+  securityRequestCounter += 1;
+  if (securityRequestCounter % 200 === 0) {
+    try {
+      c.executionCtx.waitUntil(cleanupSecurityData(c.env.DB, Date.now()));
+    } catch {
+      // 本地 / 测试环境没有 executionCtx，忽略
+    }
+  }
+
   await next();
 });
 
@@ -70,6 +138,7 @@ app.route('/api/internal/trending', internalTrendingRoutes);
 app.route('/api/search', searchRoutes);
 app.route('/api/internal/vectors', internalVectorsRoutes);
 app.route('/api/internal/recommendations', internalRecommendationsRoutes);
+app.route('/api/internal/security', internalSecurityRoutes);
 
 // 404
 app.notFound((c) =>

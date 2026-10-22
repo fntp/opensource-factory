@@ -22,6 +22,7 @@ import type {
   Variables,
 } from '../types';
 import { all, first, run } from '../db';
+import { checkOptionalInternalToken } from '../security/internal-token.ts';
 import { parseTrendingQuery } from '../trending/query';
 import { toTrendingDetail } from '../trending/detail';
 
@@ -102,13 +103,8 @@ async function findTrending(db: D1Database, id: string): Promise<TrendingRow | n
  * VPS 摘要任务批量回写热榜中文摘要（M2-04）；仅限内部调用。
  */
 trending.post('/summaries', async (c) => {
-  const expected = (c.env.INTERNAL_TOKEN ?? '').trim();
-  if (expected) {
-    const provided = c.req.header('X-Internal-Token') ?? '';
-    if (provided !== expected) {
-      return c.json({ error: 'unauthorized' }, 401);
-    }
-  }
+  const denied = await checkOptionalInternalToken(c);
+  if (denied) return denied;
 
   let body: { items?: TrendingSummaryItem[] } | null = null;
   try {

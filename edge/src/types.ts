@@ -16,8 +16,19 @@ export interface Env {
   ALLOWED_ORIGIN: string;
   // 本地 VPS Python 节点（FastAPI + Celery），可为空
   VPS_NODE_URL: string;
-  // 可选：边缘 → VPS 节点的内部调用令牌
+  // 可选：边缘 → VPS 节点的内部调用令牌（当前）
   INTERNAL_TOKEN?: string;
+  // 可选：上一枚内部令牌（轮换过渡期仍接受；验证完成后删除）
+  INTERNAL_TOKEN_PREVIOUS?: string;
+  // 接口限流（M5-05）：默认开启，显式 false / 0 关闭
+  RATE_LIMIT_ENABLED?: string;
+  RATE_LIMIT_READ_PER_MINUTE?: string;
+  RATE_LIMIT_WRITE_PER_MINUTE?: string;
+  RATE_LIMIT_AUTH_PER_MINUTE?: string;
+  // 登录防护（M5-05）
+  LOGIN_MAX_FAILURES?: string;
+  LOGIN_FAILURE_WINDOW_SECONDS?: string;
+  LOGIN_LOCKOUT_SECONDS?: string;
   // Vectorize 向量索引绑定（未配置时内部向量接口返回 503）
   VECTORIZE?: Vectorize;
 }

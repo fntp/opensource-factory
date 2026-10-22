@@ -12,7 +12,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.tasks import require_internal_token
+from app.security import require_internal_token
 from app.db import get_db
 from app.schemas import (
     SearchEmbedResponse,

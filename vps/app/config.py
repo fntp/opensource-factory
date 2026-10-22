@@ -219,6 +219,14 @@ class Settings(BaseSettings):
 
     # 内部接口鉴权（设置后 /api/tasks/*、/api/push/*、/api/vector-index/*、/api/search/* 校验 X-Internal-Token）
     INTERNAL_TOKEN: str = ""
+    # 内部令牌轮换（M5-05）：过渡期同时接受上一枚令牌；验证完成后清空
+    INTERNAL_TOKEN_PREVIOUS: str = ""
+    # 接口限流（M5-05）：进程内滑动窗口；单节点部署
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_WINDOW_SECONDS: int = Field(default=60, ge=1, le=3600)
+    RATE_LIMIT_MAX_REQUESTS: int = Field(default=600, ge=1, le=100000)
+    RATE_LIMIT_HEAVY_MAX_REQUESTS: int = Field(default=120, ge=1, le=100000)
+    RATE_LIMIT_TRUST_PROXY: bool = True
 
     # Celery
     CELERY_TASK_ALWAYS_EAGER: bool = False

@@ -260,10 +260,10 @@ def test_search_status_reports_vocabulary(db) -> None:
 
 
 def test_search_api_requires_internal_token_when_configured(db, monkeypatch) -> None:
-    import app.api.tasks as tasks_module
+    import app.security as security_module
 
     monkeypatch.setattr(
-        tasks_module,
+        security_module,
         "get_settings",
         lambda: Settings(INTERNAL_TOKEN="test-secret"),
     )

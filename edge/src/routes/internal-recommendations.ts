@@ -9,6 +9,7 @@
 import { Hono } from 'hono';
 import type { Env, RecommendationRow, Variables } from '../types';
 import { all, first, run } from '../db';
+import { requireInternalToken } from '../security/internal-token.ts';
 import { deriveRepoId, shouldKeepUserStatus } from '../recommend/feedback';
 
 const router = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -81,14 +82,8 @@ async function readBody(c: { req: { json: () => Promise<unknown> } }): Promise<R
 
 // 内部令牌鉴权：未配置 → 503（与 Vectorize / 一致性接口口径一致）；不匹配 → 401
 router.use('*', async (c, next) => {
-  const expected = (c.env.INTERNAL_TOKEN ?? '').trim();
-  if (!expected) {
-    return c.json({ error: 'internal_token_not_configured' }, 503);
-  }
-  const provided = (c.req.header('X-Internal-Token') ?? '').trim();
-  if (provided !== expected) {
-    return c.json({ error: 'unauthorized' }, 401);
-  }
+  const denied = await requireInternalToken(c);
+  if (denied) return denied;
   await next();
 });
 

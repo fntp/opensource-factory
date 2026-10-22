@@ -14,7 +14,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.api.tasks import require_internal_token
+from app.security import require_internal_token
 from app.schemas import VectorReconcileRequest, VectorSyncEnqueued, VectorSyncRequest
 from app.services import vector_index
 from app.tasks.jobs import reconcile_vector_index, sync_vector_index
