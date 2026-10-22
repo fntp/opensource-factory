@@ -3,8 +3,12 @@ import {
   Archive,
   Bell,
 <<<<<<< HEAD
+<<<<<<< HEAD
   Boxes,
 =======
+=======
+  BellRing,
+>>>>>>> feat/req-202610-0963-repo-update-reminders
   FileText,
 >>>>>>> feat/req-202610-0962-weekly-monthly-report
   Flame,
@@ -59,7 +63,11 @@ export const sidebarData: SidebarData = {
         { title: '打标建议', url: '/tag-suggestions', icon: Tags },
 =======
         { title: '精选报告', url: '/reports', icon: FileText },
+<<<<<<< HEAD
 >>>>>>> feat/req-202610-0962-weekly-monthly-report
+=======
+        { title: '更新提醒', url: '/updates', icon: BellRing },
+>>>>>>> feat/req-202610-0963-repo-update-reminders
       ],
     },
     {

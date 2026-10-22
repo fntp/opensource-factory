@@ -227,6 +227,26 @@ export interface NotificationRow {
   read_at: string | null;
 }
 
+/** 收藏项目更新提醒（M7-04） */
+export interface RepoUpdateRow {
+  id: string;
+  user_id: string;
+  repo_id: string;
+  repo_name: string | null;
+  repo_url: string | null;
+  type: string | null;
+  version: string;
+  title: string;
+  summary: string | null;
+  url: string | null;
+  published_at: string | null;
+  detected_at: string | null;
+  status: string | null;
+  read_at: string | null;
+  payload: string | null;
+  created_at: string | null;
+}
+
 /** 推送偏好（M4-06） */
 export interface PushPreferenceRow {
   user_id: string;

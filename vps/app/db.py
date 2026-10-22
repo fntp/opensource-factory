@@ -83,6 +83,11 @@ def _ensure_sqlite_columns() -> None:
             "license_name": "TEXT",
             "license_source": "TEXT",
             "license_checked_at": "DATETIME",
+            "latest_release_tag": "TEXT",
+            "latest_release_name": "TEXT",
+            "latest_release_url": "TEXT",
+            "latest_release_at": "DATETIME",
+            "latest_release_checked_at": "DATETIME",
         },
     }
     tables = set(inspector.get_table_names())

@@ -250,7 +250,11 @@ export function Notifications() {
                             item.title
                           )}
                           <Badge variant='secondary'>
-                            {item.type === 'recommendation' ? '推荐' : '系统'}
+                            {item.type === 'recommendation'
+                              ? '推荐'
+                              : item.type === 'repo_update'
+                                ? '项目更新'
+                                : '系统'}
                           </Badge>
                           {item.score !== null && (
                             <Badge>匹配度 {Math.round(item.score * 100)}%</Badge>

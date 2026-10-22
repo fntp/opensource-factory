@@ -281,6 +281,11 @@ permissions / COOP 头，认证路径额外返回 `Cache-Control: no-store`。
 | `REPO_HEALTH_MAX_PER_RUN` | `200` | 单次刷新最多处理的仓库数（1~1000） |
 | `REPO_HEALTH_HOUR` | `6` | 每日刷新小时（Asia/Shanghai，0–23） |
 | `REPO_HEALTH_MINUTE` | `12` | 每日刷新分钟（0–59） |
+| `REPO_UPDATES_ENABLED` | `true` | 收藏项目更新扫描总开关（M7-04） |
+| `REPO_UPDATES_MAX_PER_RUN` | `200` | 单次扫描最多处理的仓库数（1~1000） |
+| `REPO_UPDATES_INCLUDE_PRERELEASE` | `false` | 是否把预发布版本纳入提醒 |
+| `REPO_UPDATES_HOUR` | `6` | 每日扫描小时（Asia/Shanghai，0–23） |
+| `REPO_UPDATES_MINUTE` | `37` | 每日扫描分钟（0–59） |
 | `TRENDING_LANGUAGES` | `python,javascript,typescript,go,rust,java,cpp,c,php,ruby,swift,kotlin` | 每日抓取的 Trending 语言页（逗号分隔；留空只抓全局页） |
 | `TRENDING_CRAWL_HOUR` | `3` | 每日抓取小时（Asia/Shanghai，0–23） |
 | `TRENDING_CRAWL_MINUTE` | `27` | 每日抓取分钟（0–59） |
@@ -433,8 +438,9 @@ cd vps
 | POST | `/api/repos/health/refresh` | 入队刷新仓库元数据并重算健康度（可选 `repoIds`、`limit`） | `202 {"taskId"}` |
 | GET | `/api/repos/health` | 健康度列表与汇总（`status` / `limit` / `offset`） | `200 {summary,items}` |
 | GET | `/api/repos/{repo_id}/health` | 单仓库健康度详情 | `200 RepoHealth` / `404` |
+| POST | `/api/repos/updates/scan` | 入队扫描收藏项目新版本 / 重大变更（可选 `repoIds`、`limit`、`includePrerelease`） | `202 {"taskId"}` |
 
-Celery beat 每日 04:37 自动增量同步、05:17 自动对账；06:12 自动刷新项目健康度（M6-05）；也可通过上述接口手动触发。
+Celery beat 每日 04:37 自动增量同步、05:17 自动对账；06:12 自动刷新项目健康度（M6-05）；06:37 自动扫描收藏项目更新（M7-04）；也可通过上述接口手动触发。
 | GET | `/api/vectors/stats` | 向量覆盖率与最近运行 | `200` |
 | GET | `/api/vectors/runs?limit=20` | 最近向量化运行 | `200` |
 | GET | `/api/vectors/runs/{runId}` | 单次运行详情（含游标 / 计数 / 错误） | `200` |

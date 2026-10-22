@@ -50,6 +50,8 @@ edge/
 │   ├── 0013_duplicate_dismissals.sql    # 重复检测按用户忽略（M6-03）
 │   └── 0014_category_suggestions.sql    # 自动分类建议（M7-02）
 │   └── 0014_curated_reports.sql  # 每周 / 月度精选报告（M7-03）
+│   ├── 0014_curated_reports.sql  # 每周 / 月度精选报告（M7-03）
+│   └── 0015_repo_updates.sql    # 收藏项目更新提醒（M7-04）
 └── src/
     ├── index.ts          # Hono 入口：CORS、日志、/healthz、路由挂载、Cron scheduled handler
     ├── types.ts          # Env 绑定 + 数据库行 + API 响应实体
@@ -68,6 +70,8 @@ edge/
     │   └── helpers.ts    # 状态 / 参数归一化、稳定建议 id（纯函数）
     ├── reports/
     │   └── generate.ts   # 精选报告：周期解析、统计、分节、摘要、Markdown（纯函数）
+    ├── repo-updates/
+    │   └── helpers.ts    # 更新提醒：筛选归一化、稳定 id、通知标题、DTO（纯函数）
     └── routes/
         ├── auth.ts       # /api/auth/*（login / callback / me / logout）
         ├── repos.ts      # /api/repos
@@ -89,6 +93,7 @@ edge/
         ├── analysis.ts   # /api/analysis/*（依赖分析：用户仓库 → VPS 聚合 → 本地语言概览）
         ├── category-suggestions.ts # /api/category-suggestions/*（生成 / 列表 / 采纳 / 忽略）
         ├── reports.ts    # /api/reports/*（周报 / 月报列表、详情、Markdown、生成 + 内部批量生成）
+        ├── repo-updates.ts # /api/repo-updates/*（更新提醒列表 / 已读 / 忽略 / 扫描 + 内部回写扇出）
         └── internal-vectors.ts # /api/internal/vectors/*（VPS → Vectorize，X-Internal-Token）
 ```
 
@@ -243,9 +248,16 @@ npm run test:m2 -- --strict \
 | `POST /api/notifications/:id/read` | 单条标记已读（幂等；404 = 不存在或已忽略） |
 | `POST /api/notifications/read-all` | `{updated,unread:0}` |
 | `POST /api/notifications/:id/dismiss` | 忽略通知，并同步关联推荐状态为 `dismissed` |
+| `GET /api/repo-updates?status=&type=&limit=&offset=` | `RepoUpdatesPayload`（更新提醒列表 + summary；需登录；status 支持 `unread/read/dismissed`，type 支持 `release/major`） |
+| `GET /api/repo-updates/unread-count` | `{unread,majorUnread}`（侧边栏徽标） |
+| `POST /api/repo-updates/:id/read` | 单条标记已读（幂等；404 = 不存在或已忽略） |
+| `POST /api/repo-updates/read-all` | `{updated,unread:0}` |
+| `POST /api/repo-updates/:id/dismiss` | 忽略更新提醒 |
+| `POST /api/repo-updates/scan` | 触发 VPS 扫描当前用户收藏（202 `{status,taskId}`；VPS 未配置返回 accepted） |
 | `GET /api/push-preferences` | `{preferences,isDefault,availableChannels}`（未保存返回默认值；需登录） |
 | `PUT /api/push-preferences` | 保存推送偏好（时间 / 时区 / 阈值 / 通道开关；需登录） |
 | `GET /api/internal/push-preferences` | 全部推送偏好（`X-Internal-Token`；`?userId=` 查单个） |
+| `POST /api/internal/repo-updates/ingest` | VPS 回写更新事件，按 `my_repositories.user_id` 扇出到收藏用户并写入通知中心（`X-Internal-Token`，≤100 条/批） |
 | `GET /api/categories` | `CategoriesPayload` |
 | `GET /api/dashboard/stats` | `DashboardStats` |
 | `POST /api/sync` | 202 `{"status":"queued"}`（已配置 VPS）或 `{"status":"accepted","note":"vps node not configured"}` |

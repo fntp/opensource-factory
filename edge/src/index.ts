@@ -40,6 +40,7 @@ import internalRecommendationsRoutes from './routes/internal-recommendations';
 import internalSecurityRoutes from './routes/internal-security';
 import monitoringRoutes, { internalAnalytics } from './routes/monitoring';
 import reportsRoutes, { internalReports, generateReportsForAllUsers } from './routes/reports';
+import repoUpdatesRoutes, { internalRepoUpdates } from './routes/repo-updates';
 import {
   cleanupSecurityData,
   clientIpFromHeaders,
@@ -191,6 +192,8 @@ app.route('/api/licenses', licensesRoutes);
 app.route('/api/internal/licenses', internalLicensesRoutes);
 app.route('/api/reports', reportsRoutes);
 app.route('/api/internal/reports', internalReports);
+app.route('/api/repo-updates', repoUpdatesRoutes);
+app.route('/api/internal/repo-updates', internalRepoUpdates);
 
 // 404
 app.notFound((c) =>

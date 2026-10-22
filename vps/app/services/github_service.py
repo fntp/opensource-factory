@@ -175,6 +175,64 @@ async def get_repo(token: str | None, full_name: str) -> dict[str, Any] | None:
     return normalize_repo(resp.json())
 
 
+async def list_releases(
+    token: str | None,
+    full_name: str,
+    *,
+    per_page: int = 5,
+) -> list[dict[str, Any]]:
+    """列出仓库最近的 GitHub Release；无 Release 时回退到 Tag。
+
+    返回统一结构：`tag_name` / `name` / `body` / `html_url` / `published_at` /
+    `prerelease` / `draft`。任何失败都返回空列表，由调用方按「无更新」处理。
+    """
+    async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
+        try:
+            resp = await client.get(
+                f"{GITHUB_API}/repos/{full_name}/releases",
+                headers=_headers(token),
+                params={"per_page": max(1, min(20, per_page))},
+            )
+        except httpx.HTTPError as exc:
+            logger.warning("获取 Release %s 失败: %s", full_name, exc)
+            return []
+        if resp.status_code == 200:
+            payload = resp.json()
+            if isinstance(payload, list) and payload:
+                return [item for item in payload if isinstance(item, dict)]
+        elif resp.status_code not in (404, 403, 401):
+            logger.warning("获取 Release %s 异常状态: %s", full_name, resp.status_code)
+
+        # 无 Release 或无权访问时回退 Tag（很多项目只用 tag 发版）
+        try:
+            tag_resp = await client.get(
+                f"{GITHUB_API}/repos/{full_name}/tags",
+                headers=_headers(token),
+                params={"per_page": max(1, min(20, per_page))},
+            )
+        except httpx.HTTPError as exc:
+            logger.warning("获取 Tag %s 失败: %s", full_name, exc)
+            return []
+    if tag_resp.status_code != 200:
+        return []
+    tags = tag_resp.json()
+    if not isinstance(tags, list):
+        return []
+    return [
+        {
+            "tag_name": item.get("name") or "",
+            "name": item.get("name") or "",
+            "body": "",
+            "html_url": f"https://github.com/{full_name}/releases/tag/{item.get('name') or ''}",
+            "published_at": None,
+            "prerelease": False,
+            "draft": False,
+        }
+        for item in tags
+        if isinstance(item, dict) and item.get("name")
+    ]
+
+
 async def get_readme(token: str | None, full_name: str, *, max_chars: int = 20000) -> str:
     """获取仓库 README 并 base64 解码；任何失败返回空字符串。"""
     async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:

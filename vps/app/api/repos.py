@@ -14,11 +14,13 @@ from app.schemas import (
     RepoHealthOut,
     RepoHealthRefreshRequest,
     RepoOut,
+    RepoUpdatesScanRequest,
     TaskEnqueued,
 )
 from app.services.license import build_compliance_hint
 from app.services.repo_health import normalize_status, snapshot_for_row, summarize_health
 from app.tasks.jobs import refresh_repo_health as refresh_repo_health_task
+from app.tasks.jobs import scan_repo_updates as scan_repo_updates_task
 from app.tasks.jobs import summarize_readmes, sync_repositories
 
 router = APIRouter(prefix="/api/repos", tags=["repos"])
@@ -133,6 +135,22 @@ def get_repo_license(repo_id: str, db: Session = Depends(get_db)) -> dict:
     if row is None:
         raise HTTPException(status_code=404, detail="repo not found")
     return row.license or build_compliance_hint(None, None)
+
+
+@router.post(
+    "/updates/scan",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=TaskEnqueued,
+    dependencies=[Depends(require_internal_token)],
+    summary="入队：扫描收藏项目新版本 / 重大变更（M7-04）",
+)
+async def enqueue_repo_updates_scan(payload: RepoUpdatesScanRequest) -> TaskEnqueued:
+    task = scan_repo_updates_task.delay(
+        repo_ids=payload.repoIds or None,
+        limit=payload.limit,
+        include_prerelease=payload.includePrerelease,
+    )
+    return TaskEnqueued(taskId=task.id)
 
 
 @router.post(

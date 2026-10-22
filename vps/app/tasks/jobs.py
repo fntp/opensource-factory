@@ -222,6 +222,63 @@ def refresh_repo_health(
     return result
 
 
+@celery_app.task(name="app.tasks.jobs.scan_repo_updates")
+def scan_repo_updates(
+    repo_ids: Optional[list[str]] = None,
+    limit: Optional[int] = None,
+    include_prerelease: Optional[bool] = None,
+    push_to_edge: bool = True,
+) -> dict[str, Any]:
+    """扫描收藏项目的新版本 / 重大变更（M7-04）。
+
+    - 首次扫描只记录版本基线，不产生历史提醒；
+    - 主版本跃迁或 Release 文案命中 breaking change 时标记为 major；
+    - 事件按仓库归属由 edge 扇出到收藏用户，并写入通知中心。
+    """
+    settings = get_settings()
+    if not settings.REPO_UPDATES_ENABLED:
+        return {"status": "skipped", "reason": "REPO_UPDATES_ENABLED=false"}
+    token = (settings.GITHUB_TOKEN or "").strip()
+    if not token:
+        return {"status": "skipped", "reason": "GITHUB_TOKEN 未配置，跳过更新扫描"}
+
+    from app.services.repo_updates import scan_and_push
+
+    max_count = int(limit if limit is not None else settings.REPO_UPDATES_MAX_PER_RUN)
+    prerelease = (
+        settings.REPO_UPDATES_INCLUDE_PRERELEASE
+        if include_prerelease is None
+        else bool(include_prerelease)
+    )
+    db = SessionLocal()
+    try:
+        result = _run_async(
+            scan_and_push(
+                db,
+                repo_ids,
+                token=token,
+                include_prerelease=prerelease,
+                max_count=max_count,
+                edge_base_url=settings.EDGE_BASE_URL if push_to_edge else "",
+                internal_token=settings.INTERNAL_TOKEN,
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 - 任务失败降级返回结构化结果
+        logger.exception("收藏项目更新扫描失败")
+        return {"status": "error", "error": str(exc)[:300]}
+    finally:
+        db.close()
+
+    logger.info(
+        "收藏项目更新扫描完成: 检查 %d / 跳过 %d / 事件 %d / edge=%s",
+        result.get("checked", 0),
+        result.get("skipped", 0),
+        result.get("events", 0),
+        result.get("edge", {}).get("status"),
+    )
+    return result
+
+
 @celery_app.task(bind=True, name="app.tasks.jobs.summarize_readmes")
 def summarize_readmes(
     self,
