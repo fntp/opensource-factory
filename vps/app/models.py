@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Date, DateTime, Float, Integer, String, Text
+from sqlalchemy import Boolean, Date, DateTime, Float, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -84,3 +84,58 @@ class Recommendation(Base):
     reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="new")  # new | pushed | ...
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+
+
+class RepoVector(Base):
+    """仓库向量（VPS 本地持久化，供增量向量化与后续 Vectorize 同步使用）。
+
+    联合主键 `(source, repo_id)`；`source` 为 `my`（收藏库）或 `trending`（热榜）。
+    `text_hash` / `model` / `backend` 共同决定是否可以跳过重算。
+    """
+
+    __tablename__ = "repo_vectors"
+
+    source: Mapped[str] = mapped_column(String(16), primary_key=True)
+    repo_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    model: Mapped[str] = mapped_column(String(128), nullable=False)
+    backend: Mapped[str] = mapped_column(String(32), nullable=False, default="hash")
+    dim: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    text_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    vector: Mapped[str] = mapped_column(Text, nullable=False)  # JSON 数组
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=_utcnow, onupdate=_utcnow
+    )
+
+    __table_args__ = (Index("idx_repo_vectors_source_model", "source", "model"),)
+
+
+class VectorizationRun(Base):
+    """向量化运行记录（批量 / 增量 / 断点续跑的状态载体）。"""
+
+    __tablename__ = "vectorization_runs"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    scope: Mapped[str] = mapped_column(String(16), nullable=False)  # my | trending | all
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="running"
+    )  # running | completed | failed
+    model: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    backend: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    dim: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    force: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    limit: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    batch_size: Mapped[int] = mapped_column(Integer, nullable=False, default=32)
+    total: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    processed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    vectorized: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    skipped: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cursor_source: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    cursor_repo_id: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=_utcnow, onupdate=_utcnow
+    )
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
