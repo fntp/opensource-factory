@@ -21,6 +21,7 @@ import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authen
 import { Route as AuthenticatedCategoriesIndexRouteImport } from './routes/_authenticated/categories/index'
 import { Route as AuthenticatedDuplicatesIndexRouteImport } from './routes/_authenticated/duplicates/index'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
+import { Route as AuthenticatedModelRoutingIndexRouteImport } from './routes/_authenticated/model-routing/index'
 import { Route as AuthenticatedMonitoringIndexRouteImport } from './routes/_authenticated/monitoring/index'
 import { Route as AuthenticatedNotificationsIndexRouteImport } from './routes/_authenticated/notifications/index'
 import { Route as AuthenticatedRecommendIndexRouteImport } from './routes/_authenticated/recommend/index'
@@ -97,6 +98,12 @@ const AuthenticatedErrorsErrorRoute =
   AuthenticatedErrorsErrorRouteImport.update({
     id: '/errors/$error',
     path: '/errors/$error',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedModelRoutingIndexRoute =
+  AuthenticatedModelRoutingIndexRouteImport.update({
+    id: '/model-routing/',
+    path: '/model-routing/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedMonitoringIndexRoute =
@@ -199,6 +206,7 @@ export interface FileRoutesByFullPath {
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/categories/': typeof AuthenticatedCategoriesIndexRoute
   '/duplicates/': typeof AuthenticatedDuplicatesIndexRoute
+  '/model-routing/': typeof AuthenticatedModelRoutingIndexRoute
   '/monitoring/': typeof AuthenticatedMonitoringIndexRoute
   '/notifications/': typeof AuthenticatedNotificationsIndexRoute
   '/recommend/': typeof AuthenticatedRecommendIndexRoute
@@ -225,6 +233,7 @@ export interface FileRoutesByTo {
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/categories': typeof AuthenticatedCategoriesIndexRoute
   '/duplicates': typeof AuthenticatedDuplicatesIndexRoute
+  '/model-routing': typeof AuthenticatedModelRoutingIndexRoute
   '/monitoring': typeof AuthenticatedMonitoringIndexRoute
   '/notifications': typeof AuthenticatedNotificationsIndexRoute
   '/recommend': typeof AuthenticatedRecommendIndexRoute
@@ -254,6 +263,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/_authenticated/categories/': typeof AuthenticatedCategoriesIndexRoute
   '/_authenticated/duplicates/': typeof AuthenticatedDuplicatesIndexRoute
+  '/_authenticated/model-routing/': typeof AuthenticatedModelRoutingIndexRoute
   '/_authenticated/monitoring/': typeof AuthenticatedMonitoringIndexRoute
   '/_authenticated/notifications/': typeof AuthenticatedNotificationsIndexRoute
   '/_authenticated/recommend/': typeof AuthenticatedRecommendIndexRoute
@@ -283,6 +293,7 @@ export interface FileRouteTypes {
     | '/settings/notifications'
     | '/categories/'
     | '/duplicates/'
+    | '/model-routing/'
     | '/monitoring/'
     | '/notifications/'
     | '/recommend/'
@@ -309,6 +320,7 @@ export interface FileRouteTypes {
     | '/settings/notifications'
     | '/categories'
     | '/duplicates'
+    | '/model-routing'
     | '/monitoring'
     | '/notifications'
     | '/recommend'
@@ -337,6 +349,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/notifications'
     | '/_authenticated/categories/'
     | '/_authenticated/duplicates/'
+    | '/_authenticated/model-routing/'
     | '/_authenticated/monitoring/'
     | '/_authenticated/notifications/'
     | '/_authenticated/recommend/'
@@ -443,6 +456,13 @@ declare module '@tanstack/react-router' {
       path: '/errors/$error'
       fullPath: '/errors/$error'
       preLoaderRoute: typeof AuthenticatedErrorsErrorRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/model-routing/': {
+      id: '/_authenticated/model-routing/'
+      path: '/model-routing'
+      fullPath: '/model-routing/'
+      preLoaderRoute: typeof AuthenticatedModelRoutingIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/monitoring/': {
@@ -575,6 +595,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedCategoriesIndexRoute: typeof AuthenticatedCategoriesIndexRoute
   AuthenticatedDuplicatesIndexRoute: typeof AuthenticatedDuplicatesIndexRoute
+  AuthenticatedModelRoutingIndexRoute: typeof AuthenticatedModelRoutingIndexRoute
   AuthenticatedMonitoringIndexRoute: typeof AuthenticatedMonitoringIndexRoute
   AuthenticatedNotificationsIndexRoute: typeof AuthenticatedNotificationsIndexRoute
   AuthenticatedRecommendIndexRoute: typeof AuthenticatedRecommendIndexRoute
@@ -592,6 +613,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedCategoriesIndexRoute: AuthenticatedCategoriesIndexRoute,
   AuthenticatedDuplicatesIndexRoute: AuthenticatedDuplicatesIndexRoute,
+  AuthenticatedModelRoutingIndexRoute: AuthenticatedModelRoutingIndexRoute,
   AuthenticatedMonitoringIndexRoute: AuthenticatedMonitoringIndexRoute,
   AuthenticatedNotificationsIndexRoute: AuthenticatedNotificationsIndexRoute,
   AuthenticatedRecommendIndexRoute: AuthenticatedRecommendIndexRoute,

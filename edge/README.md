@@ -234,6 +234,12 @@ npm run test:m2 -- --strict \
 | `POST /api/monitoring/check` | 触发 VPS 一次检查（需登录；VPS 未配置返回 503） |
 | `POST /api/monitoring/alerts/:id/ack` | 确认 VPS 告警（需登录） |
 | `GET /api/internal/analytics?days=7` | Workers 请求指标聚合（`X-Internal-Token`；`days` 1~30） |
+| `GET /api/model-routes` | 模型路由总览（需登录；代理 VPS 任务路由 / 候选模型 / 预算 / 升级建议） |
+| `PUT /api/model-routes/:task` | 更新任务策略 / 模型（需登录；转发 VPS 校验候选与预算） |
+| `DELETE /api/model-routes/:task` | 恢复任务默认路由（需登录） |
+| `POST /api/model-routes/reset` | 恢复全部任务默认路由（需登录） |
+| `POST /api/model-routes/upgrade` | 应用任务最佳可用升级（需登录） |
+| `GET /api/model-routes/health` | Ollama / DeepSeek / 规则引擎健康状态（需登录） |
 | `POST /api/search/fulltext` | `SearchResponse`：body `{query, topK?, scope?, offset?}`；mode 为 `fts` / `like`（VPS FTS5，短词 LIKE 回退）/ `keyword`（VPS 不可用降级）；`my` 结果按 D1 `user_id` 过滤；条目可带 `snippet` / `matchedTerms`（M6-01） |
 | `GET /api/similar` | `SimilarResponse`：query `source=my\|trending` / `repoId` / `topK` / `scope` / `minScore` / `excludeSaved`；mode 为 `local`（VPS 向量近邻）/ `keyword`（D1 同语言 + 技术栈兜底）；`source=my` 需登录且只返回当前用户仓库 |
 | `POST /api/duplicates/scan` | `DuplicateScanResponse`：body `{scope, minScore?, maxClusters?}`；mode 为 `vps` / `hybrid` / `local`；返回簇、成员信号、保留项与字段合并建议；需登录，`my` 成员二次校验归属 |

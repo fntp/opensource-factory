@@ -327,6 +327,25 @@ cd vps
 预算内退出码 0；超预算或未收录模型退出码 1。`deploy/scripts/doctor.sh` 也会执行同一项检查。
 int8 量化在 `sentence-transformers` 后端下对 Linear 层做动态量化；生产更推荐预量化的 ONNX int8 权重。
 
+## 模型路由与升级（M7-06）
+
+`app/services/model_router.py` 在 M3-01 的全局选型之上提供任务级路由：
+
+| 任务 | 默认策略 | 默认模型 | 候选 |
+| --- | --- | --- | --- |
+| `summary` | budget | `qwen2.5-1.5b-q4` | qwen2.5-1.5b / deepseek-r1-1.5b / deepseek-chat |
+| `embedding` | quality | `bge-m3-int8` | bge-m3-int8 / bge-small-zh-v1.5 |
+| `tagging` | budget | `local-rules` | local-rules / qwen2.5-1.5b / deepseek-chat |
+| `classification` | budget | `local-rules` | 同上 |
+| `chat` | quality | `deepseek-chat` | deepseek-chat / qwen2.5-1.5b / deepseek-r1-1.5b |
+| `rerank` | budget | `local-heuristic` | local-heuristic / qwen2.5-1.5b / deepseek-chat |
+
+- 策略：`budget` / `balanced` / `quality` / `manual`；所有结果必须满足 `resident_mb ≤ MODEL_BUDGET_MB`；
+- 任务级覆盖存于 SQLite `model_route_configs`（`init_db` 自动建表），无记录时使用内置默认；
+- 摘要与向量化服务通过 `get_route_decision(task)` 读取模型名 / 量化口径；配置读取失败自动回退进程级 `OLLAMA_MODEL` / `EMBEDDING_MODEL`；
+- 接口：`GET /api/model-routes`、`PUT/DELETE /api/model-routes/{task}`、`POST /api/model-routes/reset`、`POST /api/model-routes/upgrade`、`GET /api/model-routes/health`（均需 `X-Internal-Token`）；
+- 升级建议只提示，不自动切换；`POST /upgrade` 需显式调用并写入 `manual` 配置。
+
 ## 资源预算实测（M5-06）
 
 `app.resource_budget` 采集 systemd 进程 RSS、模型峰值与磁盘分项，按 4G / 15G 红线判定

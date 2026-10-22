@@ -12,6 +12,7 @@ import httpx
 
 from app.config import get_settings
 from app.services.model_budget import DEFAULT_BUDGET_MB, resolve_llm_spec
+from app.services.model_router import RouteDecision, get_route_decision
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +46,26 @@ def _build_prompt(text: str, max_chars: int) -> str:
     return _PROMPT_TEMPLATE.format(max_chars=max_chars, text=text[:_MAX_INPUT_CHARS])
 
 
+def _summary_route() -> RouteDecision | None:
+    """读取 summary 路由决策；配置 / 数据库异常时回退进程级配置。"""
+    try:
+        return get_route_decision("summary")
+    except Exception as exc:  # noqa: BLE001 - 路由不可用不能阻断摘要
+        logger.debug("读取 summary 路由失败，使用进程级模型配置：%s", exc)
+        return None
+
+
 def is_llm_over_budget(settings: object | None = None) -> bool:
-    """判断 Ollama 摘要模型是否超出本地推理预算（未收录模型不阻断）。"""
+    """判断 Ollama 摘要模型是否超出本地推理预算（未收录模型不阻断）。
+
+    显式传入 ``settings`` 时沿用旧的按配置判断（供自检 / 测试使用）；
+    未传时优先使用任务路由结果。
+    """
+    if settings is None:
+        route = _summary_route()
+        if route is not None:
+            return not route.within_budget
+
     current = settings or get_settings()
     spec = resolve_llm_spec(str(getattr(current, "OLLAMA_MODEL", "") or ""))
     if spec is None:
@@ -69,15 +88,25 @@ def _summarize_with_ollama(text: str, max_chars: int) -> str:
     base_url = (settings.OLLAMA_BASE_URL or "").strip().rstrip("/")
     if not base_url:
         return ""
-    if is_llm_over_budget(settings):
+
+    route = _summary_route()
+    if route is not None and route.provider == "deepseek":
+        logger.info("summary 路由指向云端模型 %s，跳过本地 Ollama", route.model_name)
+        return ""
+    model_name = (
+        route.model_name
+        if route is not None and route.provider == "ollama"
+        else settings.OLLAMA_MODEL
+    )
+    if is_llm_over_budget():
         logger.warning(
             "Ollama 模型 %s 超出 %d MB 推理预算，跳过本地摘要（降级）",
-            settings.OLLAMA_MODEL,
+            model_name,
             int(settings.MODEL_BUDGET_MB or DEFAULT_BUDGET_MB),
         )
         return ""
     payload = {
-        "model": settings.OLLAMA_MODEL,
+        "model": model_name,
         "prompt": _build_prompt(text, max_chars),
         "stream": False,
         "options": {"temperature": 0.3},
@@ -103,8 +132,14 @@ def _summarize_with_deepseek(text: str, max_chars: int) -> str:
     if not api_key:
         return ""
     url = f"{settings.DEEPSEEK_BASE_URL.rstrip('/')}/chat/completions"
+    route = _summary_route()
+    model_name = (
+        route.model_name
+        if route is not None and route.provider == "deepseek"
+        else settings.DEEPSEEK_MODEL
+    )
     payload = {
-        "model": settings.DEEPSEEK_MODEL,
+        "model": model_name,
         "messages": [{"role": "user", "content": _build_prompt(text, max_chars)}],
         "temperature": 0.3,
         "max_tokens": 1024,
@@ -143,13 +178,27 @@ def summarize_with_source(text: str, *, max_chars: int = 800) -> SummaryResult:
         return SummaryResult(text="", source="empty")
 
     settings = get_settings()
-    result = _strip_code_fence(_summarize_with_ollama(text, max_chars))
+    route = _summary_route()
+    ollama_model = (
+        route.model_name
+        if route is not None and route.provider == "ollama"
+        else settings.OLLAMA_MODEL
+    )
+    deepseek_model = (
+        route.model_name
+        if route is not None and route.provider == "deepseek"
+        else settings.DEEPSEEK_MODEL
+    )
+
+    result = ""
+    if route is None or route.provider != "deepseek":
+        result = _strip_code_fence(_summarize_with_ollama(text, max_chars))
     if result:
-        return SummaryResult(text=result[:max_chars], source="ollama", model=settings.OLLAMA_MODEL)
+        return SummaryResult(text=result[:max_chars], source="ollama", model=ollama_model)
 
     result = _strip_code_fence(_summarize_with_deepseek(text, max_chars))
     if result:
-        return SummaryResult(text=result[:max_chars], source="deepseek", model=settings.DEEPSEEK_MODEL)
+        return SummaryResult(text=result[:max_chars], source="deepseek", model=deepseek_model)
 
     # 最终降级：截断的清洗后文本 + 说明
     # 最终降级：截断的清洗后文本 + 说明

@@ -603,6 +603,24 @@ CREATE VIRTUAL TABLE repo_readme_fts USING fts5(
 - trigram 支持中英文子串检索，但要求查询词 ≥3 字符；1~2 字短词由应用层回退 `LIKE`；
 - 检索使用 `bm25()` 排序，返回 `snippet` 命中片段；`POST /api/search/fulltext/rebuild` 可全量重建。
 
+### 5.4 模型路由配置（M7-06）
+
+任务级模型路由只保存在 VPS 本地 SQLite，不镜像 D1：
+
+`model_route_configs`：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| task | TEXT PK | 任务键：`summary` / `embedding` / `tagging` / `classification` / `chat` / `rerank` |
+| strategy | TEXT | `budget` / `balanced` / `quality` / `manual` |
+| model_id | TEXT NULL | `manual` 策略必填；必须属于该任务候选且满足预算 |
+| updated_by | TEXT | 操作人（默认 `admin`） |
+| updated_at | DATETIME | 更新时间 |
+
+- 无记录时使用 `MODEL_ROUTING_CATALOG` + 任务默认策略，不写默认行；
+- `init_db` 的 `create_all` 自动建表，无需迁移脚本；
+- 配置读取失败 / 表不存在时运行链路回退内置默认，不阻断摘要与向量化。
+
 ## 6. 一致性约定
 
 - D1 为**主数据**；VPS 本地 SQLite 为算力镜像（允许重建）；

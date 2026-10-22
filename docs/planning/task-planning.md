@@ -84,6 +84,7 @@
 | IT-0047 | M6-04 | 技术栈图谱视图（语言 / 框架聚合） | IT-0010；M1-11 | ✅ 已完成（2026-10-22） |
 | IT-0048 | M6-05 | 项目健康度追踪（最后提交 / issue 活跃 / 归档标记） | IT-0044；M1-07 | ✅ 已完成（2026-10-22） |
 | IT-0049 | M7-03 | 每周 / 月度精选报告（D1 聚合 + Cron 自动生成 + admin 报告归档页） | M4-01 | ✅ 已完成（2026-10-22） |
+| IT-0050 | M7-06 | 模型路由与升级（任务级模型选择 + 预算内升级建议 + admin `/model-routing`） | IT-0015；M3-01 | ✅ 已完成（2026-10-22） |
 
 > 说明：IT-0004 / IT-0005 在人工资源（Cloudflare 账号、OAuth App）就绪前，可先以 `wrangler --local` + 本地回调完成开发与验证；其余按需求池顺序滚动排期。
 
@@ -127,3 +128,4 @@
 | 2026-10-22 | 交付 | IT-0047 / M6-04 技术栈图谱（REQ-202610-0951）：新增 edge `GET /api/tech-stack`（D1 只读聚合，语言归一 + 标签 / 简介启发式框架识别）与 admin `/tech-stack` 页面（KPI、SVG 径向关系图、语言条形榜、框架排行、组合洞察、空状态）；计划见 `planning/plan-req-202610-0951-tech-stack-graph.md` |
 | 2026-10-22 | 交付 | IT-0048 / M6-05 项目健康度（REQ-202610-0952）：VPS 拉取 pushed_at / issue / 归档字段并计算健康度，每日任务 + 手动刷新回写 D1；edge 本地兜底计算与健康度接口；admin 仓库页汇总、筛选、徽章与刷新按钮；计划见 `planning/plan-req-202610-0952-repo-health-tracking.md` |
 | 2026-10-22 | 交付 | IT-0049 / M7-03 精选报告（REQ-202610-0962）：新增 D1 `curated_reports`（migration 0014）、edge 纯函数报告生成 + 登录态 / 内部接口 + Cron 周报月报、admin `/reports` 归档与 Markdown 下载；计划见 `planning/plan-req-202610-0962-weekly-monthly-report.md` |
+| 2026-10-22 | 交付 | IT-0050 / M7-06 模型路由（REQ-202610-0965）：VPS `model_route_configs` + 四策略路由 / 升级建议 / 健康检查接口，摘要与向量化接入路由决策；edge 登录态代理；admin `/model-routing` 页面；计划见 `planning/plan-req-202610-0965-model-routing.md` |

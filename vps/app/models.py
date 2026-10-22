@@ -582,3 +582,18 @@ class RepoReadme(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=_utcnow, onupdate=_utcnow
     )
+
+
+class ModelRouteConfig(Base):
+    """任务级模型路由配置（REQ-202610-0965 / M7-06）。
+
+    VPS 本地 SQLite 表；不镜像 D1。`task` 为主键，缺省配置不落库。
+    """
+
+    __tablename__ = "model_route_configs"
+
+    task: Mapped[str] = mapped_column(String(32), primary_key=True)
+    strategy: Mapped[str] = mapped_column(String(16), nullable=False, default="budget")
+    model_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    updated_by: Mapped[str] = mapped_column(String(64), nullable=False, default="admin")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)

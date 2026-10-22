@@ -19,6 +19,7 @@ from app.api import (
     duplicates,
     degradation,
     local,
+    model_routes,
     monitoring,
     notifications,
     push,
@@ -112,6 +113,7 @@ app.include_router(push.router)
 app.include_router(backup.router)
 app.include_router(security.router)
 app.include_router(monitoring.router)
+app.include_router(model_routes.router)
 
 # 本机一体化只读 API：/local/api/*（LOCAL_MODE=false 时统一 404）
 app.include_router(local.router, prefix="/local")
