@@ -123,4 +123,6 @@ recommendations              （user_id 可空 = 全局推荐）
 
 - D1 为**主数据**；VPS 本地 SQLite 为算力镜像（允许重建）；
 - 表结构变更流程：修改 `edge/migrations/` 新增迁移文件 → 同步 `docs/assets/d1-schema.sql` → 更新本文件；
-- 字段命名一律 snake_case；时间统一 UTC 存储、展示时本地化。
+- 字段命名一律 snake_case；时间统一 UTC 存储、展示时本地化；
+- **对账工具**：`vps/scripts/consistency_audit.py` 按主键比较 D1 与本机镜像，输出缺失 / 多余 / 字段差异 / 重复主键报告；D1 侧通过 edge `GET /api/internal/consistency/snapshot` 只读拉取（表 / 列白名单 + 分页），也支持 `wrangler d1 export` 的离线 SQLite 与 JSON 快照。使用说明见 [data-consistency-audit.md](../guides/data-consistency-audit.md)；
+- 对账只比较**双方都存在的列**（列交集），本地尚未镜像的新列在报告中标记 `skippedFields`，不作为差异处理。

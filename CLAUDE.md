@@ -22,6 +22,7 @@ npm run format       # Prettier
 cd edge
 npm run dev          # wrangler dev
 npm run typecheck    # tsc --noEmit
+npm run test:consistency  # 内部对账快照接口单测（node:test）
 npm run db:migrate:local
 
 # vps（算力节点）

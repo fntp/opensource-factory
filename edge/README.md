@@ -43,7 +43,8 @@ edge/
         ├── recommend.ts  # /api/recommendations
         ├── categories.ts # /api/categories
         ├── dashboard.ts  # /api/dashboard/stats
-        └── sync.ts       # /api/sync
+        ├── sync.ts       # /api/sync
+        └── consistency.ts # /api/internal/consistency（内部对账快照）
 ```
 
 ## 本地开发
@@ -107,7 +108,7 @@ npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FR
 | `VPS_NODE_URL` | vars | VPS 节点地址；留空时 `/api/sync` 返回 202 accepted 而不转发 |
 | `GITHUB_CLIENT_SECRET` | **secret** | `wrangler secret put GITHUB_CLIENT_SECRET` |
 | `SESSION_SECRET` | **secret** | `wrangler secret put SESSION_SECRET` |
-| `INTERNAL_TOKEN` | secret（可选） | 边缘调用 VPS 的 `X-Internal-Token` |
+| `INTERNAL_TOKEN` | secret（可选） | 边缘调用 VPS 的 `X-Internal-Token`；同时用于校验 `/api/internal/consistency/*`（未配置时该接口返回 503） |
 
 ## 接口约定
 
@@ -134,6 +135,7 @@ npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FR
 | `GET /api/categories` | `CategoriesPayload` |
 | `GET /api/dashboard/stats` | `DashboardStats` |
 | `POST /api/sync` | 202 `{"status":"queued"}`（已配置 VPS）或 `{"status":"accepted","note":"vps node not configured"}` |
+| `GET /api/internal/consistency/snapshot?table=&limit=&offset=` | D1 只读快照（`X-Internal-Token`；五张白名单表、固定列、主键排序、分页） |
 | `GET /healthz` | `{"status":"ok"}` |
 
 JSON 形状（前端契约，勿改字段名）：
