@@ -1,4 +1,4 @@
-"""推荐接口：语义查询（即时计算）与推荐生成入队。"""
+"""推荐接口：语义查询（即时计算）、推荐生成入队与质量评估。"""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query, status
@@ -7,8 +7,16 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import MyRepository
-from app.schemas import RecommendItem, RecommendQuery, RecommendResponse, TaskEnqueued
+from app.schemas import (
+    RecommendEvalReport,
+    RecommendEvalRequest,
+    RecommendItem,
+    RecommendQuery,
+    RecommendResponse,
+    TaskEnqueued,
+)
 from app.services.embedding import get_embedding_service
+from app.services.recommendation_eval import evaluate_recommendation_quality
 from app.services.recommender import build_reason, recommend
 from app.tasks.jobs import generate_recommendations
 
@@ -69,3 +77,29 @@ async def enqueue_generate(
         user_id=user_id, top_k=top_k, min_score=min_score
     )
     return TaskEnqueued(taskId=task.id)
+
+
+@router.post(
+    "/eval",
+    response_model=RecommendEvalReport,
+    summary="推荐质量评估与阈值调优（抽样评估集）",
+)
+def evaluate_recommend(
+    payload: RecommendEvalRequest,
+    db: Session = Depends(get_db),
+) -> RecommendEvalReport:
+    """离线评估推荐排序质量，并给出 min_score / 权重的调参建议。
+
+    评估基于收藏库留出集与热榜负样本，不修改推荐结果与运行配置；
+    数据不足时返回 `status=insufficient_data`。
+    """
+    report = evaluate_recommendation_quality(
+        db,
+        user_id=payload.userId,
+        sample_size=payload.sampleSize,
+        top_k=payload.topK,
+        holdout_ratio=payload.holdoutRatio,
+        negatives_per_positive=payload.negativesPerPositive,
+        seed=payload.seed,
+    )
+    return RecommendEvalReport.model_validate(report)

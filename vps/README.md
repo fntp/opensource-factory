@@ -34,12 +34,13 @@ vps/
 │   │   ├── recommender.py        # 余弦排序 + 综合打分 + 中文推荐理由模板
 │   │   ├── recommendation_service.py # 每日推荐：画像 / 去重已收藏 / 阈值 / 落库
 │   │   ├── recommendation_feedback.py # 推荐反馈：edge 拉取 / 回写 / 本地降级
+│   │   ├── recommendation_eval.py # 质量评估：抽样评估集 / 指标 / 阈值调优
 │   │   ├── semantic_search.py    # 查询向量化 + repo_vectors 余弦检索 + 结果水合
 │   │   └── vector_sync.py        # Vectorize 批量 upsert / 重试 / 对账 / 孤儿清理
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
 │   │   ├── trending.py           # GET /api/trending、POST /api/trending/crawl
-│   │   ├── recommend.py          # POST /api/recommend/query、POST /api/recommend/generate
+│   │   ├── recommend.py          # /api/recommend/query、generate、eval（质量评估）
 │   │   ├── vector_sync.py        # /api/vector-index/*（同步入队、状态、运行记录）
 │   │   ├── vectors.py            # GET /api/vectors/stats、runs、单条向量
 │   │   ├── search.py             # /api/search/*（embed / query / semantic / status）
@@ -124,6 +125,14 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | `RECOMMEND_CANDIDATE_LIMIT` | `500` | 单次参与打分的热榜候选上限 |
 | `RECOMMEND_SIMILARITY_WEIGHT` | `0.8` | 相似度权重 |
 | `RECOMMEND_TRENDING_WEIGHT` | `0.2` | 热榜热度权重 |
+| `RECOMMEND_EVAL_SAMPLE_SIZE` | `5` | 推荐评估默认折叠数 |
+| `RECOMMEND_EVAL_HOLDOUT_RATIO` | `0.2` | 每个折叠留出的正样本比例 |
+| `RECOMMEND_EVAL_TOP_K` | `10` | 评估用 top_k |
+| `RECOMMEND_EVAL_NEGATIVES_PER_POSITIVE` | `5` | 每个正样本配的负样本数 |
+| `RECOMMEND_EVAL_SEED` | `42` | 抽样随机种子（同种子可复现） |
+| `RECOMMEND_EVAL_MIN_SCORE_GRID` | `0.20,...,0.50` | min_score 扫描网格 |
+| `RECOMMEND_EVAL_WEIGHT_GRID` | `0.6,...,1.0` | 相似度权重扫描网格（热度权重 = 1 - 该值） |
+| `RECOMMEND_EVAL_MAX_SAMPLES` | `20` | 单次评估折叠数上限 |
 | `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/vector-index/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
 | `EMBEDDING_FORCE_FALLBACK` | `0` | 置 `1` 强制使用确定性 hash 向量（CI / 2G 预算紧张时） |
 | `VECTORIZE_BATCH_SIZE` | `32` | 向量化每批编码 / 提交条数（1~256） |
@@ -165,6 +174,7 @@ Celery beat 每 30 分钟（`7,37` 分）自动执行一次增量同步；对账
 | POST | `/api/search/query` | 本地向量余弦检索（`{query,topK,scope,minScore}`） | `200 {items:[{source,repoId,score}],...}` |
 | POST | `/api/search/semantic` | 本地检索并水合完整项目信息 | `200 {items:[...]}` |
 | GET | `/api/search/status` | 向量覆盖率、模型分布与最近运行 | `200 {...}` |
+| POST | `/api/recommend/eval` | 推荐质量评估与调参（`sampleSize` / `topK` / `holdoutRatio` / `negativesPerPositive` / `seed` / `userId`） | `200 {status,metrics,thresholds,weights,recommended,...}` |
 
 约定：
 
@@ -227,6 +237,34 @@ curl -sS -X POST 'http://127.0.0.1:8000/api/tasks/generate-recommendations?user_
 ```
 
 任务返回 `created / updated / expired / selected / candidates / excludedCollected / belowThreshold` 等计数，便于 M3-08 调参。
+
+## 推荐质量评估与调参（M3-08）
+
+`recommendation_eval` 用「收藏库留出集 + 热榜负样本」构建离线评估集，回答两个问题：
+当前推荐参数效果如何、换一组阈值 / 权重是否会更好。
+
+- **抽样评估集**：收藏库按固定种子切分，每个折叠留出 `RECOMMEND_EVAL_HOLDOUT_RATIO`
+  作为正样本，其余构建画像；负样本从热榜未收藏仓库中按 `RECOMMEND_EVAL_NEGATIVES_PER_POSITIVE` 采样；
+- **指标**：Precision@K / Recall@K / HitRate / MRR / NDCG@K，以及覆盖率、语言多样性与平均返回条数；
+- **阈值调优**：对 `RECOMMEND_EVAL_MIN_SCORE_GRID` × `RECOMMEND_EVAL_WEIGHT_GRID` 做二维扫描，
+  按 F1 → 覆盖率 → 与当前参数接近程度给出建议；无命中时保留当前参数；
+- **线上旁证**：汇总 `recommendations.status`（saved / dismissed / new / pushed / expired），
+  返回收藏率与忽略率；
+- **只给建议不改配置**：评估不修改推荐结果与运行参数，确认后由运维写入 `.env` 并重启服务。
+
+```bash
+# 默认参数评估（5 个折叠、top_k=10）
+curl -sS -X POST 'http://127.0.0.1:8000/api/recommend/eval' \
+  -H 'Content-Type: application/json' -d '{}'
+
+# 指定折叠数 / 留出比例 / 负样本数 / 随机种子
+curl -sS -X POST 'http://127.0.0.1:8000/api/recommend/eval' \
+  -H 'Content-Type: application/json' \
+  -d '{"sampleSize":3,"topK":10,"holdoutRatio":0.2,"negativesPerPositive":5,"seed":42}'
+```
+
+报告中的 `current` 是当前配置的实际指标，`thresholds` / `weights` 是候选网格，
+`recommended` 是建议参数与理由；数据不足时返回 `status=insufficient_data` 与 `warnings`。
 
 ## 语义搜索（M3-04）
 

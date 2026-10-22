@@ -92,6 +92,17 @@ Celery beat 08:30 → 收藏库平均向量（复用 repo_vectors）→ 热榜�
 → upsert recommendations（旧 new 未入选标记 expired）→ 09:00 推送准备
 ```
 
+推荐质量评估与调参（M3-08）：
+
+```
+POST /api/recommend/eval（离线、只读）
+→ 收藏库按种子切分：画像集 + 留出正样本（多个 fold）
+→ 热榜未收藏仓库采样为负样本 → 复用 repo_vectors / 缺失时编码
+→ 计算 Precision@K / Recall@K / HitRate / MRR / NDCG / 覆盖率 / 多样性
+→ min_score × 相似度权重二维扫描 → 返回 current / thresholds / weights / recommended
+→ 运维确认后写入 .env（不自动修改运行配置）
+```
+
 ### 3.5 向量化流（M3-02）
 
 ```
@@ -171,6 +182,7 @@ Vectorize 未绑定 / 查询失败 / 水合 0 条 → VPS POST /api/search/query
 | `/api/search/query` | POST | 本地向量余弦检索（未水合，Vectorize 降级路径） |
 | `/api/search/semantic` | POST | 本地检索 + 水合完整项目信息（调试 / CLI） |
 | `/api/search/status` | GET | 语义搜索可用性：向量覆盖率与最近运行 |
+| `/api/recommend/eval` | POST | 推荐质量评估与阈值 / 权重调参建议（抽样评估集） |
 | `/healthz` | GET | 健康检查 |
 
 ### 4.3 vps → edge（Vectorize 内部接口，`X-Internal-Token`）
