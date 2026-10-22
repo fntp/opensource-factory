@@ -667,6 +667,23 @@ admin /star-trends → GET /api/star-trends?days=30&scope=trending|my&language=�
 `scope=my` 返回 `portfolioRepos` / `coverage`，明确只统计收藏仓库中上过热榜的项目。
 只读聚合，不新增表 / 迁移，也不依赖 VPS。
 
+### 3.34 快捷入口评估（M8-04）
+
+```
+评估工具：vps/app/services/quick_entry_eval.py（纯标准库、离线可跑）
+→ CRITERIA：8 个维度（覆盖 / 认证 / 体验 / 开发成本 / 维护 / 安装 / 离线 / 生态），权重合计 100%
+→ PLATFORMS：Raycast、Apple 快捷指令、浏览器 omnibox、VS Code、Alfred、uTools（1–5 分加权）
+→ API_REQUIREMENTS：M8-05 必须提供的 16 项能力（令牌 / Bearer / scope / 限流 / 幂等 / 搜索 / 收藏 / me / OpenAPI / CORS / 深链 / 审计）
+→ build_evaluation：排名 + 平台就绪度 + 分阶段路线 + 风险 + 验收指标
+→ render_markdown / render_contract：归档报告与机器可读契约
+```
+
+当前结论：Raycast 4.10 首选、Apple 快捷指令 3.95 次选、浏览器 omnibox 3.85（并入 M8-02 扩展）；
+VS Code / Alfred / uTools 暂缓。M8-05 未落地时所有平台均被阻塞，16 项能力按
+`docs/assets/quick-entry-api-contract.json` 的 `/api/v1/*` 契约交付。
+本评估不新增 edge 路由、不建 D1 表、不改 admin；复跑方式见
+`docs/architecture/quick-entry-evaluation.md` 第 10 节。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
