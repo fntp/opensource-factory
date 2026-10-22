@@ -1,0 +1,9 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# 本地数据与配置（密钥只存在于本地 .env）
+data/
+.env
