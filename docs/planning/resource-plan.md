@@ -37,7 +37,8 @@
 | LLM 备选 | deepseek-r1:1.5b（q4） | ~1.4 GB | ~1.1 GB | 推理型，较慢 |
 | 超预算（不默认） | qwen2.5:7b / deepseek-r1:7b（q4） | ~4.7 GB | ~4.7 GB | ❌ 超 2G，仅按需人工启用 |
 
-- **已知调整**：`vps/.env.example` 当前默认 `OLLAMA_MODEL=qwen2.5:7b` 超出预算，需在 M3-01 切换为 ≤2B 量化模型并更新模板；
+- **M3-01 选型结论（2026-10-22）**：默认切换为 `BAAI/bge-m3`（int8，约 1.1G）+ `qwen2.5:1.5b-instruct-q4_K_M`（约 1.3G）；旧默认 `qwen2.5:7b`（约 4.7G）不再默认启用；
+- **预算校验**：`cd vps && .venv/bin/python -m app.model_budget check`（`--probe` 读取 Ollama `/api/ps`）；`deploy/scripts/doctor.sh` 已纳入同一检查；
 - **调度**：Embedding 批量任务与摘要任务分队列串行；Ollama `keep_alive` 缩短（如 2m），空闲即卸载；
 - **降级链**：模型不可用 / 超预算 → hash 兜底向量、截断摘要（沿用现有降级路径，M3-09 验证）。
 

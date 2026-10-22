@@ -83,7 +83,18 @@ Celery beat 08:30 → 收藏库平均向量（复用 repo_vectors）→ 热榜�
 → upsert recommendations（旧 new 未入选标记 expired）→ 09:00 推送准备
 ```
 
-### 3.5 向量化流（M3-02）
+### 3.5 模型选型与推理预算（M3-01）
+
+```
+摘要任务 → Ollama qwen2.5:1.5b-instruct-q4_K_M（~1.3G，q4_K_M）
+向量化任务 → BAAI/bge-m3（~1.1G，int8；fp16 ~2.3G 超预算）
+```
+
+- 同一时刻仅加载 1 个模型（摘要与向量化分队列串行），峰值驻留 ≤ `MODEL_BUDGET_MB`（默认 2048）；
+- `vps/app/services/model_budget.py` 维护选型表与预算报告，CLI `python -m app.model_budget check` 可离线复跑；
+- 部署自检 `deploy/scripts/doctor.sh` 包含 `model_budget` 检查项；模型不可用时仍走 hash 向量 / 截断摘要降级。
+
+### 3.6 向量化流（M3-02）
 
 ```
 同步 / 抓取完成 → 自动入队 vectorize_repositories（或 POST /api/tasks/vectorize）
@@ -93,7 +104,7 @@ Celery beat 08:30 → 收藏库平均向量（复用 repo_vectors）→ 热榜�
 → M3-03 批量同步 Cloudflare Vectorize
 ```
 
-### 3.6 向量索引同步流（M3-03）
+### 3.7 向量索引同步流（M3-03）
 
 ```
 Celery beat（每 30 分钟）或 POST /api/vector-index/sync
@@ -104,7 +115,6 @@ Celery beat（每 30 分钟）或 POST /api/vector-index/sync
 
 对账（kind=reconcile）：POST /api/internal/vectors/check 比对缺失 / 过期向量并修复；
 可选 list + delete 清理孤儿（默认关闭）。
-```
 ```
 
 ## 4. 接口边界

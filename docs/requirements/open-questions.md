@@ -25,11 +25,12 @@
 
 ## Q4. LLM 与 Embedding 的默认配置
 
+- **结论（M3-01，2026-10-22）**：默认 `qwen2.5:1.5b-instruct-q4_K_M`（Ollama，约 1.3G）+ `BAAI/bge-m3` int8（约 1.1G），峰值驻留 ≤ 2G；
 - **选项**：
-  - A. Ollama 本地模型（默认 `deepseek-r1:7b`，可改）+ BGE-M3 本地向量（**当前默认**，零成本 / 隐私）；
+  - A. Ollama 本地模型 + BGE-M3 本地向量（**当前默认**，零成本 / 隐私）；
   - B. DeepSeek 云端 API（需 key，效果更稳）；
   - C. 混合：本地优先，云端降级（代码已支持）。
-- **默认处理**：A + C 的降级链（`summarizer.py` 已实现 Ollama → DeepSeek → 截断兜底）。
+- **默认处理**：A + C 的降级链（`summarizer.py` 已实现 Ollama → DeepSeek → 截断兜底）；预算校验见 `python -m app.model_budget check`。
 
 ## Q5. 通知渠道优先级
 

@@ -29,15 +29,22 @@ class Settings(BaseSettings):
 
     # LLM：本地 Ollama（首选）
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "qwen2.5:7b"
+    # M3-01 选型：≤2B 量化模型（q4_K_M），替代超预算的 qwen2.5:7b
+    OLLAMA_MODEL: str = "qwen2.5:1.5b-instruct-q4_K_M"
 
     # LLM：DeepSeek 云端（可选降级）
     DEEPSEEK_API_KEY: str = ""
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
     DEEPSEEK_MODEL: str = "deepseek-chat"
 
-    # 向量模型
+    # 向量模型（M3-01 选型：bge-m3 + int8 量化；fp16 约 2.3G 超预算）
     EMBEDDING_MODEL: str = "BAAI/bge-m3"
+    EMBEDDING_QUANTIZATION: str = "int8"
+    EMBEDDING_DEVICE: str = "cpu"
+
+    # AI 推理侧内存预算（MB）；同一时刻仅加载 1 个模型
+    MODEL_BUDGET_MB: int = 2048
+
     # 强制使用确定性 hash 兜底向量（CI / 2G 预算紧张 / 未安装重型依赖时）
     EMBEDDING_FORCE_FALLBACK: bool = False
 
