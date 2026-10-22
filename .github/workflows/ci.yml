@@ -36,7 +36,7 @@ jobs:
         run: npx vitest run
 
   edge:
-    name: edge · typecheck
+    name: edge · typecheck / oauth e2e
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -52,6 +52,9 @@ jobs:
         run: npm ci
       - name: Typecheck
         run: npm run typecheck
+      - name: OAuth e2e (mock GitHub)
+        run: npm run test:oauth
+        timeout-minutes: 10
 
   vps:
     name: vps · pytest

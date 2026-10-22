@@ -10,6 +10,9 @@ export interface Env {
   // GitHub OAuth（CLIENT_SECRET 通过 `wrangler secret put` 设置）
   GITHUB_CLIENT_ID: string;
   GITHUB_CLIENT_SECRET: string;
+  // 可选：OAuth 授权端点 / API 根地址（缺省官方地址；本地联调指向 mock）
+  GITHUB_OAUTH_BASE_URL?: string;
+  GITHUB_API_BASE_URL?: string;
   // 会话/签名密钥
   SESSION_SECRET: string;
   // 允许的前端 origin（CORS 精确回显）
@@ -179,6 +182,14 @@ export interface GithubUser {
   name: string | null;
   email: string | null;
   avatar_url: string | null;
+}
+
+/** GitHub /user/emails 接口返回（仅取所需字段） */
+export interface GithubEmail {
+  email: string;
+  primary: boolean;
+  verified: boolean;
+  visibility?: string | null;
 }
 
 /** GitHub OAuth token 响应 */

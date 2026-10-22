@@ -8,6 +8,7 @@
 import { Hono } from 'hono';
 import type { Env, Variables } from '../types';
 import {
+  buildCallbackUrl,
   buildGithubAuthorizeUrl,
   clearOAuthStateCookie,
   clearSession,
@@ -16,8 +17,8 @@ import {
   exchangeGithubCode,
   fetchGithubUser,
   generateToken,
-  OAUTH_STATE_COOKIE,
   readCookie,
+  readOAuthStateCookie,
   resolveRedirectTarget,
   setOAuthStateCookie,
   setSessionCookie,
@@ -32,20 +33,15 @@ auth.get('/github/login', (c) => {
   if (!c.env.GITHUB_CLIENT_ID) {
     return c.json({ error: 'github_oauth_not_configured' }, 501);
   }
-  const state = generateToken();
-  setOAuthStateCookie(c, state);
-
   const url = new URL(c.req.url);
-  const redirect = url.searchParams.get('redirect');
-  // 把原始 redirect 参数附到回跳地址上，callback 时再校验
-  const callbackUrl = new URL('/api/auth/github/callback', url.origin);
-  if (redirect) callbackUrl.searchParams.set('redirect', redirect);
+  const rawRedirect = url.searchParams.get('redirect');
+  // 限制回跳参数长度，避免撑爆 4KB cookie
+  const redirect = rawRedirect && rawRedirect.length <= 512 ? rawRedirect : null;
+  const state = generateToken();
+  // 回跳目标存 state cookie；回调地址保持干净，保证 GitHub 精确匹配
+  setOAuthStateCookie(c, state, redirect);
 
-  const authorizeUrl = buildGithubAuthorizeUrl(
-    c.env,
-    state,
-    callbackUrl.toString()
-  );
+  const authorizeUrl = buildGithubAuthorizeUrl(c.env, state, buildCallbackUrl(c));
   return c.redirect(authorizeUrl, 302);
 });
 
@@ -56,27 +52,39 @@ auth.get('/github/callback', async (c) => {
   }
 
   const url = new URL(c.req.url);
+  const oauthError = url.searchParams.get('error');
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
-  const stateCookie = readCookie(c, OAUTH_STATE_COOKIE);
+  const stateCookie = readOAuthStateCookie(c);
   clearOAuthStateCookie(c);
 
+  // 用户在 GitHub 侧拒绝授权
+  if (oauthError) {
+    return c.json(
+      {
+        error: 'oauth_denied',
+        detail: url.searchParams.get('error_description') ?? oauthError,
+      },
+      400
+    );
+  }
+
   // 校验 state（防 CSRF）
-  if (!code || !state || !stateCookie || state !== stateCookie) {
+  if (!code || !state || !stateCookie || state !== stateCookie.state) {
     return c.json({ error: 'invalid_oauth_state' }, 400);
   }
 
-  const token = await exchangeGithubCode(c.env, code);
+  const token = await exchangeGithubCode(c.env, code, buildCallbackUrl(c));
   if (!token) return c.json({ error: 'github_token_exchange_failed' }, 502);
 
-  const ghUser = await fetchGithubUser(token);
+  const ghUser = await fetchGithubUser(c.env, token);
   if (!ghUser) return c.json({ error: 'github_user_fetch_failed' }, 502);
 
   const user = await upsertGithubUser(c.env.DB, ghUser);
   const sessionToken = await createSession(c.env.DB, user.id);
   setSessionCookie(c, sessionToken);
 
-  const target = resolveRedirectTarget(c.env, url.searchParams.get('redirect'));
+  const target = resolveRedirectTarget(c.env, stateCookie.redirect);
   return c.redirect(target, 302);
 });
 

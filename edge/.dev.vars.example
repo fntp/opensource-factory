@@ -1,0 +1,10 @@
+# 本地开发机密（复制为 .dev.vars，已被 .gitignore 忽略，切勿提交真实值）
+# 用法：cp .dev.vars.example .dev.vars && 填入真实值，然后 npm run dev
+#
+# GitHub OAuth App 的 Client Secret（在 GitHub → Settings → Developer settings
+# → OAuth Apps → 你的 App → Generate a new client secret 生成）
+GITHUB_CLIENT_SECRET=
+# 会话/状态签名用随机字符串（可用 `openssl rand -hex 32` 生成）
+SESSION_SECRET=
+# 可选：边缘 → VPS 节点内部调用令牌
+INTERNAL_TOKEN=

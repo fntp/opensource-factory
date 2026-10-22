@@ -19,9 +19,9 @@
 
 ## Q3. Cloudflare 资源信息（部署前必须提供）
 
-- **所需**：账号 ID、D1 数据库 `database_id`、Vectorize 索引名与维度（BGE-M3 为 1024 维）、目标域名；
-- **现状**：`edge/wrangler.toml` 中为占位符 `REPLACE_WITH_D1_DATABASE_ID`；
-- **默认处理**：本地开发用 `--local` 模拟；正式部署前替换。
+- **所需**：账号 ID、D1 数据库 `database_id`、Vectorize 索引名与维度（BGE-M3 为 1024 维）、目标域名、**GitHub OAuth App（Client ID / Client Secret / 回调地址）**；
+- **现状**：`edge/wrangler.toml` 中为占位符 `REPLACE_WITH_D1_DATABASE_ID`；OAuth App 尚未注册；
+- **默认处理**：本地开发用 `--local` 模拟；正式部署前替换。OAuth 登录已用 mock 完成本地全链路验证（REQ-202610-0895），真实 OAuth App 注册步骤见 `docs/guides/github-oauth-setup.md`，需维护者在 GitHub 网页创建（GitHub 不提供 OAuth App 创建 API）。
 
 ## Q4. LLM 与 Embedding 的默认配置
 

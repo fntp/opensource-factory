@@ -5,7 +5,15 @@
  * - OAuth state cookie：of_oauth_state
  */
 import type { Context } from 'hono';
-import type { Env, GithubTokenResponse, GithubUser, SessionRow, UserRow, Variables } from './types';
+import type {
+  Env,
+  GithubEmail,
+  GithubTokenResponse,
+  GithubUser,
+  SessionRow,
+  UserRow,
+  Variables,
+} from './types';
 import { first, run } from './db';
 
 export const SESSION_COOKIE = 'of_session';
@@ -15,6 +23,15 @@ export const OAUTH_STATE_COOKIE = 'of_oauth_state';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 /** OAuth state 有效期：10 分钟 */
 const OAUTH_STATE_TTL_SECONDS = 60 * 10;
+/** GitHub 官方端点（本地联调可通过 GITHUB_OAUTH_BASE_URL / GITHUB_API_BASE_URL 覆盖） */
+const DEFAULT_OAUTH_BASE_URL = 'https://github.com';
+const DEFAULT_API_BASE_URL = 'https://api.github.com';
+
+/** OAuth state cookie 载荷：state 与登录后的回跳目标 */
+export interface OAuthStatePayload {
+  state: string;
+  redirect: string | null;
+}
 
 type AppContext = Context<{ Bindings: Env; Variables: Variables }>;
 
@@ -98,16 +115,35 @@ export function clearSessionCookie(c: AppContext): void {
   );
 }
 
-/** 设置 OAuth state cookie */
-export function setOAuthStateCookie(c: AppContext, state: string): void {
+/** 设置 OAuth state cookie（同时保存回跳目标，回调地址保持干净以便 GitHub 精确匹配） */
+export function setOAuthStateCookie(c: AppContext, state: string, redirect: string | null): void {
+  const payload: OAuthStatePayload = { state, redirect };
   c.header(
     'Set-Cookie',
-    buildSetCookie(OAUTH_STATE_COOKIE, state, {
+    buildSetCookie(OAUTH_STATE_COOKIE, JSON.stringify(payload), {
       maxAge: OAUTH_STATE_TTL_SECONDS,
       secure: isSecureRequest(c),
     }),
     { append: true }
   );
+}
+
+/** 读取 OAuth state cookie；兼容旧格式（cookie 值就是 state） */
+export function readOAuthStateCookie(c: AppContext): OAuthStatePayload | null {
+  const raw = readCookie(c, OAUTH_STATE_COOKIE);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<OAuthStatePayload>;
+    if (typeof parsed.state === 'string' && parsed.state) {
+      return {
+        state: parsed.state,
+        redirect: typeof parsed.redirect === 'string' ? parsed.redirect : null,
+      };
+    }
+  } catch {
+    // 旧格式：cookie 值即 state
+  }
+  return { state: raw, redirect: null };
 }
 
 /** 清除 OAuth state cookie */
@@ -168,48 +204,109 @@ export async function destroySessionByToken(db: D1Database, token: string): Prom
 
 // ── GitHub OAuth ────────────────────────────────────────────────
 
+function trimTrailingSlash(url: string): string {
+  return url.replace(/\/+$/, '');
+}
+
+/** OAuth 授权端点根地址（默认 https://github.com） */
+export function githubOAuthBase(env: Env): string {
+  return trimTrailingSlash(env.GITHUB_OAUTH_BASE_URL || DEFAULT_OAUTH_BASE_URL);
+}
+
+/** GitHub API 根地址（默认 https://api.github.com） */
+export function githubApiBase(env: Env): string {
+  return trimTrailingSlash(env.GITHUB_API_BASE_URL || DEFAULT_API_BASE_URL);
+}
+
+/** 本次请求对应的 OAuth 回调地址（authorize 与 token 交换必须完全一致） */
+export function buildCallbackUrl(c: AppContext): string {
+  const url = new URL(c.req.url);
+  return new URL('/api/auth/github/callback', url.origin).toString();
+}
+
 /** 构造 GitHub 授权页 URL */
-export function buildGithubAuthorizeUrl(env: Env, state: string, redirect: string): string {
+export function buildGithubAuthorizeUrl(env: Env, state: string, redirectUri: string): string {
   const params = new URLSearchParams({
     client_id: env.GITHUB_CLIENT_ID,
-    redirect_uri: redirect,
+    redirect_uri: redirectUri,
     scope: 'read:user user:email',
     state,
   });
-  return `https://github.com/login/oauth/authorize?${params.toString()}`;
+  return `${githubOAuthBase(env)}/login/oauth/authorize?${params.toString()}`;
 }
 
-/** 用 code 换 access token */
-export async function exchangeGithubCode(env: Env, code: string): Promise<string | null> {
-  const res = await fetch('https://github.com/login/oauth/access_token', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      'User-Agent': 'opensource-factory',
-    },
-    body: JSON.stringify({
-      client_id: env.GITHUB_CLIENT_ID,
-      client_secret: env.GITHUB_CLIENT_SECRET,
-      code,
-    }),
-  });
-  if (!res.ok) return null;
-  const data = (await res.json()) as GithubTokenResponse;
-  return data.access_token ?? null;
+/** 用 code 换 access token（redirect_uri 必须与 authorize 阶段一致） */
+export async function exchangeGithubCode(
+  env: Env,
+  code: string,
+  redirectUri: string
+): Promise<string | null> {
+  try {
+    const res = await fetch(`${githubOAuthBase(env)}/login/oauth/access_token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'User-Agent': 'opensource-factory',
+      },
+      body: JSON.stringify({
+        client_id: env.GITHUB_CLIENT_ID,
+        client_secret: env.GITHUB_CLIENT_SECRET,
+        code,
+        redirect_uri: redirectUri,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as GithubTokenResponse;
+    if (data.error) return null;
+    return data.access_token ?? null;
+  } catch {
+    return null;
+  }
 }
 
-/** 取 GitHub 用户信息 */
-export async function fetchGithubUser(token: string): Promise<GithubUser | null> {
-  const res = await fetch('https://api.github.com/user', {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/vnd.github+json',
-      'User-Agent': 'opensource-factory',
-    },
-  });
-  if (!res.ok) return null;
-  return (await res.json()) as GithubUser;
+/** 取 GitHub 用户信息；email 为私有时回退 /user/emails 取主邮箱 */
+export async function fetchGithubUser(env: Env, token: string): Promise<GithubUser | null> {
+  try {
+    const res = await fetch(`${githubApiBase(env)}/user`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'opensource-factory',
+      },
+    });
+    if (!res.ok) return null;
+    const user = (await res.json()) as GithubUser;
+    if (!user.email) {
+      user.email = await fetchGithubPrimaryEmail(env, token);
+    }
+    return user;
+  } catch {
+    return null;
+  }
+}
+
+/** 从 /user/emails 取主邮箱（优先 primary + verified，其次任一 verified） */
+export async function fetchGithubPrimaryEmail(env: Env, token: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${githubApiBase(env)}/user/emails`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'opensource-factory',
+      },
+    });
+    if (!res.ok) return null;
+    const emails = (await res.json()) as GithubEmail[];
+    if (!Array.isArray(emails)) return null;
+    const preferred =
+      emails.find((item) => item.primary && item.verified) ??
+      emails.find((item) => item.verified) ??
+      emails.find((item) => item.primary);
+    return preferred?.email ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** 以 GitHub 用户 upsert users 表并返回行 */
@@ -243,6 +340,7 @@ export function resolveRedirectTarget(env: Env, raw: string | null): string {
   const fallback = env.ALLOWED_ORIGIN || '/';
   if (!raw) return fallback;
   if (raw.startsWith('/') && !raw.startsWith('//')) return raw;
+  if (!env.ALLOWED_ORIGIN) return fallback;
   try {
     const url = new URL(raw);
     const allowed = new URL(env.ALLOWED_ORIGIN);
