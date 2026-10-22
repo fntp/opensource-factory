@@ -104,6 +104,7 @@ recommendations              （user_id 可空 = 全局推荐）
 | 表 | 索引 | 用途 |
 | --- | --- | --- |
 | my_repositories | `(user_id)`、`(category_id)`、`(platform)` | 列表与筛选 |
+| my_repositories | `(user_id, stars DESC)`、`(user_id, updated_at DESC)`、`(user_id, language)`、`(user_id, category_id)` | 组合筛选 / 排序（REQ-202610-0903，见 `migrations/0003_repo_filter_indexes.sql`） |
 | trending_repositories | `(stars_today DESC)`、`(crawled_at)` | 榜单查询 |
 | sessions | `(user_id)`、`(expires_at)` | 会话校验与清理 |
 | repo_tags | `(repo_id)`、`(tag_id)` | 反查 |

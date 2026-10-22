@@ -103,6 +103,7 @@ export interface CategoryWithCountRow extends CategoryRow {
 }
 
 export interface TagCountRow {
+  id: number;
   name: string;
   count: number;
 }
@@ -127,8 +128,10 @@ export interface RepoItem {
   stars: number;
   forks: number;
   category: string | null;
+  categoryId: string | null;
   tags: string[];
   updatedAt: string | null;
+  createdAt: string | null;
   url: string;
 }
 
@@ -161,7 +164,7 @@ export interface Recommendation {
 /** GET /api/categories */
 export interface CategoriesPayload {
   categories: Array<{ id: string; name: string; count: number; description: string | null }>;
-  tags: Array<{ name: string; count: number }>;
+  tags: Array<{ id: number; name: string; count: number }>;
 }
 
 /** GET /api/dashboard/stats */

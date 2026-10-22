@@ -20,7 +20,7 @@ categories.get('/', async (c) => {
 
   const tagRows = await all<TagCountRow>(
     c.env.DB,
-    `SELECT name, count FROM tags ORDER BY count DESC, name ASC`
+    `SELECT id, name, count FROM tags ORDER BY count DESC, name ASC`
   );
 
   return c.json({
@@ -31,6 +31,7 @@ categories.get('/', async (c) => {
       description: row.description ?? null,
     })),
     tags: tagRows.map((row) => ({
+      id: row.id,
       name: row.name,
       count: row.count ?? 0,
     })),

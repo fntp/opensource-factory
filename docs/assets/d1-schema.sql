@@ -103,6 +103,11 @@ CREATE TABLE recommendations (
 -- ── 索引 ────────────────────────────────────────────────────────
 CREATE INDEX idx_my_repositories_user_id ON my_repositories (user_id);
 CREATE INDEX idx_my_repositories_category_id ON my_repositories (category_id);
+-- 组合筛选 / 排序索引（REQ-202610-0903，见 migrations/0003_repo_filter_indexes.sql）
+CREATE INDEX idx_my_repositories_user_stars ON my_repositories (user_id, stars DESC);
+CREATE INDEX idx_my_repositories_user_updated ON my_repositories (user_id, updated_at DESC);
+CREATE INDEX idx_my_repositories_user_language ON my_repositories (user_id, language);
+CREATE INDEX idx_my_repositories_user_category ON my_repositories (user_id, category_id);
 CREATE INDEX idx_trending_repositories_stars_today ON trending_repositories (stars_today DESC);
 CREATE INDEX idx_sessions_user_id ON sessions (user_id);
 CREATE INDEX idx_sessions_expires_at ON sessions (expires_at);

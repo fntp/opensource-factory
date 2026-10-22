@@ -1,15 +1,23 @@
-import { fetchWithFallback } from '@/lib/api'
+import { apiFetch } from '@/lib/api'
+import {
+  buildReposQuery,
+  DEFAULT_REPO_FILTERS,
+  filterAndSortRepos,
+  type RepoFilters,
+} from './filters'
 
 export interface RepoItem {
   id: string
   fullName: string
-  description: string
-  language: string
+  description: string | null
+  language: string | null
   stars: number
   forks: number
-  category: string
+  category: string | null
+  categoryId: string | null
   tags: string[]
-  updatedAt: string
+  updatedAt: string | null
+  createdAt: string | null
   url: string
 }
 
@@ -21,9 +29,11 @@ export const MOCK_REPOS: RepoItem[] = [
     language: 'TypeScript',
     stars: 128,
     forks: 12,
-    category: '工具平台',
+    category: '开发工具',
+    categoryId: '4',
     tags: ['资产', '推荐'],
     updatedAt: '2026-10-12',
+    createdAt: '2026-09-01',
     url: 'https://github.com/fntp/opensource-factory',
   },
   {
@@ -34,8 +44,10 @@ export const MOCK_REPOS: RepoItem[] = [
     stars: 94210,
     forks: 15230,
     category: 'AI/LLM',
+    categoryId: '1',
     tags: ['LLM', '框架'],
     updatedAt: '2026-10-13',
+    createdAt: '2026-08-15',
     url: 'https://github.com/langchain-ai/langchain',
   },
   {
@@ -46,8 +58,10 @@ export const MOCK_REPOS: RepoItem[] = [
     stars: 78120,
     forks: 4150,
     category: '前端开发',
+    categoryId: '2',
     tags: ['组件', '设计'],
     updatedAt: '2026-10-12',
+    createdAt: '2026-07-20',
     url: 'https://github.com/shadcn-ui/ui',
   },
   {
@@ -58,8 +72,10 @@ export const MOCK_REPOS: RepoItem[] = [
     stars: 102340,
     forks: 8100,
     category: 'AI/LLM',
+    categoryId: '1',
     tags: ['本地模型', '推理'],
     updatedAt: '2026-10-13',
+    createdAt: '2026-06-10',
     url: 'https://github.com/ollama/ollama',
   },
   {
@@ -70,8 +86,10 @@ export const MOCK_REPOS: RepoItem[] = [
     stars: 55120,
     forks: 12300,
     category: 'AI/LLM',
+    categoryId: '1',
     tags: ['聊天', '应用'],
     updatedAt: '2026-10-11',
+    createdAt: '2026-08-01',
     url: 'https://github.com/lobehub/lobe-chat',
   },
   {
@@ -82,8 +100,10 @@ export const MOCK_REPOS: RepoItem[] = [
     stars: 82600,
     forks: 7100,
     category: '后端与 API',
+    categoryId: '3',
     tags: ['API', '异步'],
     updatedAt: '2026-10-10',
+    createdAt: '2026-05-18',
     url: 'https://github.com/fastapi/fastapi',
   },
   {
@@ -94,8 +114,10 @@ export const MOCK_REPOS: RepoItem[] = [
     stars: 48900,
     forks: 4300,
     category: '前端开发',
+    categoryId: '2',
     tags: ['Vue', '框架'],
     updatedAt: '2026-10-12',
+    createdAt: '2026-07-02',
     url: 'https://github.com/vuejs/core',
   },
   {
@@ -106,12 +128,26 @@ export const MOCK_REPOS: RepoItem[] = [
     stars: 92100,
     forks: 2800,
     category: '桌面端',
+    categoryId: '5',
     tags: ['跨平台', 'Rust'],
     updatedAt: '2026-10-09',
+    createdAt: '2026-06-25',
     url: 'https://github.com/tauri-apps/tauri',
   },
 ]
 
-export function fetchRepos(): Promise<RepoItem[]> {
-  return fetchWithFallback<RepoItem[]>('/api/repos', MOCK_REPOS)
+/** 拉取仓库列表；后端不可用时按同一套筛选 / 排序规则回退到演示数据。 */
+export async function fetchRepos(
+  filters: RepoFilters = DEFAULT_REPO_FILTERS
+): Promise<RepoItem[]> {
+  const query = buildReposQuery(filters)
+  try {
+    return await apiFetch<RepoItem[]>(
+      query ? `/api/repos?${query}` : '/api/repos'
+    )
+  } catch {
+    // eslint-disable-next-line no-console
+    console.info('[opensource-factory] API 不可用，使用演示数据：/api/repos')
+    return filterAndSortRepos(MOCK_REPOS, filters)
+  }
 }
