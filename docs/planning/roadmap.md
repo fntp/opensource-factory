@@ -51,6 +51,7 @@
 ## 5. M2 · 热榜与摘要
 
 - [x] GitHub Trending 每日定时抓取（Celery beat，多语言页）
+- [x] 热榜按日快照与趋势字段（M2-05）
 - [ ] README 清洗 + 中文摘要（Ollama，DeepSeek 降级）
 - [ ] 热榜页：日期 / 语言筛选、趋势标注
 

@@ -102,6 +102,7 @@ def crawl_trending(
         crawl_gitee_explore,
         crawl_github_trending_pages,
     )
+    from app.services.trending_snapshot import push_trending_snapshots, save_trending_snapshots
 
     settings = get_settings()
     items: list[dict[str, Any]] = []
@@ -185,8 +186,44 @@ def crawl_trending(
                 row.crawled_at = today
                 updated += 1
         db.commit()
+        # M2-05：写按日快照（去重 + 趋势字段）；失败不影响抓取主流程
+        try:
+            snapshot_result = save_trending_snapshots(db, items, snapshot_date=today)
+        except Exception as exc:  # noqa: BLE001 - 快照失败降级，不影响最新状态
+            logger.exception("热榜快照入库失败")
+            snapshot_result = {
+                "date": today.isoformat(),
+                "total": 0,
+                "created": 0,
+                "updated": 0,
+                "rows": [],
+                "error": str(exc)[:300],
+            }
     finally:
         db.close()
+
+    # M2-05：快照批量回写边缘 D1（未配置 EDGE_BASE_URL / INTERNAL_TOKEN 时跳过）
+    push_result = {"skipped": True, "pushed": 0, "failed": 0, "batches": 0}
+    if snapshot_result.get("rows"):
+        try:
+            push_result = push_trending_snapshots(snapshot_result["rows"], today)
+        except Exception as exc:  # noqa: BLE001 - 回写失败只记录，任务仍算成功
+            logger.exception("热榜快照回写边缘失败")
+            push_result = {"skipped": False, "pushed": 0, "failed": len(snapshot_result["rows"]), "batches": 0, "error": str(exc)[:300]}
+
+    snapshots = {
+        "date": snapshot_result.get("date"),
+        "total": snapshot_result.get("total", 0),
+        "created": snapshot_result.get("created", 0),
+        "updated": snapshot_result.get("updated", 0),
+        "pushed": push_result.get("pushed", 0),
+        "pushFailed": push_result.get("failed", 0),
+        "skipped": push_result.get("skipped", True),
+    }
+    if snapshot_result.get("error"):
+        snapshots["error"] = snapshot_result["error"]
+    if push_result.get("error"):
+        snapshots["pushError"] = push_result["error"]
 
     failed_pages = [page for page in pages if not page.get("ok", True)]
     if not items and failed_pages:
@@ -211,6 +248,7 @@ def crawl_trending(
         "updated": updated,
         "pages": pages,
         "failedPages": failed_pages,
+        "snapshots": snapshots,
     }
 
 

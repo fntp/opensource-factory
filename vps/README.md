@@ -27,13 +27,14 @@ vps/
 │   ├── services/             # 业务逻辑（单一职责，可独立单测）
 │   │   ├── github_service.py     # GitHub REST v3 异步客户端（分页、README base64 解码）
 │   │   ├── trending_crawler.py   # GitHub Trending 解析/抓取 + Gitee 探索页（尽力而为）
+│   │   ├── trending_snapshot.py  # 按日快照去重 / 排名 / 趋势字段 + D1 批量回写
 │   │   ├── readme.py             # README 清洗 + 技术栈启发式提取
 │   │   ├── embedding.py          # BGE-M3（懒加载）与确定性 hash 降级向量
 │   │   ├── summarizer.py         # Ollama → DeepSeek → 截断降级 的摘要生成
 │   │   └── recommender.py        # 余弦排序 + 中文推荐理由模板
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
-│   │   ├── trending.py           # GET /api/trending、POST /api/trending/crawl
+│   │   ├── trending.py           # GET /api/trending、/snapshots、/dates、/history、POST /crawl
 │   │   ├── recommend.py          # POST /api/recommend/query、POST /api/recommend/generate
 │   │   └── tasks.py              # /api/tasks/*（与边缘 Worker 的集成契约，X-Internal-Token 鉴权）
 │   └── tasks/                # Celery 任务（薄封装，调用 services + 落库）
@@ -84,6 +85,7 @@ pytest -q
 | `DEEPSEEK_API_KEY` | 空 | 可选；配置后作为 LLM 云端降级（OpenAI 兼容） |
 | `EMBEDDING_MODEL` | `BAAI/bge-m3` | 向量模型名（sentence-transformers / FlagEmbedding） |
 | `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
+| `EDGE_BASE_URL` | 空 | 边缘 API 地址；配置后热榜快照批量回写 D1，留空只写本地镜像 |
 | `CELERY_TASK_ALWAYS_EAGER` | `0` | 置 `1` 时任务同步执行（本地调试 / 测试用） |
 | `GITHUB_TOKEN` | 空 | GitHub PAT（仅需 read 权限）；为空时同步任务跳过 |
 | `TRENDING_LANGUAGES` | `python,javascript,typescript,go,rust,java,cpp,c,php,ruby,swift,kotlin` | 每日抓取的 Trending 语言页（逗号分隔；留空只抓全局页） |
@@ -108,8 +110,8 @@ pytest -q
 
 - **鉴权**：当服务端设置 `INTERNAL_TOKEN` 时，请求必须携带请求头 `X-Internal-Token: <token>`，否则返回 `401`；
 - **异步语义**：任务接口一律 `202` + `{"taskId": ...}`（camelCase），由边缘侧轮询 `GET /api/tasks/{task_id}` 获取结果；
-- **直接查询接口**（供边缘回源或调试）：`GET /api/repos`、`GET /api/trending`、`POST /api/recommend/query`；
-- **数据契约**：本地表结构与 D1 Schema 保持一致（`my_repositories` / `trending_repositories` / `categories` 字段名与语义镜像），边缘侧按 `id`（`owner/repo`）对齐；
+- **直接查询接口**（供边缘回源或调试）：`GET /api/repos`、`GET /api/trending`、`GET /api/trending/snapshots`、`GET /api/trending/dates`、`GET /api/trending/history`、`POST /api/recommend/query`；
+- **数据契约**：本地表结构与 D1 Schema 保持一致（`my_repositories` / `trending_repositories` / `trending_snapshots` / `categories` 字段名与语义镜像），边缘侧按 `id`（`owner/repo`）对齐；
 - **降级语义**：外部依赖不可用时任务返回 `{"status": "skipped"|"error", ...}` 而不是失败抛错，边缘侧可安全重试。
 
 ## 热榜每日抓取
@@ -118,6 +120,8 @@ pytest -q
 - 抓取全局页 + `TRENDING_LANGUAGES` 列出的语言页，页间串行并默认间隔 1 秒，避免触发 GitHub 限流；
 - 同一仓库跨页去重，`stars` / `stars_today` 取最大值，`owner` / `language` / `stars` 一并落库；
 - 单页失败不中断整轮，任务结果包含 `pages[]` 与 `failedPages[]`（`status=partial` / `error`），作为 M2-02 告警的基础信号；
+- 每次抓取同时写 `trending_snapshots`（主键 `snapshot_date + repo_id`）：同一日重复执行幂等，趋势字段对比上一有效快照（最多回看 7 天）计算 `star_delta` / `rank_delta` / `appearances` / `is_new` / `trend`；
+- 配置 `EDGE_BASE_URL` + `INTERNAL_TOKEN` 时，快照按批（默认 200 条）回写 `POST /api/internal/trending/snapshots`；回写失败只记日志，不影响本地入库；
 - 手动触发示例：`curl -X POST 'http://127.0.0.1:8000/api/tasks/crawl-trending?platform=github&languages=python,rust' -H "X-Internal-Token: <token>"`。
 
 ## 常用检查

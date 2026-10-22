@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     # 内部接口鉴权（设置后 /api/tasks/* 校验 X-Internal-Token）
     INTERNAL_TOKEN: str = ""
 
+    # 边缘 API 地址（配置后热榜快照会批量回写 D1；留空只写本地镜像）
+    EDGE_BASE_URL: str = ""
+
     # Celery
     CELERY_TASK_ALWAYS_EAGER: bool = False
 
