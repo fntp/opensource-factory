@@ -13,6 +13,7 @@ import re
 from typing import Optional, Sequence
 
 from app.config import get_settings
+from app.services.model_budget import DEFAULT_BUDGET_MB, resolve_embedding_spec
 
 logger = logging.getLogger(__name__)
 
@@ -40,14 +41,33 @@ def _quantize_dynamic(model: object) -> object:
 class EmbeddingService:
     """向量化服务（懒加载模型；可用 `force_fallback=True` 强制走 hash 兜底）。"""
 
-    def __init__(self, model_name: str | None = None, *, force_fallback: bool = False) -> None:
+    def __init__(
+        self,
+        model_name: str | None = None,
+        *,
+        force_fallback: bool = False,
+        budget_mb: int | None = None,
+    ) -> None:
         settings = get_settings()
         self.model_name: str = model_name or settings.EMBEDDING_MODEL
         self.quantization: str = (settings.EMBEDDING_QUANTIZATION or "none").strip().lower()
         self.device: str = (settings.EMBEDDING_DEVICE or "cpu").strip().lower()
+        self.budget_mb: int = int(
+            budget_mb
+            if budget_mb is not None
+            else (settings.MODEL_BUDGET_MB or DEFAULT_BUDGET_MB)
+        )
         self.force_fallback: bool = force_fallback
         self._backend: Optional[str] = None  # 'sentence-transformers' | 'flagembedding' | 'hash'
         self._model: object | None = None
+        self._degraded_reason: str = ""
+
+    @property
+    def degraded_reason(self) -> str:
+        """降级原因（`forced` / `over_budget` / `model_missing`；正常加载时为空）。"""
+        if self._backend is None:
+            self._load_backend()
+        return self._degraded_reason
 
     # ------------------------------------------------------------------ 后端
 
@@ -64,6 +84,23 @@ class EmbeddingService:
             return self._backend
         if self.force_fallback:
             self._backend = "hash"
+            self._degraded_reason = "forced"
+            return self._backend
+
+        # 超预算前置检查：不加载已知会突破内存红线的模型，直接走 hash
+        spec = resolve_embedding_spec(self.model_name, self.quantization)
+        if spec is not None and spec.resident_mb > self.budget_mb:
+            self._backend = "hash"
+            self._degraded_reason = (
+                f"over_budget: {spec.resident_mb}MB > {self.budget_mb}MB"
+            )
+            logger.warning(
+                "嵌入模型 %s 估算驻留 %d MB 超出预算 %d MB，使用 hash 兜底（dim=%d）",
+                self.model_name,
+                spec.resident_mb,
+                self.budget_mb,
+                FALLBACK_DIM,
+            )
             return self._backend
 
         try:
@@ -73,6 +110,7 @@ class EmbeddingService:
             if self.quantization in _INT8_ALIASES:
                 self._model = _quantize_dynamic(self._model)
             self._backend = "sentence-transformers"
+            self._degraded_reason = ""
             logger.info(
                 "嵌入后端: sentence-transformers (%s, device=%s, quantization=%s)",
                 self.model_name,
@@ -81,6 +119,7 @@ class EmbeddingService:
             )
             return self._backend
         except Exception as exc:  # noqa: BLE001 - 未安装或加载失败都走降级
+            self._degraded_reason = f"model_missing: sentence-transformers ({exc})"
             logger.info("sentence-transformers 不可用: %s", exc)
 
         try:
@@ -90,6 +129,7 @@ class EmbeddingService:
             use_fp16 = self.device != "cpu" and self.quantization in _FP16_ALIASES
             self._model = BGEM3FlagModel(self.model_name, use_fp16=use_fp16, device=self.device)
             self._backend = "flagembedding"
+            self._degraded_reason = ""
             logger.info(
                 "嵌入后端: FlagEmbedding (%s, device=%s, fp16=%s)",
                 self.model_name,
@@ -98,6 +138,7 @@ class EmbeddingService:
             )
             return self._backend
         except Exception as exc:  # noqa: BLE001 - 同上
+            self._degraded_reason = f"model_missing: FlagEmbedding ({exc})"
             logger.info("FlagEmbedding 不可用: %s", exc)
 
         self._backend = "hash"

@@ -203,3 +203,25 @@ class VectorDetail(BaseModel):
     textHash: str
     vector: list[float]
     updatedAt: Optional[datetime] = None
+
+
+class DegradationCheckOut(BaseModel):
+    """单项降级检查结果。"""
+
+    name: str
+    ok: bool
+    detail: str
+
+
+class DegradationStatusOut(BaseModel):
+    """降级路径自检状态（M3-09）。"""
+
+    ok: bool
+    summary: str
+    embeddingModel: str
+    embeddingQuantization: str
+    embeddingExpectedBackend: str
+    llmModel: str
+    llmDegraded: bool
+    budgetMb: int
+    checks: list[DegradationCheckOut]

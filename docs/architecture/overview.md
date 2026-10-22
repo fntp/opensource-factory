@@ -117,6 +117,20 @@ Celery beat（每 30 分钟）或 POST /api/vector-index/sync
 可选 list + delete 清理孤儿（默认关闭）。
 ```
 
+### 3.8 降级路径（M3-09）
+
+```
+EmbeddingService 加载前 → resolve_embedding_spec 估算驻留
+  ├─ 依赖缺失 / 模型加载失败 → hash 向量（256 维 char-trigram、blake2b、L2 归一化）
+  └─ 估算驻留 > MODEL_BUDGET_MB → 不加载模型，直接 hash（degraded_reason=over_budget）
+
+summarize() → Ollama（超预算则跳过请求）→ DeepSeek → 截断原文（带降级说明）
+```
+
+- 降级自检 `python -m app.degradation check [--json]` 五项全部离线执行，PASS 退出码 0；
+- `GET /api/degradation/status` 返回当前配置的预期后端、LLM 降级标记与五项检查结果；
+- 测试不依赖模型与网络，覆盖「模型缺失 / 超预算 → hash 向量 / 截断摘要」两条主路径。
+
 ## 4. 接口边界
 
 ### 4.1 admin ↔ edge（JSON over HTTPS，Cookie 会话）
@@ -151,6 +165,7 @@ Celery beat（每 30 分钟）或 POST /api/vector-index/sync
 | `/api/vectors/stats` | GET | 向量覆盖率与最近运行 |
 | `/api/vectors/runs/{runId}` | GET | 向量化运行详情 |
 | `/api/vectors/{source}/{repoId}` | GET | 单条仓库向量 |
+| `/api/degradation/status` | GET | 降级路径自检（模型缺失 / 超预算） |
 | `/healthz` | GET | 健康检查 |
 
 ### 4.3 vps → edge（Vectorize 内部接口，`X-Internal-Token`）

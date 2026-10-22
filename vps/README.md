@@ -24,6 +24,7 @@ vps/
 │   ├── db.py                 # SQLAlchemy engine / Session / init_db
 │   ├── models.py             # 数据库模型（D1 表结构的本地镜像）
 │   ├── schemas.py            # Pydantic 出入参模型
+│   ├── degradation.py        # 降级路径自检 CLI（python -m app.degradation check）
 │   ├── services/             # 业务逻辑（单一职责，可独立单测）
 │   │   ├── github_service.py     # GitHub REST v3 异步客户端（分页、README base64 解码）
 │   │   ├── trending_crawler.py   # GitHub Trending 解析/抓取 + Gitee 探索页（尽力而为）
@@ -33,13 +34,15 @@ vps/
 │   │   ├── summarizer.py         # Ollama → DeepSeek → 截断降级 的摘要生成
 │   │   ├── recommender.py        # 余弦排序 + 综合打分 + 中文推荐理由模板
 │   │   ├── recommendation_service.py # 每日推荐：画像 / 去重已收藏 / 阈值 / 落库
-│   │   └── vector_sync.py        # Vectorize 批量 upsert / 重试 / 对账 / 孤儿清理
+│   │   ├── vector_sync.py        # Vectorize 批量 upsert / 重试 / 对账 / 孤儿清理
+│   │   └── degradation.py        # 降级路径自检（模型缺失 / 超预算，离线可跑）
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
 │   │   ├── repos.py              # GET /api/repos、POST /api/repos/sync
 │   │   ├── trending.py           # GET /api/trending、POST /api/trending/crawl
 │   │   ├── recommend.py          # POST /api/recommend/query、POST /api/recommend/generate
 │   │   ├── vector_sync.py        # /api/vector-index/*（同步入队、状态、运行记录）
 │   │   ├── vectors.py            # GET /api/vectors/stats、runs、单条向量
+│   │   ├── degradation.py        # GET /api/degradation/status（降级自检）
 │   │   └── tasks.py              # /api/tasks/*（与边缘 Worker 的集成契约，X-Internal-Token 鉴权）
 │   └── tasks/                # Celery 任务（薄封装，调用 services + 落库）
 │       ├── celery_app.py         # Celery 应用与 beat 定时计划
@@ -128,7 +131,6 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | `VECTORIZE_BATCH_SIZE` | `32` | 向量化每批编码 / 提交条数（1~256） |
 | `VECTORIZE_MAX_PER_RUN` | `1000` | 单次向量化默认上限 |
 | `VECTORIZE_AUTO` | `1` | 同步 / 热榜抓取完成后自动入队增量向量化 |
-| `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/vector-index/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
 | `CELERY_TASK_ALWAYS_EAGER` | `0` | 置 `1` 时任务同步执行（本地调试 / 测试用） |
 | `GITHUB_TOKEN` | 空 | GitHub PAT（仅需 read 权限）；为空时同步任务跳过 |
 
@@ -161,6 +163,27 @@ cd vps
 预算内退出码 0；超预算或未收录模型退出码 1。`deploy/scripts/doctor.sh` 也会执行同一项检查。
 int8 量化在 `sentence-transformers` 后端下对 Linear 层做动态量化；生产更推荐预量化的 ONNX int8 权重。
 
+## 降级路径自检（M3-09）
+
+模型缺失或超预算时，节点必须继续可用：
+
+| 场景 | 降级行为 |
+| --- | --- |
+| 未安装 `sentence-transformers` / `FlagEmbedding`，或模型加载失败 | `EmbeddingService` 使用确定性 hash 向量（256 维、L2 归一化） |
+| embedding 模型估算驻留 > `MODEL_BUDGET_MB` | 不加载模型，直接使用 hash 向量（`degraded_reason=over_budget`） |
+| Ollama 未配置 / 请求失败 / 模型超预算 | 继续尝试 DeepSeek；仍不可用则返回截断原文（带「LLM 暂不可用」说明） |
+
+自检命令不加载真实模型、不访问网络，全部 PASS 退出码 0：
+
+```bash
+cd vps
+.venv/bin/python -m app.degradation check
+.venv/bin/python -m app.degradation check --json
+```
+
+部署后也可调用 `GET /api/degradation/status`（配置 `INTERNAL_TOKEN` 时需携带 `X-Internal-Token`）
+核对当前配置的预期后端与五项自检结果。
+
 ## 与 Cloudflare 边缘的接口约定
 
 边缘 Worker 通过内部 API 调度本节点，全部任务接口位于 `/api/tasks/*`：
@@ -177,12 +200,13 @@ int8 量化在 `sentence-transformers` 后端下对 Linear 层做动态量化；
 | GET | `/api/vector-index/status` | 本地向量覆盖率、状态分布与最近运行 | `200 {...}` |
 | GET | `/api/vector-index/runs?limit=20` | 最近同步运行记录 | `200 [...]` |
 | GET | `/api/vector-index/runs/{run_id}` | 单次运行详情 | `200 {...}` |
-
-Celery beat 每 30 分钟（`7,37` 分）自动执行一次增量同步；对账建议在低峰期手动触发。
 | GET | `/api/vectors/stats` | 向量覆盖率与最近运行 | `200` |
 | GET | `/api/vectors/runs?limit=20` | 最近向量化运行 | `200` |
 | GET | `/api/vectors/runs/{runId}` | 单次运行详情（含游标 / 计数 / 错误） | `200` |
 | GET | `/api/vectors/{source}/{repoId}` | 单条仓库向量（`source=my\|trending`） | `200` |
+| GET | `/api/degradation/status` | 降级路径自检（模型缺失 / 超预算） | `200 {...}` |
+
+Celery beat 每 30 分钟（`7,37` 分）自动执行一次增量同步；对账建议在低峰期手动触发。
 
 约定：
 
