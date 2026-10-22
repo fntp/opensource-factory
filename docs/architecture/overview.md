@@ -68,9 +68,11 @@ Celery beat 每日 → 抓取 GitHub Trending（全局页 + 多语言页）→ �
 → upsert trending_repositories（最新状态）
 → 写 trending_snapshots（按日快照 + 排名 / Star 增量 / 连续上榜等趋势字段）
 → 配置 EDGE_BASE_URL 时批量回写 D1 → 摘要/技术栈提取 → （M3）向量化 → 同步 Vectorize
+→ 每日 04:17（可配）保留任务：过期快照先归档为 gzip JSONL，再删除本地与 D1 同日期范围数据
 ```
 
 > 快照以 `(snapshot_date, repo_id)` 为主键，重复执行同一日任务幂等；趋势基线最多回看 7 天（M2-05）。
+> 保留窗口默认 90 天，归档目录与保留期见 `docs/guides/trending-retention.md`（M2-08）。
 
 ### 3.4 推荐流（RAG）
 
@@ -107,7 +109,11 @@ Celery beat 每日 → 抓取 GitHub Trending（全局页 + 多语言页）→ �
 | `/api/tasks/generate-recommendations` | POST | 入队推荐生成 |
 | `/api/tasks/daily-push` | POST | 入队每日推送 |
 | `/api/tasks/{taskId}` | GET | 任务状态 |
+| `/api/trending/retention` | GET | 热榜保留策略状态（窗口 / 过期数 / 库与归档占用） |
+| `/api/trending/retention/cleanup` | POST | 入队热榜归档与清理（`?dryRun=` / `?retentionDays=` / `?archive=`） |
 | `/api/internal/trending/snapshots` | POST | VPS → edge：批量 upsert 热榜快照（单批 ≤ 500，`X-Internal-Token`） |
+| `/api/internal/trending/retention` | GET | VPS → edge：D1 快照总数与最早 / 最新日期（`X-Internal-Token`） |
+| `/api/internal/trending/retention/cleanup` | POST | VPS → edge：按 `beforeDate` 删除过期快照（`X-Internal-Token`） |
 | `/healthz` | GET | 健康检查 |
 
 ## 5. 安全边界

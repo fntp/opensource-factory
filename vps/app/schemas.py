@@ -75,6 +75,24 @@ class TrendingSnapshotDateOut(BaseModel):
     count: int
 
 
+class TrendingRetentionStatus(BaseModel):
+    """热榜数据保留策略状态（M2-08，字段与运维接口保持一致）。"""
+
+    enabled: bool
+    retentionDays: int
+    cutoff: Optional[date] = None
+    archiveEnabled: bool
+    archiveDir: str
+    archiveKeepDays: int
+    totalSnapshots: int
+    expiredSnapshots: int
+    oldestDate: Optional[date] = None
+    latestDate: Optional[date] = None
+    databaseBytes: int
+    archiveFiles: int
+    archiveBytes: int
+
+
 class RecommendQuery(BaseModel):
     """语义查询请求。"""
 

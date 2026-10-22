@@ -252,6 +252,48 @@ def crawl_trending(
     }
 
 
+@celery_app.task(name="app.tasks.jobs.cleanup_trending_data")
+def cleanup_trending_data(
+    retention_days: Optional[int] = None,
+    archive: Optional[bool] = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """热榜数据保留：本地归档 + 删除，随后清理 D1 同日期范围快照。
+
+    归档失败时服务层会中止删除并返回 error；D1 清理失败只标记 partial，不影响本地结果。
+    """
+    from app.services.trending_retention import (
+        cleanup_edge_trending_snapshots,
+        cleanup_trending_snapshots,
+    )
+
+    db = SessionLocal()
+    try:
+        result = cleanup_trending_snapshots(
+            db,
+            retention_days=retention_days,
+            archive=archive,
+            dry_run=dry_run,
+        )
+    except Exception as exc:  # noqa: BLE001 - 任务失败降级为结构化结果
+        logger.exception("热榜保留清理失败")
+        return {"status": "error", "error": str(exc)[:300]}
+    finally:
+        db.close()
+
+    cutoff = result.get("cutoff")
+    if cutoff and result.get("status") in ("ok", "dry_run"):
+        edge_result = cleanup_edge_trending_snapshots(
+            date.fromisoformat(cutoff),
+            dry_run=dry_run,
+        )
+        result["edge"] = edge_result
+        if edge_result.get("error") and result.get("status") == "ok":
+            result["status"] = "partial"
+
+    return result
+
+
 @celery_app.task(name="app.tasks.jobs.generate_recommendations")
 def generate_recommendations(user_id: Optional[str] = None, top_k: int = 20) -> dict[str, Any]:
     """生成推荐：以本地仓库集合的平均向量为用户画像，对热榜候选排序后落库。"""

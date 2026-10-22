@@ -43,6 +43,13 @@ celery_app.conf.beat_schedule = {
         ),
         "kwargs": {"platform": "github", "languages": settings.TRENDING_LANGUAGES},
     },
+    "cleanup-trending-daily": {
+        "task": "app.tasks.jobs.cleanup_trending_data",
+        "schedule": crontab(
+            minute=settings.TRENDING_RETENTION_MINUTE,
+            hour=settings.TRENDING_RETENTION_HOUR,
+        ),
+    },
     "daily-push-at-9am": {
         "task": "app.tasks.jobs.daily_push",
         "schedule": crontab(minute=0, hour=9),
