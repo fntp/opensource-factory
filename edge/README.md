@@ -131,8 +131,9 @@ npx wrangler d1 execute opensource-factory --local --command "SELECT COUNT(*) FR
 | 方法/路径 | 返回 |
 | --- | --- |
 | `GET /api/repos?q=&categoryId=` | `RepoItem[]`（会话用户自己的仓库；`q` 模糊匹配名称/描述，`categoryId` 过滤分类） |
-| `GET /api/trending?date=&language=&limit=20` | `TrendingRepo[]`（公开；优先读按日快照，默认最近一天，可按日期 / 语言筛选；无快照时回退最新状态表） |
+| `GET /api/trending?date=&language=&limit=20` | `TrendingRepo[]`（公开；优先读按日快照，按 `rank` 升序，默认最近一天，可按日期 / 语言筛选；无快照时回退最新状态表） |
 | `GET /api/trending/dates?limit=30` | `[{date, count}]`（可用快照日期，倒序） |
+| `GET /api/trending/languages?date=` | `{date, languages: [{language, count}]}`（指定日期的语言分布） |
 | `GET /api/trending/history?repoId=&days=30` | `TrendingRepo[]`（单仓库 Star / 排名历史） |
 | `POST /api/internal/trending/snapshots` | 内部：VPS 批量 upsert 快照（`X-Internal-Token`，单批 ≤ 500） |
 | `GET /api/recommendations` | `Recommendation[]`（用户私有 + 全局，按 `score` 降序；需登录） |
@@ -146,7 +147,8 @@ JSON 形状（前端契约，勿改字段名）：
 ```ts
 RepoItem        { id, fullName, description, language, stars, forks, category, tags: string[], updatedAt, url }
 TrendingRepo    { id, owner, name, description, language, stars, starsToday, url,
-                  snapshotDate?, rank?, languageRank?, starDelta?, rankDelta?, appearances?, isNew?, trend? }
+                  snapshotDate, rank, rankChange, trend,
+                  languageRank?, starDelta?, rankDelta?, appearances?, isNew? }
 Recommendation  { id, owner, name, description, language, stars, score, reason, basedOn: string[], url }
 CategoriesPayload { categories: [{id, name, count, description}], tags: [{name, count}] }
 DashboardStats  { totalRepos, trendingToday, pendingRecommendations, categoryCount }

@@ -110,7 +110,8 @@ pytest -q
 
 - **鉴权**：当服务端设置 `INTERNAL_TOKEN` 时，请求必须携带请求头 `X-Internal-Token: <token>`，否则返回 `401`；
 - **异步语义**：任务接口一律 `202` + `{"taskId": ...}`（camelCase），由边缘侧轮询 `GET /api/tasks/{task_id}` 获取结果；
-- **直接查询接口**（供边缘回源或调试）：`GET /api/repos`、`GET /api/trending`、`GET /api/trending/snapshots`、`GET /api/trending/dates`、`GET /api/trending/history`、`POST /api/recommend/query`；
+- **直接查询接口**（供边缘回源或调试）：`GET /api/repos`、`GET /api/trending?date=&language=&limit=`、`GET /api/trending/snapshots`、`GET /api/trending/dates`、`GET /api/trending/languages?date=`、`GET /api/trending/history`、`POST /api/recommend/query`；
+- **热榜快照**：抓取任务同时写入 `trending_repositories`（最新状态）与 `trending_snapshots`（按日，主键 `(snapshot_date, repo_id)`）；快照含 `rank` / `language_rank` / `star_delta` / `rank_delta` / `appearances` / `is_new` / `trend`，趋势基线最多回看 7 天；
 - **数据契约**：本地表结构与 D1 Schema 保持一致（`my_repositories` / `trending_repositories` / `trending_snapshots` / `categories` 字段名与语义镜像），边缘侧按 `id`（`owner/repo`）对齐；
 - **降级语义**：外部依赖不可用时任务返回 `{"status": "skipped"|"error", ...}` 而不是失败抛错，边缘侧可安全重试。
 

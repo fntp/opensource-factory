@@ -165,15 +165,20 @@ export interface TrendingRepo {
   stars: number;
   starsToday: number;
   url: string;
-  /** 快照日期（读按日快照时返回） */
-  snapshotDate?: string;
-  rank?: number;
+  /** 快照日期（YYYY-MM-DD）；兼容旧数据时取 crawled_at */
+  snapshotDate: string | null;
+  /** 当日排名（从 1 开始） */
+  rank: number;
+  /** 相对上一快照日的排名变化（正数 = 上升，null = 新上榜） */
+  rankChange: number | null;
+  /** 趋势类型（steady 统一映射为 same） */
+  trend: 'up' | 'down' | 'new' | 'same';
+  /** M2-05 扩展字段（详情页 / 历史趋势备用） */
   languageRank?: number;
   starDelta?: number;
   rankDelta?: number;
   appearances?: number;
   isNew?: boolean;
-  trend?: string;
 }
 
 /** GET /api/recommendations 列表项 */
