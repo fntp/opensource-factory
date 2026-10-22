@@ -11,6 +11,7 @@
  */
 import { Hono } from 'hono';
 import type { Env, Variables } from '../types';
+import { requireInternalToken } from '../security/internal-token.ts';
 
 const internalVectors = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -23,16 +24,8 @@ interface VectorItem {
   metadata?: unknown;
 }
 
-function authorize(c: { env: Env; req: { header: (name: string) => string | undefined } }): Response | null {
-  const expected = (c.env.INTERNAL_TOKEN ?? '').trim();
-  if (!expected) {
-    return Response.json({ error: 'internal_token_not_configured' }, { status: 503 });
-  }
-  const provided = c.req.header('X-Internal-Token') ?? '';
-  if (provided !== expected) {
-    return Response.json({ error: 'unauthorized' }, { status: 401 });
-  }
-  return null;
+async function authorize(c: Parameters<typeof requireInternalToken>[0]): Promise<Response | null> {
+  return requireInternalToken(c);
 }
 
 function vectorizeOrNull(env: Env): Vectorize | null {
@@ -86,7 +79,7 @@ function errorMessage(err: unknown): string {
 }
 
 internalVectors.post('/upsert', async (c) => {
-  const denied = authorize(c);
+  const denied = await authorize(c);
   if (denied) return denied;
   const index = vectorizeOrNull(c.env);
   if (!index) return c.json({ error: 'vectorize_not_configured' }, 503);
@@ -130,7 +123,7 @@ internalVectors.post('/upsert', async (c) => {
 });
 
 internalVectors.post('/check', async (c) => {
-  const denied = authorize(c);
+  const denied = await authorize(c);
   if (denied) return denied;
   const index = vectorizeOrNull(c.env);
   if (!index) return c.json({ error: 'vectorize_not_configured' }, 503);
@@ -161,7 +154,7 @@ internalVectors.post('/check', async (c) => {
 });
 
 internalVectors.post('/delete', async (c) => {
-  const denied = authorize(c);
+  const denied = await authorize(c);
   if (denied) return denied;
   const index = vectorizeOrNull(c.env);
   if (!index) return c.json({ error: 'vectorize_not_configured' }, 503);
@@ -191,7 +184,7 @@ internalVectors.post('/delete', async (c) => {
 });
 
 internalVectors.get('/stats', async (c) => {
-  const denied = authorize(c);
+  const denied = await authorize(c);
   if (denied) return denied;
   const index = vectorizeOrNull(c.env);
   if (!index) return c.json({ error: 'vectorize_not_configured' }, 503);

@@ -134,6 +134,14 @@ npm run test:m2 -- --strict \
 | `GITHUB_CLIENT_SECRET` | **secret** | `wrangler secret put GITHUB_CLIENT_SECRET` |
 | `SESSION_SECRET` | **secret** | `wrangler secret put SESSION_SECRET` |
 | `INTERNAL_TOKEN` | secret（可选） | 边缘 ↔ VPS 内部调用令牌（边缘 → VPS 调度、VPS → 边缘摘要回写共用） |
+| `INTERNAL_TOKEN_PREVIOUS` | secret（可选） | 令牌轮换过渡位：与 `INTERNAL_TOKEN` 同时被接受，验证完成后清空 |
+| `RATE_LIMIT_ENABLED` | vars | 默认 `true`；`0` / `false` / `off` / `no` 关闭限流 |
+| `RATE_LIMIT_READ_PER_MINUTE` | vars | 读请求每分钟上限（默认 300） |
+| `RATE_LIMIT_WRITE_PER_MINUTE` | vars | 写请求每分钟上限（默认 60） |
+| `RATE_LIMIT_AUTH_PER_MINUTE` | vars | 认证接口每分钟上限（默认 10） |
+| `LOGIN_MAX_FAILURES` | vars | 登录失败阈值（默认 10 次 / 15 分钟） |
+| `LOGIN_FAILURE_WINDOW_SECONDS` | vars | 登录失败统计窗口（默认 900 秒） |
+| `LOGIN_LOCKOUT_SECONDS` | vars | 登录锁定时长（默认 900 秒） |
 
 ## 接口约定
 
@@ -233,4 +241,7 @@ DashboardStats  { totalRepos, trendingToday, pendingRecommendations, categoryCou
 - 会话 token 为 32 字节随机值，D1 中仅存 sha-256 摘要；有效期 30 天。
 - cookie：`of_session` / `of_oauth_state`，`HttpOnly; SameSite=Lax`，HTTPS 下附加 `Secure`。
 - OAuth `state` 双重校验（cookie + 查询参数比对）防 CSRF。
-- 任何密钥仅存于 Worker secrets，绝不进入前端代码或仓库。
+- 接口限流：按 auth / write / read 分桶，已登录按用户 id、匿名按 IP 哈希；超限 429 + `Retry-After`，D1 异常 fail-open。
+- 登录防护：失败窗口内达到 `LOGIN_MAX_FAILURES` 后按 IP 哈希锁定 `LOGIN_LOCKOUT_SECONDS`，成功登录清零。
+- 内部令牌支持双令牌轮换（`INTERNAL_TOKEN` + `INTERNAL_TOKEN_PREVIOUS`），运维接口：`GET /api/internal/security/status`、`POST /api/internal/security/cleanup`。
+- 任何密钥仅存于 Worker secrets，绝不进入前端代码或仓库；状态接口只返回 12 位指纹，不回显明文。

@@ -165,6 +165,12 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | `SEARCH_QUERY_EXPANSION_ENABLED` | `true` | 是否启用查询理解（同义词 / 技术栈词表扩展） |
 | `SEARCH_QUERY_EXPANSION_MAX_TERMS` | `12` | 单次查询最多扩展词数（1~50） |
 | `INTERNAL_TOKEN` | 空 | 设置后 `/api/tasks/*`、`/api/vector-index/*`、`/api/search/*` 必须携带 `X-Internal-Token`；为空表示本地开发不鉴权 |
+| `INTERNAL_TOKEN_PREVIOUS` | 空 | 令牌轮换过渡位：与 `INTERNAL_TOKEN` 同时被接受，验证完成后清空 |
+| `RATE_LIMIT_ENABLED` | `true` | 进程内限流开关；`false` 时完全放行 |
+| `RATE_LIMIT_WINDOW_SECONDS` | `60` | 滑动窗口长度（秒） |
+| `RATE_LIMIT_MAX_REQUESTS` | `600` | 普通接口每窗口上限 |
+| `RATE_LIMIT_HEAVY_MAX_REQUESTS` | `120` | 重接口每窗口上限（tasks / vector-index / search / recommend eval） |
+| `RATE_LIMIT_TRUST_PROXY` | `true` | 是否信任 `X-Forwarded-For` 第一跳（仅可信反向代理后开启） |
 | `CELERY_TASK_ALWAYS_EAGER` | `0` | 置 `1` 时任务同步执行（本地调试 / 测试用） |
 | `GITHUB_TOKEN` | 空 | GitHub PAT（仅需 read 权限）；为空时同步任务跳过 |
 | `TRENDING_LANGUAGES` | `python,javascript,typescript,go,rust,java,cpp,c,php,ruby,swift,kotlin` | 每日抓取的 Trending 语言页（逗号分隔；留空只抓全局页） |
@@ -297,7 +303,9 @@ Vectorize 索引维护接口（同样使用 `X-Internal-Token`）：
 
 约定：
 
-- **鉴权**：当服务端设置 `INTERNAL_TOKEN` 时，请求必须携带请求头 `X-Internal-Token: <token>`，否则返回 `401`；
+- **鉴权**：当服务端设置 `INTERNAL_TOKEN` 时，请求必须携带请求头 `X-Internal-Token: <token>`，否则返回 `401`；轮换期同时接受 `INTERNAL_TOKEN_PREVIOUS`；
+- **限流**：进程内滑动窗口，超限返回 429 `{"detail":"rate_limited","retryAfterSeconds":...}` + `Retry-After`；`/api/tasks`、`/api/vector-index`、`/api/search`、`/api/recommend/eval` 使用 `RATE_LIMIT_HEAVY_MAX_REQUESTS`；
+- **安全状态**：`GET /api/security/status` 返回限流参数与双令牌指纹（配置令牌时需 `X-Internal-Token`）；
 - **异步语义**：任务接口一律 `202` + `{"taskId": ...}`（camelCase），由边缘侧轮询 `GET /api/tasks/{task_id}` 获取结果；
 - **直接查询接口**（供边缘回源或调试）：`GET /api/repos`、`GET /api/trending?date=&language=&limit=`、`GET /api/trending/{owner}/{repo}`、`GET /api/trending/snapshots`、`GET /api/trending/dates`、`GET /api/trending/languages?date=`、`GET /api/trending/history`、`POST /api/recommend/query`；
 - **推荐理由**：`reason` 为中文可读文案，`based_on` 为 JSON 数组字符串（如 `["相似度 87%","语言 Python","技术栈 FastAPI"]`），由 `services/recommend_reason.py` 基于用户画像与候选字段生成，不调用 LLM；存量数据可调用 `POST /api/tasks/regenerate-recommendation-reasons` 批量回填；

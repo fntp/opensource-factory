@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
-from app.config import get_settings
 from app.db import SessionLocal
 from app.models import VectorizationRun
 from app.schemas import TaskEnqueued, TaskStatus, VectorizeEnqueued
+from app.security import require_internal_token
 from app.services.vector_pipeline import (
     RunFinished,
     RunNotFound,
@@ -34,17 +34,6 @@ from app.tasks.jobs import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
-
-
-def require_internal_token(
-    x_internal_token: str | None = Header(default=None, alias="X-Internal-Token"),
-) -> None:
-    """内部鉴权依赖：INTERNAL_TOKEN 未配置时不启用（本地开发）；配置后严格校验。"""
-    expected = (get_settings().INTERNAL_TOKEN or "").strip()
-    if not expected:
-        return
-    if x_internal_token != expected:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid internal token")
 
 
 @router.post(

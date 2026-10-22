@@ -8,6 +8,7 @@
 import { Hono } from 'hono';
 import type { Env, Variables } from '../types';
 import { count, first, run } from '../db';
+import { requireInternalToken } from '../security/internal-token.ts';
 
 const internalTrending = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -49,14 +50,8 @@ function isValidDate(value: string): boolean {
 }
 
 internalTrending.post('/snapshots', async (c) => {
-  const expected = (c.env.INTERNAL_TOKEN ?? '').trim();
-  if (!expected) {
-    return c.json({ error: 'internal_token_not_configured' }, 503);
-  }
-  const provided = c.req.header('X-Internal-Token') ?? '';
-  if (provided !== expected) {
-    return c.json({ error: 'unauthorized' }, 401);
-  }
+  const denied = await requireInternalToken(c);
+  if (denied) return denied;
 
   let body: { snapshotDate?: unknown; items?: unknown } | null = null;
   try {
@@ -147,14 +142,8 @@ internalTrending.post('/snapshots', async (c) => {
 });
 
 internalTrending.get('/retention', async (c) => {
-  const expected = (c.env.INTERNAL_TOKEN ?? '').trim();
-  if (!expected) {
-    return c.json({ error: 'internal_token_not_configured' }, 503);
-  }
-  const provided = c.req.header('X-Internal-Token') ?? '';
-  if (provided !== expected) {
-    return c.json({ error: 'unauthorized' }, 401);
-  }
+  const denied = await requireInternalToken(c);
+  if (denied) return denied;
 
   const total = await count(c.env.DB, 'SELECT COUNT(*) AS n FROM trending_snapshots');
   const bounds = await first<{ oldest: string | null; newest: string | null }>(
@@ -169,14 +158,8 @@ internalTrending.get('/retention', async (c) => {
 });
 
 internalTrending.post('/retention/cleanup', async (c) => {
-  const expected = (c.env.INTERNAL_TOKEN ?? '').trim();
-  if (!expected) {
-    return c.json({ error: 'internal_token_not_configured' }, 503);
-  }
-  const provided = c.req.header('X-Internal-Token') ?? '';
-  if (provided !== expected) {
-    return c.json({ error: 'unauthorized' }, 401);
-  }
+  const denied = await requireInternalToken(c);
+  if (denied) return denied;
 
   let body: { beforeDate?: unknown; dryRun?: unknown } | null = null;
   try {

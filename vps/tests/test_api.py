@@ -86,12 +86,12 @@ def test_generate_recommendations_rejects_invalid_min_score() -> None:
 
 
 def test_internal_token_enforced_when_configured(monkeypatch) -> None:
-    import app.api.tasks as tasks_api
+    import app.security as security_api
 
     class _FakeSettings:
         INTERNAL_TOKEN = "secret-token"
 
-    monkeypatch.setattr(tasks_api, "get_settings", lambda: _FakeSettings())
+    monkeypatch.setattr(security_api, "get_settings", lambda: _FakeSettings())
     with TestClient(app) as client:
         unauthorized = client.post("/api/tasks/sync")
         authorized = client.post("/api/tasks/sync", headers={"X-Internal-Token": "secret-token"})

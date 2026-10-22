@@ -6,6 +6,7 @@
 import { Hono } from 'hono';
 import type { Env, RepoItem, RepoRow, Variables } from '../types';
 import { all, run } from '../db';
+import { checkOptionalInternalToken } from '../security/internal-token.ts';
 
 const repos = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -43,13 +44,8 @@ interface SummaryItem {
  * 仅限内部调用（配置 INTERNAL_TOKEN 时校验 X-Internal-Token）。
  */
 repos.post('/summaries', async (c) => {
-  const expected = (c.env.INTERNAL_TOKEN ?? '').trim();
-  if (expected) {
-    const provided = c.req.header('X-Internal-Token') ?? '';
-    if (provided !== expected) {
-      return c.json({ error: 'unauthorized' }, 401);
-    }
-  }
+  const denied = await checkOptionalInternalToken(c);
+  if (denied) return denied;
 
   let body: { items?: SummaryItem[] } | null = null;
   try {

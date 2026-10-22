@@ -10,6 +10,7 @@
     "test:trending": "node --experimental-strip-types --test scripts/trending-query.test.mjs scripts/trending-detail.test.mjs",
     "test:m2": "node scripts/m2-acceptance.mjs",
     "test:vectorize": "node --test scripts/vectorize-route.test.mjs",
+    "test:security": "node --test scripts/security-route.test.mjs",
     "test": "node --test scripts/*.test.mjs",
     "db:migrate:local": "wrangler d1 migrations apply opensource-factory --local"
   },

@@ -163,7 +163,7 @@ def test_api_status_requires_internal_token_when_configured() -> None:
 
     protected = mock.Mock()
     protected.INTERNAL_TOKEN = "test-internal-token"
-    with mock.patch("app.api.tasks.get_settings", return_value=protected):
+    with mock.patch("app.security.get_settings", return_value=protected):
         with TestClient(app) as client:
             unauthorized = client.get("/api/degradation/status")
             authorized = client.get(

@@ -7,6 +7,15 @@
  */
 import { Hono } from 'hono';
 import type { Env, Variables } from '../types';
+import { clientIpFromHeaders } from '../security/rate-limit.ts';
+import {
+  clearLoginFailures,
+  loginGuardSettings,
+  loginIdentityHash,
+  loginLockState,
+  recordLoginFailure,
+  recordLoginSuccess,
+} from '../security/login-guard.ts';
 import {
   buildGithubAuthorizeUrl,
   clearOAuthStateCookie,
@@ -61,20 +70,43 @@ auth.get('/github/callback', async (c) => {
   const stateCookie = readCookie(c, OAUTH_STATE_COOKIE);
   clearOAuthStateCookie(c);
 
+  // 登录防护：失败达到阈值后按 IP 锁定（D1 异常时 fail-open）
+  const guard = loginGuardSettings(c.env);
+  const ip = clientIpFromHeaders(c.req.header('CF-Connecting-IP'), c.req.header('X-Forwarded-For'));
+  const ipHash = await loginIdentityHash(ip);
+  const now = Date.now();
+  const lock = await loginLockState(c.env.DB, ipHash, guard, now);
+  if (lock.locked) {
+    c.header('Retry-After', String(lock.retryAfterSeconds));
+    return c.json(
+      { error: 'login_locked', retryAfterSeconds: lock.retryAfterSeconds },
+      429
+    );
+  }
+
   // 校验 state（防 CSRF）
   if (!code || !state || !stateCookie || state !== stateCookie) {
+    await recordLoginFailure(c.env.DB, ipHash, 'invalid_state', guard, now);
     return c.json({ error: 'invalid_oauth_state' }, 400);
   }
 
   const token = await exchangeGithubCode(c.env, code);
-  if (!token) return c.json({ error: 'github_token_exchange_failed' }, 502);
+  if (!token) {
+    await recordLoginFailure(c.env.DB, ipHash, 'token_exchange_failed', guard, now);
+    return c.json({ error: 'github_token_exchange_failed' }, 502);
+  }
 
   const ghUser = await fetchGithubUser(token);
-  if (!ghUser) return c.json({ error: 'github_user_fetch_failed' }, 502);
+  if (!ghUser) {
+    await recordLoginFailure(c.env.DB, ipHash, 'user_fetch_failed', guard, now);
+    return c.json({ error: 'github_user_fetch_failed' }, 502);
+  }
 
   const user = await upsertGithubUser(c.env.DB, ghUser);
   const sessionToken = await createSession(c.env.DB, user.id);
   setSessionCookie(c, sessionToken);
+  await clearLoginFailures(c.env.DB, ipHash);
+  await recordLoginSuccess(c.env.DB, ipHash, now);
 
   const target = resolveRedirectTarget(c.env, url.searchParams.get('redirect'));
   return c.redirect(target, 302);

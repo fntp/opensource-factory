@@ -201,6 +201,39 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | occurrences | 累计出现次数 |
 | first_seen_at / last_seen_at / acknowledged_at | 首次 / 最近 / 确认时间 |
 
+### 3.8 安全加固表（D1，M5-05）
+
+> 迁移 `edge/migrations/0011_security_hardening.sql`；只存哈希与计数，不存明文 IP / 令牌。
+
+`rate_limit_counters`（固定窗口计数，按 `scope:identityHash` 分桶）：
+
+| 字段 | 说明 |
+| --- | --- |
+| bucket TEXT PK | 限流桶：`auth` / `write` / `read` + `:` + 身份哈希 |
+| window_start INTEGER | 当前窗口起点（Unix 秒） |
+| count | 窗口内请求数 |
+| expires_at TEXT | 过期时间，供定期清理 |
+
+`login_attempts`（登录失败 / 成功审计）：
+
+| 字段 | 说明 |
+| --- | --- |
+| id INTEGER PK | 自增主键 |
+| ip_hash | `sha256('login:' + IP)`，不落明文 |
+| outcome | `failure` / `success` |
+| reason | `invalid_oauth_state` / `github_token_exchange_failed` / `github_user_fetch_failed` 等 |
+| created_at | 记录时间 |
+
+`security_events`（安全事件）：
+
+| 字段 | 说明 |
+| --- | --- |
+| id INTEGER PK | 自增主键 |
+| event_type | `rate_limited` / `login_locked` / `login_succeeded` |
+| actor_hash | 触发者身份哈希（IP 或用户） |
+| detail | 事件上下文（scope / 原因等） |
+| created_at | 事件时间 |
+
 ## 4. 索引策略
 
 | 表 | 索引 | 用途 |
@@ -214,6 +247,9 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | recommendations | `(user_id, score DESC)` | 推荐列表 |
 | crawl_alerts | `(dedupe_key)`、`(status)` | 告警去重与未确认列表 |
 | recommendation_feedback | `(user_id, recommendation_id, action)` UNIQUE、`(user_id, created_at)`、`(user_id, repo_id)` | 反馈幂等 / 回流查询 |
+| rate_limit_counters | `(expires_at)` | 过期限流计数清理 |
+| login_attempts | `(ip_hash, created_at)` | 失败窗口统计 / 清理 |
+| security_events | `(event_type, created_at)` | 安全事件检索 / 清理 |
 
 ## 5. 向量数据（M3）
 
