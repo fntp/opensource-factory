@@ -89,26 +89,21 @@ admin 热榜列表 → 详情页 GET /api/trending/{owner}/{name}（摘要 + 元
 任务不抛异常。告警写入本地 `crawl_alerts`，通过 `GET /api/trending/alerts` 查询、
 `POST /api/trending/alerts/{id}/ack` 确认。
 
-### 3.3.1 向量索引同步（M3-03）
-
-```
-repo_vectors（VPS SQLite，M3-02 产出）
-→ 按 (source, repo_id) keyset 分批读取（默认 100，上限 1000）
-→ POST {EDGE_BASE_URL}/api/internal/vectors/upsert（X-Internal-Token）
-→ edge Worker 绑定 VECTORIZE.upsert → Cloudflare Vectorize
-```
-
-- 增量模式以 `text_hash + model + backend + dim` 判定变更，未变化且已同步的向量跳过；`full` 模式全量重传；
-- 网络错误 / 429 / 5xx 指数退避重试；单批最终失败仅标记该批，不中断整个运行，下次增量自动重试；
-- 每批提交后持久化游标（`vector_index_runs.cursor_source/cursor_repo_id`），任务中断可断点续跑；
-- 对账模式调用 `getByIds` 校验本地向量是否存在，可选修复缺失 / 过期向量并清理孤儿（默认关闭）；
-- 定时任务：Celery beat 每日 04:37 增量同步、05:17 对账；手动入口 `POST /api/vector-index/sync` / `reconcile`。
-
 ### 3.4 推荐流（RAG）
 
 ```
 用户自然语言查询 → edge → Vectorize 检索（已收藏库 + 热榜库）
 → 结果聚合排序 → 返回（含匹配度与理由）；每日推送任务见 M4
+```
+
+### 3.4.1 每日推荐生成（M3-05）
+
+每日推荐生成（M3-05）：
+
+```
+Celery beat 08:30 → 收藏库平均向量（复用 repo_vectors）→ 热榜候选
+→ 排除已收藏 → 相似度 × 0.8 + 热榜热度 × 0.2 → 阈值过滤 → top_k
+→ upsert recommendations（旧 new 未入选标记 expired）→ 09:00 推送准备
 ```
 
 ### 3.5 模型选型与推理预算（M3-01）
@@ -132,20 +127,20 @@ repo_vectors（VPS SQLite，M3-02 产出）
 → M3-03 批量同步 Cloudflare Vectorize
 ```
 
-### 3.6 向量索引同步流（M3-03）
+### 3.7 向量索引同步流（M3-03）
 
 ```
-Celery beat（每 30 分钟）或 POST /api/vector-index/sync
-→ VPS 读取本地 repo_vectors（仅 text_hash 变更 / 上次失败项；force 可全量）
+Celery beat（每日 04:37）或 POST /api/vector-index/sync
+→ VPS 读取本地 repo_vectors（仅 text_hash / model / backend / dim 变化或上次失败项；full 可全量）
 → 按批 POST {EDGE_BASE_URL}/api/internal/vectors/upsert（X-Internal-Token）
 → edge Worker 通过 Vectorize 绑定批量 upsert
-→ VPS 写 vector_sync_state（逐条状态）/ vector_sync_runs（运行统计）
+→ VPS 写 vector_index_state（逐条状态）/ vector_index_runs（运行统计 + 断点游标）
 
-对账（kind=reconcile）：POST /api/internal/vectors/check 比对缺失 / 过期向量并修复；
-可选 list + delete 清理孤儿（默认关闭）。
+对账（每日 05:17 或 POST /api/vector-index/reconcile）：getByIds 比对缺失 / 过期向量，
+可选修复并按开关清理孤儿（默认关闭）。
 ```
 
-### 3.7 语义搜索流（M3-04）
+### 3.8 语义搜索流（M3-04）
 
 ```
 admin 搜索页 POST /api/search/semantic（登录态）

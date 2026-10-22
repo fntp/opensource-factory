@@ -36,7 +36,8 @@ vps/
 │   │   ├── embedding.py          # BGE-M3（懒加载）与确定性 hash 降级向量
 │   │   ├── vector_pipeline.py    # 收藏库 / 热榜向量化：批量、增量、断点续跑
 │   │   ├── summarizer.py         # Ollama → DeepSeek → 截断降级 的摘要生成
-│   │   ├── recommender.py        # 余弦排序 + 中文推荐理由模板
+│   │   ├── recommender.py        # 余弦排序 + 综合打分 + 中文推荐理由模板
+│   │   ├── recommendation_service.py # 每日推荐：画像 / 去重已收藏 / 阈值 / 落库
 │   │   ├── vector_index.py       # Vectorize 批量 upsert / 重试 / 对账 / 孤儿清理
 │   │   └── semantic_search.py    # 查询向量化 + repo_vectors 余弦检索 + 结果水合
 │   ├── api/                  # HTTP 层（只做参数校验与编排）
@@ -127,6 +128,11 @@ deploy/scripts/doctor.sh --services          # 基线自检
 | `VECTORIZE_BATCH_SIZE` | `32` | 向量化每批编码 / 提交条数（1~256） |
 | `VECTORIZE_MAX_PER_RUN` | `1000` | 单次向量化默认上限 |
 | `VECTORIZE_AUTO` | `1` | 同步 / 热榜抓取完成后自动入队增量向量化 |
+| `RECOMMEND_MIN_SCORE` | `0.30` | 推荐最终得分最低阈值（0~1） |
+| `RECOMMEND_DAILY_TOP_K` | `20` | 每日任务每个用户最多生成的推荐数 |
+| `RECOMMEND_CANDIDATE_LIMIT` | `500` | 单次参与打分的热榜候选上限 |
+| `RECOMMEND_SIMILARITY_WEIGHT` | `0.8` | 相似度权重 |
+| `RECOMMEND_TRENDING_WEIGHT` | `0.2` | 热榜热度权重 |
 | `EDGE_BASE_URL` | 空 | 边缘 API 地址；配置后摘要任务与热榜快照批量回写 D1，同时作为 Vectorize 同步目标 |
 | `VECTORIZE_SYNC_ENABLED` | `true` | Vectorize 同步总开关；`false` 时同步任务直接返回 `disabled` |
 | `VECTORIZE_INDEX_NAME` | `opensource-factory-vectors` | 索引名（仅用于状态展示，实际绑定在 edge `wrangler.toml`） |
@@ -200,7 +206,7 @@ int8 量化在 `sentence-transformers` 后端下对 Linear 层做动态量化；
 | POST | `/api/tasks/summarize` | 入队 README 摘要批量生成（可选 `repo_id` 重复传、`limit`、`batch_size`、`force`、`max_chars`、`source=my\|trending\|all`） | `202 {"taskId": "..."}` |
 | POST | `/api/trending/summarize` | 入队热榜摘要生成（等价 `source=trending`，可选 `repo_id`、`limit`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/crawl-trending` | 入队热榜抓取（`platform=github\|gitee\|all`；可选 `language` 单页、`languages` 多页 CSV、`since=daily\|weekly\|monthly`、`with_summary`、`summary_limit`） | `202 {"taskId": "..."}` |
-| POST | `/api/tasks/generate-recommendations` | 入队推荐生成（可选 `user_id`、`top_k`） | `202 {"taskId": "..."}` |
+| POST | `/api/tasks/generate-recommendations` | 入队推荐生成（可选 `user_id`、`top_k`、`min_score`） | `202 {"taskId": "..."}` |
 | POST | `/api/tasks/daily-push` | 入队每日推送准备（将 `new` 推荐标记为 `pushed`） | `202 {"taskId": "..."}` |
 | GET | `/api/tasks/{task_id}` | 查询任务状态（`pending/started/progress/success/failure`，PROGRESS 时带 `progress`） | `200 {"taskId","status","result","progress"}` |
 | POST | `/api/tasks/vectorize` | 入队向量化（`scope=my\|trending\|all`，可选 `limit` / `batch_size` / `force` / `run_id`） | `202 {"taskId","runId"}` |
@@ -345,6 +351,28 @@ curl -sS -X POST 'http://127.0.0.1:8000/api/search/semantic' \
 # 覆盖率 / 模型分布
 curl -sS 'http://127.0.0.1:8000/api/search/status'
 ```
+
+## 每日推荐生成（M3-05）
+
+Celery beat 每天 08:30（Asia/Shanghai）执行 `generate_recommendations`，早于 09:00 的每日推送准备：
+
+1. **画像**：按 star 取收藏库前 1000 条，优先复用 `repo_vectors(source='my')`，缺失时现场编码并回写；对有效向量求平均并 L2 归一化；
+2. **候选**：热榜按 `stars_today` 降序取前 `RECOMMEND_CANDIDATE_LIMIT` 条，排除 `my_repositories` 已收藏的仓库；
+3. **打分**：`score = 0.8 × 相似度 + 0.2 × 热度`，热度为 `log1p(stars_today)` 在候选集内归一化；
+4. **阈值 / TopK**：过滤 `score < RECOMMEND_MIN_SCORE`，按得分降序取 `RECOMMEND_DAILY_TOP_K`；
+5. **落库**：按 `(user_id, repo_id)` 更新已有推荐；旧 `new` 未入选或已收藏标记 `expired`；`saved` / `dismissed` / `pushed` 保留原状态。
+
+```bash
+# 手动触发（默认阈值 0.30、top_k 20）
+curl -sS -X POST 'http://127.0.0.1:8000/api/tasks/generate-recommendations' \
+  -H 'X-Internal-Token: <token>'
+
+# 指定用户 / 阈值 / 数量
+curl -sS -X POST 'http://127.0.0.1:8000/api/tasks/generate-recommendations?user_id=default&top_k=10&min_score=0.5' \
+  -H 'X-Internal-Token: <token>'
+```
+
+任务返回 `created / updated / expired / selected / candidates / excludedCollected / belowThreshold` 等计数，便于 M3-08 调参。
 
 ## 常用检查
 

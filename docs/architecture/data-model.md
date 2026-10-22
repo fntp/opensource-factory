@@ -146,10 +146,10 @@ VPS 本地 SQLite 表（M2-04），不复制到 D1；用于留存样本、人工
 | id TEXT PK | 推荐 id |
 | user_id | 目标用户（NULL = 全局） |
 | owner / name / description / language / stars / url | 推荐项目快照 |
-| score REAL | 匹配度 0~1 |
+| score REAL | 综合得分 0~1（相似度 × 0.8 + 热榜热度 × 0.2） |
 | reason TEXT | 推荐理由（中文） |
 | based_on TEXT | 依据（JSON 数组，如 `["AI/LLM","Python"]`） |
-| status TEXT | `new` / `saved` / `dismissed` / `pushed` |
+| status TEXT | `new` / `saved` / `dismissed` / `pushed` / `expired`（VPS 每日任务未入选或已收藏） |
 | created_at | 生成时间 |
 
 ### 3.5 `crawl_alerts` / `crawl_page_stats` 抓取告警（VPS 本地表）

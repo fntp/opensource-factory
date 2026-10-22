@@ -156,7 +156,9 @@ class Recommendation(Base):
     repo_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    status: Mapped[str] = mapped_column(String(32), nullable=False, default="new")  # new | pushed | ...
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="new"
+    )  # new | pushed | saved | dismissed | expired
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
 
 

@@ -92,6 +92,18 @@ class Settings(BaseSettings):
     SEARCH_MAX_VECTORS: int = 50000
 
     # 内部接口鉴权（设置后 /api/tasks/*、/api/vector-index/*、/api/search/* 校验 X-Internal-Token）
+    # 推荐生成（M3-05）
+    # 最终得分最低阈值（0~1）：相似度 × 权重 + 热榜热度 × 权重
+    RECOMMEND_MIN_SCORE: float = 0.30
+    # 每日任务每个用户最多生成的推荐数
+    RECOMMEND_DAILY_TOP_K: int = 20
+    # 单次参与打分的热榜候选上限
+    RECOMMEND_CANDIDATE_LIMIT: int = 500
+    # 相似度 / 热榜热度权重（均为 0 时退化为纯相似度）
+    RECOMMEND_SIMILARITY_WEIGHT: float = 0.8
+    RECOMMEND_TRENDING_WEIGHT: float = 0.2
+
+    # 内部接口鉴权（设置后 /api/tasks/* 校验 X-Internal-Token）
     INTERNAL_TOKEN: str = ""
 
     # Celery

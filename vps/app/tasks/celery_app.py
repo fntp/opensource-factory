@@ -2,7 +2,7 @@
 
 - broker / backend：`REDIS_URL`（默认 `redis://localhost:6379/0`）；
 - `CELERY_TASK_ALWAYS_EAGER=1` 时任务同步执行（本地调试 / 测试）；
-- beat 计划：每日抓取热榜（全局页 + 多语言页）、每日 09:00 推送准备。
+- beat 计划：每日抓取热榜（全局页 + 多语言页）、每日 08:30 生成推荐、每日 09:00 推送准备。
 """
 from __future__ import annotations
 
@@ -49,6 +49,11 @@ celery_app.conf.beat_schedule = {
             minute=settings.TRENDING_RETENTION_MINUTE,
             hour=settings.TRENDING_RETENTION_HOUR,
         ),
+    },
+    # 每日推荐生成（M3-05）：08:30 生成，09:00 推送准备使用最新结果
+    "generate-recommendations-daily": {
+        "task": "app.tasks.jobs.generate_recommendations",
+        "schedule": crontab(minute=30, hour=8),
     },
     "daily-push-at-9am": {
         "task": "app.tasks.jobs.daily_push",

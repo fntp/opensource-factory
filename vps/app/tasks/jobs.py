@@ -10,13 +10,12 @@ import concurrent.futures
 import logging
 from datetime import date
 from typing import Any, Coroutine, Optional
-from uuid import uuid4
 
 from sqlalchemy import select
 
 from app.config import get_settings
 from app.db import SessionLocal
-from app.models import MyRepository, Recommendation, TrendingRepository, User
+from app.models import MyRepository, Recommendation, TrendingRepository
 from app.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -451,88 +450,40 @@ def cleanup_trending_data(
 
 
 @celery_app.task(name="app.tasks.jobs.generate_recommendations")
-def generate_recommendations(user_id: Optional[str] = None, top_k: int = 20) -> dict[str, Any]:
-    """生成推荐：以本地仓库集合的平均向量为用户画像，对热榜候选排序后落库。"""
-    from app.services.embedding import get_embedding_service
-    from app.services.recommender import build_reason, recommend
+def generate_recommendations(
+    user_id: Optional[str] = None,
+    top_k: Optional[int] = None,
+    min_score: Optional[float] = None,
+) -> dict[str, Any]:
+    """每日推荐生成：画像 → 热榜候选 → 去重已收藏 → 阈值过滤 → 综合打分 → 落库。
 
-    service = get_embedding_service()
+    参数为空时使用配置默认值（`RECOMMEND_DAILY_TOP_K` / `RECOMMEND_MIN_SCORE`）；
+    外部依赖异常由服务层降级为结构化结果，不向 Celery 抛错。
+    """
+    from app.services.embedding import get_embedding_service
+    from app.services.recommendation_service import generate_daily_recommendations
+
     db = SessionLocal()
     try:
-        # 目标用户：指定用户 → 全部用户 → 兜底创建 default（单机自测友好）
-        if user_id:
-            target_users = [user_id]
-        else:
-            target_users = [u.id for u in db.execute(select(User)).scalars().all()]
-            if not target_users:
-                if db.get(User, "default") is None:
-                    db.add(User(id="default", username="default"))
-                    db.commit()
-                target_users = ["default"]
-
-        # 用户画像：本地镜像仓库文本的平均向量
-        my_repos = db.execute(select(MyRepository).limit(1000)).scalars().all()
-        profile_texts = [
-            " ".join(filter(None, [r.name, r.description or "", r.readme_summary or "", r.language or ""]))
-            for r in my_repos
-        ]
-        if not profile_texts:
-            return {"status": "skipped", "reason": "本地没有仓库数据，无法构建用户画像"}
-
-        profile_vectors = service.encode(profile_texts)
-        dim = len(profile_vectors[0])
-        profile_vec = service.normalize(
-            [sum(vec[i] for vec in profile_vectors) / len(profile_vectors) for i in range(dim)]
+        result = generate_daily_recommendations(
+            db,
+            user_id=user_id,
+            service=get_embedding_service(),
+            top_k=top_k,
+            min_score=min_score,
         )
-
-        # 候选：热榜仓库
-        trending_rows = db.execute(select(TrendingRepository).limit(500)).scalars().all()
-        if not trending_rows:
-            return {"status": "skipped", "reason": "热榜数据为空，请先执行 crawl-trending"}
-        candidate_texts = [
-            " ".join(filter(None, [r.name, r.description or "", r.tech_stack or ""]))
-            for r in trending_rows
-        ]
-        candidate_vectors = service.encode(candidate_texts)
-        ranked = recommend(
-            profile_vec,
-            [(row.id, vec) for row, vec in zip(trending_rows, candidate_vectors)],
-            top_k=max(1, int(top_k)),
-        )
-
-        by_id = {row.id: row for row in trending_rows}
-        created = 0
-        for repo_id, score in ranked:
-            row = by_id.get(repo_id)
-            if row is None:
-                continue
-            for uid in target_users:
-                existing = db.execute(
-                    select(Recommendation).where(
-                        Recommendation.user_id == uid, Recommendation.repo_id == repo_id
-                    )
-                ).scalar_one_or_none()
-                if existing is not None:
-                    existing.score = float(score)
-                    existing.reason = build_reason(row, score)
-                    continue
-                db.add(
-                    Recommendation(
-                        id=uuid4().hex,
-                        user_id=uid,
-                        repo_id=repo_id,
-                        score=float(score),
-                        reason=build_reason(row, score),
-                        status="new",
-                    )
-                )
-                created += 1
-        db.commit()
     finally:
         db.close()
 
-    logger.info("推荐生成完成: 用户 %s，新增 %d 条", target_users, created)
-    return {"status": "ok", "users": target_users, "created": created}
+    logger.info(
+        "推荐生成任务完成: status=%s users=%s created=%d updated=%d expired=%d",
+        result.get("status"),
+        result.get("users"),
+        result.get("created", 0),
+        result.get("updated", 0),
+        result.get("expired", 0),
+    )
+    return result
 
 
 @celery_app.task(name="app.tasks.jobs.daily_push")
