@@ -252,10 +252,10 @@ def test_health_api_list_and_detail(db) -> None:
 
 
 def test_health_api_requires_internal_token(monkeypatch) -> None:
-    from app.api import tasks as tasks_api
+    from app import security
 
     monkeypatch.setattr(
-        tasks_api,
+        security,
         "get_settings",
         lambda: SimpleNamespace(INTERNAL_TOKEN="secret-token"),
     )

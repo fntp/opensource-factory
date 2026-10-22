@@ -120,6 +120,9 @@ async def enqueue_repo_health_refresh(payload: RepoHealthRefreshRequest) -> Task
         limit=payload.limit,
     )
     return TaskEnqueued(taskId=task.id)
+
+
+@router.get(
     "/{repo_id:path}/license",
     response_model=LicenseInfoOut,
     summary="单仓库 License 合规提示（未识别时返回 unknown）",

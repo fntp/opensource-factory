@@ -15,7 +15,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api import (
-from app.api import (
     analysis,
     backup,
     degradation,
@@ -30,12 +29,6 @@ from app.api import (
     repos,
     search,
     security,
-    summaries,
-    tasks,
-    trending,
-    vector_index,
-    vectors,
-)
     summaries,
     tasks,
     trending,
